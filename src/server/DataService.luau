@@ -12,6 +12,7 @@
 local DataStoreService = game:GetService("DataStoreService")
 local Players = game:GetService("Players")
 local ReplicatedStorage = game:GetService("ReplicatedStorage")
+local RunService = game:GetService("RunService")
 
 local Shared = ReplicatedStorage:WaitForChild("Shared")
 local Config = require(Shared.Config)
@@ -30,8 +31,6 @@ local DataService = {}
 
 -- (player: Player, data: PlayerData)
 DataService.ProfileLoaded = Signal.new()
--- (player: Player, newAmount: number, delta: number)
-DataService.MoneyChanged = Signal.new()
 
 local profiles: { [Player]: PlayerData } = {}
 local canSave: { [Player]: boolean } = {}
@@ -63,23 +62,59 @@ local function initStore()
 end
 
 -- Atributos replicados al cliente para que la UI los lea sin remotes.
+-- Clase del slot equipado (o la por defecto si algo no cuadra).
+local function equippedClassOf(data: PlayerData): string
+	local className = data.ClassSlots[data.EquippedSlot]
+	return if className and Config.Classes[className] then className else Config.DefaultClass
+end
+
 local function pushAttributes(player: Player, data: PlayerData)
-	player:SetAttribute("Money", data.Money)
+	player:SetAttribute("Diamonds", data.Diamonds)
+	player:SetAttribute("PaidDiamonds", data.PaidDiamonds)
 	player:SetAttribute("BestNight", data.BestNight)
-	player:SetAttribute("EquippedClass", data.EquippedClass)
-	for itemId in Config.ShopItems do
-		player:SetAttribute("Item_" .. itemId, data.Inventory[itemId] or 0)
+	player:SetAttribute("ReviveTokens", data.ReviveTokens)
+	player:SetAttribute("MaxSlots", data.MaxSlots)
+	player:SetAttribute("EquippedSlot", data.EquippedSlot)
+	player:SetAttribute("EquippedClass", equippedClassOf(data))
+	for i = 1, Config.Roulette.MaxSlots do
+		player:SetAttribute("Slot_" .. i, data.ClassSlots[i] or "")
+	end
+	for achievementId in Config.Achievements do
+		player:SetAttribute("Ach_" .. achievementId, data.Achievements[achievementId] == true)
 	end
 end
 
 local function sanitize(data: PlayerData)
+	local raw = data :: any
 	data.SessionLock = nil
-	Util.reconcile(data :: any, Config.DefaultData :: any)
-	-- Si la clase equipada ya no existe o no es suya, volver a la por defecto.
-	if not Config.Classes[data.EquippedClass] or not data.OwnedClasses[data.EquippedClass] then
-		data.EquippedClass = Config.DefaultClass
+
+	-- Migracion v1 -> v2: el dinero, las mejoras y los objetos pasaron a ser por partida,
+	-- y las clases ahora van en slots (se conserva la que tenias equipada).
+	if (raw.Version or 1) < 2 then
+		local oldClass = raw.EquippedClass
+		raw.ClassSlots = { if type(oldClass) == "string" and Config.Classes[oldClass] then oldClass else Config.DefaultClass }
+		raw.Version = 2
 	end
-	data.OwnedClasses[Config.DefaultClass] = true
+	raw.Money = nil
+	raw.Upgrades = nil
+	raw.Inventory = nil
+	raw.OwnedClasses = nil
+	raw.EquippedClass = nil
+	raw.PendingClass = nil
+
+	Util.reconcile(raw, Config.DefaultData :: any)
+
+	-- Todos los slots desbloqueados tienen clase (los nuevos empiezan con la por defecto)
+	data.MaxSlots = math.clamp(data.MaxSlots, Config.Roulette.DefaultSlots, Config.Roulette.MaxSlots)
+	local slots = {}
+	for i = 1, data.MaxSlots do
+		local className = data.ClassSlots[i]
+		slots[i] = if className and Config.Classes[className] then className else Config.DefaultClass
+	end
+	data.ClassSlots = slots
+	if not data.ClassSlots[data.EquippedSlot] then
+		data.EquippedSlot = 1
+	end
 end
 
 -- Devuelve (ok, data). ok=false significa error real de DataStore.
@@ -179,6 +214,10 @@ local function onPlayerAdded(player: Player)
 
 	sanitize(data)
 
+	if RunService:IsStudio() and (Config.Debug.StudioBonusDiamonds or 0) > 0 then
+		data.Diamonds += Config.Debug.StudioBonusDiamonds
+	end
+
 	if player.Parent == nil then
 		-- Se fue mientras cargaba: liberar el bloqueo y salir.
 		profiles[player] = data
@@ -231,33 +270,54 @@ function DataService.Update(player: Player, fn: (data: PlayerData) -> ())
 	pushAttributes(player, data)
 end
 
-function DataService.GetMoney(player: Player): number
+function DataService.GetEquippedClass(player: Player): string
 	local data = profiles[player]
-	return if data then data.Money else 0
+	return if data then equippedClassOf(data) else Config.DefaultClass
 end
 
-function DataService.AddMoney(player: Player, amount: number)
+----------------------------------------------------------------------
+-- Diamantes (moneda permanente)
+----------------------------------------------------------------------
+
+-- paid = true si vienen de una compra con Robux.
+function DataService.AddDiamonds(player: Player, amount: number, paid: boolean?)
 	local data = profiles[player]
 	if not data or amount <= 0 then
 		return
 	end
 	amount = math.floor(amount)
-	data.Money += amount
-	data.Lifetime.MoneyEarned += amount
+	data.Diamonds += amount
+	if paid then
+		data.PaidDiamonds += amount
+	else
+		data.Lifetime.DiamondsEarned += amount
+	end
 	pushAttributes(player, data)
-	DataService.MoneyChanged:Fire(player, data.Money, amount)
 end
 
--- Cobra si alcanza. Devuelve true si se cobro.
-function DataService.TrySpend(player: Player, amount: number): boolean
+-- Diamantes que puede gastar en algo aleatorio (la ruleta).
+-- Si su pais restringe objetos aleatorios pagados, solo cuentan los ganados jugando.
+function DataService.GetSpendableDiamonds(player: Player, paidRandomRestricted: boolean): number
 	local data = profiles[player]
-	if not data or amount < 0 or data.Money < amount then
+	if not data then
+		return 0
+	end
+	return if paidRandomRestricted then math.max(0, data.Diamonds - data.PaidDiamonds) else data.Diamonds
+end
+
+function DataService.TrySpendDiamonds(player: Player, amount: number, paidRandomRestricted: boolean): boolean
+	local data = profiles[player]
+	if not data or amount < 0 or DataService.GetSpendableDiamonds(player, paidRandomRestricted) < amount then
 		return false
 	end
 	amount = math.floor(amount)
-	data.Money -= amount
+	data.Diamonds -= amount
+	if not paidRandomRestricted then
+		-- Se gastan primero los comprados, para que los ganados sigan sirviendo en cualquier pais
+		data.PaidDiamonds = math.max(0, data.PaidDiamonds - amount)
+	end
+	data.PaidDiamonds = math.min(data.PaidDiamonds, data.Diamonds)
 	pushAttributes(player, data)
-	DataService.MoneyChanged:Fire(player, data.Money, -amount)
 	return true
 end
 

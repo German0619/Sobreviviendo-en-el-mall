@@ -14,15 +14,13 @@ local Remotes = require(Shared.Remotes)
 
 local FlashlightService = {}
 
-local DataService = require(script.Parent.DataService)
-
 local ATTACHMENT_NAME = "FlashlightAttachment"
 local COS_DETECT = math.cos(math.rad(Config.Flashlight.DetectHalfAngle))
 local COS_DETECT_PRO = math.cos(math.rad(Config.Flashlight.DetectHalfAngle + Config.FlashlightPro.ExtraDetectAngle))
 
+-- El inventario (por vida) lo lleva ShopService y lo publica en atributos del servidor.
 local function hasPro(player: Player): boolean
-	local data = DataService.GetData(player)
-	return data ~= nil and (data.Inventory.FlashlightPro or 0) > 0
+	return (player:GetAttribute("Item_FlashlightPro") or 0) > 0
 end
 
 local function getMaxBattery(player: Player): number

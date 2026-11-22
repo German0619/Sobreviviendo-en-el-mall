@@ -8,8 +8,13 @@
 
 local PathfindingService = game:GetService("PathfindingService")
 local Players = game:GetService("Players")
+local ServerScriptService = game:GetService("ServerScriptService")
 local ServerStorage = game:GetService("ServerStorage")
 local Workspace = game:GetService("Workspace")
+
+local Config = require(game:GetService("ReplicatedStorage"):WaitForChild("Shared").Config)
+local PlayerStats = require(ServerScriptService:WaitForChild("Server"):WaitForChild("PlayerStats"))
+local LightService = require(ServerScriptService:WaitForChild("Server"):WaitForChild("LightService"))
 
 local Common = {}
 
@@ -284,6 +289,79 @@ end
 
 function Mover:Destroy()
 	self.Destroyed = true
+end
+
+----------------------------------------------------------------------
+-- Deteccion
+----------------------------------------------------------------------
+-- Cada enemigo tiene que "notar" a un jugador durante un tiempo antes de
+-- perseguirlo, y lo recuerda unos segundos tras perderlo de vista.
+-- La clase Sombra (Perk DetectionDelay) tarda mas en ser detectada.
+
+local Awareness = {}
+Awareness.__index = Awareness
+
+function Common.newAwareness(ctx)
+	return setmetatable({ Ctx = ctx, Level = {}, KnownAt = {} }, Awareness)
+end
+
+function Awareness:DetectTime(player: Player): number
+	local delay = PlayerStats.GetPerk(player, "DetectionDelay") or 1
+	return Config.Detection.BaseTime * delay / self.Ctx.Difficulty.DetectionMultiplier
+end
+
+-- senses(player, root) -> boolean: si el enemigo percibe al jugador ahora mismo.
+-- Devuelve (player, root, distancia) del objetivo detectado mas cercano, o nil.
+function Awareness:Update(dt: number, position: Vector3, senses: (Player, BasePart) -> boolean)
+	local now = os.clock()
+	local best, bestRoot, bestDist = nil, nil, math.huge
+	for _, player in Common.getAlivePlayers() do
+		local root = Common.getRoot(player)
+		if root then
+			if senses(player, root) then
+				local level = (self.Level[player] or 0) + dt / self:DetectTime(player)
+				self.Level[player] = math.min(level, 1)
+				if level >= 1 then
+					self.KnownAt[player] = now
+				end
+			else
+				self.Level[player] = math.max(0, (self.Level[player] or 0) - dt * 0.5)
+			end
+			local knownAt = self.KnownAt[player]
+			if knownAt and now - knownAt <= Config.Detection.Memory then
+				local d = (root.Position - position).Magnitude
+				if d < bestDist then
+					best, bestRoot, bestDist = player, root, d
+				end
+			end
+		end
+	end
+	return best, bestRoot, bestDist
+end
+
+-- Sentido estandar: te ve si hay linea de vision a menos de SenseRange,
+-- o te siente si estas muy cerca.
+function Common.canSee(eye: Vector3, root: BasePart): boolean
+	local d = (root.Position - eye).Magnitude
+	if d <= Config.Detection.CloseRange then
+		return true
+	end
+	return d <= Config.Detection.SenseRange and Common.lineOfSight(eye, root.Position)
+end
+
+-- Punto al azar para patrullar (centro de una zona).
+function Common.randomPatrolPoint(): Vector3?
+	local zones = LightService.GetZones()
+	if #zones == 0 then
+		return nil
+	end
+	local center = LightService.GetZoneCenter(zones[math.random(1, #zones)])
+	if not center then
+		return nil
+	end
+	-- Bajar al suelo (el centro de la zona puede estar en el aire)
+	local hit = Workspace:Raycast(center, Vector3.new(0, -100, 0), Common.raycastParams())
+	return if hit then hit.Position else center
 end
 
 return Common

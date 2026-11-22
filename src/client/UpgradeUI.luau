@@ -36,7 +36,7 @@ local function refresh()
 		return
 	end
 	local money = player:GetAttribute("Money") or 0
-	moneyLabel.Text = "Dinero: " .. Util.formatMoney(money)
+	moneyLabel.Text = "Billetes: " .. Util.formatMoney(money) .. "   (las mejoras duran esta partida)"
 	for statName, row in rows do
 		local stat = Config.Stats[statName]
 		local level = player:GetAttribute("Level_" .. statName) or 0
@@ -63,7 +63,8 @@ local function requestUpgrade(statName: string)
 	end)
 	busy = false
 	if not ok then
-		setStatus("Error de conexión")
+		warn("[UpgradeUI] RequestUpgrade fallo:", result)
+		setStatus("Error: " .. tostring(result))
 	elseif result then
 		setStatus(Config.Stats[statName].DisplayName .. " mejorada", true)
 	else

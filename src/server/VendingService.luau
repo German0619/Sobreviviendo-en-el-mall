@@ -17,6 +17,7 @@ local Util = require(Shared.Util)
 local Remotes = require(Shared.Remotes)
 
 local DataService = require(script.Parent.DataService)
+local RunState = require(script.Parent.RunState)
 local PlayerStats = require(script.Parent.PlayerStats)
 
 local VendingService = {}
@@ -69,8 +70,8 @@ local function buyFrom(player: Player, machineType: string)
 	if not humanoid or humanoid.Health <= 0 or not DataService.GetData(player) then
 		return
 	end
-	if not DataService.TrySpend(player, machine.Price) then
-		Remotes.event("Notify"):FireClient(player, "Dinero insuficiente.", "bad")
+	if not RunState.TrySpend(player, machine.Price) then
+		Remotes.event("Notify"):FireClient(player, "Billetes insuficientes.", "bad")
 		return
 	end
 

@@ -82,6 +82,9 @@ function Blackout.new(spawnPosition: Vector3, ctx)
 		end
 	end
 
+	-- Es un fantasma: la clase Medium lo ve a traves de las paredes
+	model:SetAttribute("Ghost", true)
+
 	local hoverY = spawnPosition.Y + def.HoverHeight
 	model:PivotTo(CFrame.new(Vector3.new(spawnPosition.X, hoverY, spawnPosition.Z)))
 	model.Parent = ctx.Container
@@ -100,6 +103,7 @@ function Blackout.new(spawnPosition: Vector3, ctx)
 	self.LastSeenVictim = os.clock()
 	self.Exposure = 0
 	self.LastAttack = 0
+	self.Awareness = Common.newAwareness(ctx)
 	return self
 end
 
@@ -216,7 +220,8 @@ function Blackout:Update(dt: number)
 			self:SetState("Hunt")
 		end
 	elseif self.State == "Hunt" then
-		local target, root, dist = Common.nearestAlive(position, function(_player, r)
+		-- Siente a quien este en su zona oscura (tras el tiempo de deteccion)
+		local target, root, dist = self.Awareness:Update(dt, position, function(_player, r)
 			return LightService.GetZoneAt(r.Position) == self.Zone
 		end)
 		if target and root then

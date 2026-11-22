@@ -61,6 +61,8 @@ function Mannequin.new(spawnPosition: Vector3, ctx)
 	self.Model = model
 	self.Height = height
 	self.Mover = Common.newMover(model, { Speed = def.Speed, Height = height })
+	self.Awareness = Common.newAwareness(ctx)
+	self.PatrolPoint = nil
 	self.LastAttack = 0
 	self.NextRetarget = 0
 	self.CosView = math.cos(math.rad(def.ViewHalfAngle))
@@ -125,18 +127,37 @@ function Mannequin:IsObserved(): boolean
 end
 
 function Mannequin:Update(dt: number)
+	local position = self.Model:GetPivot().Position
+	local eye = position + Vector3.new(0, self.Height * 0.35, 0)
+
+	-- Sigue "viendo" aunque este congelado
+	local target, root, dist = self.Awareness:Update(dt, position, function(_player, r)
+		return Common.canSee(eye, r)
+	end)
+
 	if self:IsObserved() then
 		self.Mover:Clear()
 		return
 	end
 
-	local position = self.Model:GetPivot().Position
-	local target, root, dist = Common.nearestAlive(position)
+	local now = os.clock()
 	if not target or not root then
+		-- Nadie detectado: patrullar despacio entre zonas
+		if not self.PatrolPoint or (Vector3.new(self.PatrolPoint.X - position.X, 0, self.PatrolPoint.Z - position.Z)).Magnitude < 4 then
+			self.PatrolPoint = Common.randomPatrolPoint()
+		end
+		if self.PatrolPoint then
+			if now >= self.NextRetarget or not self.Mover:HasPath() then
+				self.Mover:MoveTowards(self.PatrolPoint)
+				self.NextRetarget = now + 1
+			end
+			self.Mover.Speed = self:GetSpeed() * 0.4
+			self.Mover:Step(dt)
+		end
 		return
 	end
 
-	local now = os.clock()
+	self.PatrolPoint = nil
 	if now >= self.NextRetarget or not self.Mover:HasPath() then
 		self.Mover:MoveTowards(root.Position)
 		self.NextRetarget = now + 0.3

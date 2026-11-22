@@ -124,7 +124,8 @@ end
 -- Construccion
 ----------------------------------------------------------------------
 
-local gui, clockLabel, nightLabel, phaseLabel, moneyLabel, zoneLabel, itemsLabel, sodaLabel
+local gui, clockLabel, nightLabel, phaseLabel, moneyLabel, zoneLabel, itemsLabel, sodaLabel, classLabel
+local diamondsLabel, deadSubtitle, reviveButton
 local bars = {}
 local missionList, missionEntries = nil, {}
 local toastList
@@ -179,6 +180,27 @@ local function build()
 		Parent = gui,
 	})
 
+	-- Debajo de los billetes: diamantes y clase equipada
+	diamondsLabel = text({
+		AnchorPoint = Vector2.new(1, 0),
+		Position = UDim2.new(1, -18, 0, 46),
+		Size = UDim2.fromOffset(220, 20),
+		TextXAlignment = Enum.TextXAlignment.Right,
+		TextSize = 16,
+		TextColor3 = Color3.fromRGB(110, 220, 255),
+		Text = "",
+		Parent = gui,
+	})
+	classLabel = text({
+		AnchorPoint = Vector2.new(1, 0),
+		Position = UDim2.new(1, -18, 0, 66),
+		Size = UDim2.fromOffset(220, 20),
+		TextXAlignment = Enum.TextXAlignment.Right,
+		TextSize = 15,
+		Text = "",
+		Parent = gui,
+	})
+
 	-- Abajo a la izquierda: barras y zona actual
 	local barsFrame = make("Frame", {
 		AnchorPoint = Vector2.new(0, 1),
@@ -228,7 +250,7 @@ local function build()
 	-- Derecha: tareas
 	local missionsFrame = make("Frame", {
 		AnchorPoint = Vector2.new(1, 0),
-		Position = UDim2.new(1, -18, 0, 60),
+		Position = UDim2.new(1, -18, 0, 94),
 		Size = UDim2.fromOffset(290, 360),
 		BackgroundTransparency = 1,
 		Parent = gui,
@@ -283,16 +305,33 @@ local function build()
 		ZIndex = 6,
 		Parent = deadOverlay,
 	})
-	text({
+	deadSubtitle = text({
 		AnchorPoint = Vector2.new(0.5, 0.5),
 		Position = UDim2.new(0.5, 0, 0.45, 44),
-		Size = UDim2.fromOffset(600, 30),
+		Size = UDim2.fromOffset(640, 30),
 		TextSize = 18,
 		Font = FONT_LIGHT,
-		Text = "Volverás al turno en la próxima noche si tu equipo sobrevive.",
+		Text = "",
 		ZIndex = 6,
 		Parent = deadOverlay,
 	})
+	-- Boton para revivirse (Modal: libera el raton en primera persona)
+	reviveButton = make("TextButton", {
+		AnchorPoint = Vector2.new(0.5, 0.5),
+		Position = UDim2.new(0.5, 0, 0.45, 100),
+		Size = UDim2.fromOffset(260, 44),
+		BackgroundColor3 = Color3.fromRGB(0, 140, 70),
+		Font = FONT,
+		TextSize = 18,
+		TextColor3 = COLORS.Text,
+		Text = "Revivir (Robux)",
+		Modal = true,
+		ZIndex = 7,
+		Parent = deadOverlay,
+	}, { corner(8) })
+	reviveButton.Activated:Connect(function()
+		Remotes.event("RequestSelfRevive"):FireServer()
+	end)
 
 	-- Resultados
 	resultsPanel = make("Frame", {
@@ -495,9 +534,15 @@ local function update()
 		phaseText ..= "  ·  " .. formatTime(endsAt - now)
 	end
 	if phase ~= "Night" then
-		phaseText ..= "   [U] Mejoras"
+		phaseText ..= "   [U] Mejoras   [C] Clases"
 	end
 	phaseLabel.Text = phaseText
+
+	local classDef = Config.Classes[player:GetAttribute("EquippedClass") or ""]
+	if classDef and not player:GetAttribute("SpinAnimating") then
+		classLabel.Text = classDef.DisplayName
+		classLabel.TextColor3 = Config.Rarities[classDef.Rarity].Color
+	end
 
 	-- Objetos con tecla
 	local slots = {}
@@ -520,6 +565,7 @@ local function update()
 	end
 
 	moneyLabel.Text = Util.formatMoney(player:GetAttribute("Money") or 0)
+	diamondsLabel.Text = string.format("◆ %d", player:GetAttribute("Diamonds") or 0)
 
 	-- Barras
 	local character = player.Character
@@ -571,6 +617,20 @@ local function update()
 	-- Overlays
 	deadOverlay.Visible = phase == "Night" and player:GetAttribute("Alive") == false and humanoid ~= nil
 		and humanoid.Health <= 0
+	if deadOverlay.Visible then
+		local downed = player:GetAttribute("Downed") == true
+		local tokens = player:GetAttribute("ReviveTokens") or 0
+		local wipeAt = state:GetAttribute("WipeAt")
+		reviveButton.Visible = downed
+		reviveButton.Text = if tokens > 0 then string.format("Revivir (ficha, tienes %d)", tokens) else "Revivir (Robux)"
+		if type(wipeAt) == "number" then
+			deadSubtitle.Text = string.format("Todo el equipo cayó. %d s para revivir.", math.max(0, math.ceil(wipeAt - now)))
+			deadSubtitle.TextColor3 = COLORS.Bad
+		else
+			deadSubtitle.Text = "Un Médico puede revivirte gratis, o con Robux. Si no, volverás en la próxima noche."
+			deadSubtitle.TextColor3 = COLORS.Text
+		end
+	end
 	if phase ~= "Results" and phase ~= "GameOver" and phase ~= "Upgrades" then
 		resultsPanel.Visible = false
 	end

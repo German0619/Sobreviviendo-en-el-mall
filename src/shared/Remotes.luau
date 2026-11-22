@@ -19,11 +19,15 @@ local EVENTS = {
 	"ToggleFlashlight", -- cliente -> servidor: (encender: boolean)
 	"OpenShop", -- servidor -> cliente: (posicion del mostrador)
 	"UseItem", -- cliente -> servidor: (itemId)
+	"RequestSelfRevive", -- cliente -> servidor: revivirse (ficha o Robux)
+	"RequestBuyProduct", -- cliente -> servidor: ("ClassSlot" | "Diamonds", indice del paquete)
 }
 
 local FUNCTIONS = {
 	"RequestUpgrade", -- cliente -> servidor: (statName) -> (ok, mensaje)
 	"RequestPurchase", -- cliente -> servidor: (itemId) -> (ok, mensaje)
+	"RequestSpin", -- cliente -> servidor: () -> (ok, mensaje, className). Reemplaza la clase equipada.
+	"RequestEquipSlot", -- cliente -> servidor: (slot) -> (ok, mensaje)
 }
 
 local IS_SERVER = RunService:IsServer()

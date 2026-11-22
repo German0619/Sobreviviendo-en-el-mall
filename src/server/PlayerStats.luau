@@ -18,6 +18,7 @@ local Remotes = require(Shared.Remotes)
 local GameState = require(Shared.GameState)
 
 local DataService = require(script.Parent.DataService)
+local RunState = require(script.Parent.RunState)
 
 type ComputedStats = Types.ComputedStats
 
@@ -31,11 +32,11 @@ local PlayerStats = {}
 
 local effects: { [Player]: { [string]: Effect } } = {}
 local publishedFlags: { [Player]: { [string]: boolean } } = {}
+local publishedPerks: { [Player]: { [string]: boolean } } = {}
 local effectCounter = 0
 
 local function getClassDef(player: Player): Types.ClassDef
-	local data = DataService.GetData(player)
-	local className = if data then data.EquippedClass else Config.DefaultClass
+	local className = DataService.GetEquippedClass(player)
 	return Config.Classes[className] or Config.Classes[Config.DefaultClass]
 end
 
@@ -44,8 +45,7 @@ end
 ----------------------------------------------------------------------
 
 function PlayerStats.GetLevel(player: Player, statName: string): number
-	local data = DataService.GetData(player)
-	return if data then data.Upgrades[statName] or 0 else 0
+	return RunState.GetUpgrade(player, statName)
 end
 
 function PlayerStats.Compute(player: Player): ComputedStats
@@ -112,6 +112,23 @@ local function publishFlags(player: Player)
 	publishedFlags[player] = active
 end
 
+-- Habilidades de la clase equipada como atributos "Perk_<Nombre>" (las usa el cliente).
+local function publishPerks(player: Player)
+	local perks = getClassDef(player).Perks
+	local previous = publishedPerks[player] or {}
+	for perk in previous do
+		if perks[perk] == nil then
+			player:SetAttribute("Perk_" .. perk, nil)
+		end
+	end
+	local current: { [string]: boolean } = {}
+	for perk, value in perks do
+		player:SetAttribute("Perk_" .. perk, value)
+		current[perk] = true
+	end
+	publishedPerks[player] = current
+end
+
 function PlayerStats.Apply(player: Player)
 	if not DataService.GetData(player) then
 		return
@@ -128,6 +145,7 @@ function PlayerStats.Apply(player: Player)
 		player:SetAttribute("Level_" .. statName, PlayerStats.GetLevel(player, statName))
 	end
 	publishFlags(player)
+	publishPerks(player)
 
 	local character = player.Character
 	local humanoid = character and character:FindFirstChildOfClass("Humanoid")
@@ -146,8 +164,11 @@ local function onCharacterAdded(player: Player, character: Model)
 		return
 	end
 	local stats = PlayerStats.Compute(player)
+	-- Al revivir se vuelve con parte de la vida (lo fija ReviveService antes de reaparecer).
+	local fraction = player:GetAttribute("SpawnHealthFraction")
+	player:SetAttribute("SpawnHealthFraction", nil)
 	humanoid.MaxHealth = stats.Health
-	humanoid.Health = stats.Health
+	humanoid.Health = stats.Health * (if type(fraction) == "number" then fraction else 1)
 	PlayerStats.Apply(player)
 end
 
@@ -215,18 +236,16 @@ function PlayerStats.TryUpgrade(player: Player, statName: string): (boolean, str
 		return false, "No puedes mejorar durante la noche"
 	end
 
-	local level = data.Upgrades[statName] or 0
+	local level = RunState.GetUpgrade(player, statName)
 	local cost = Config.getUpgradeCost(statName, level)
 	if not cost then
 		return false, "Nivel maximo"
 	end
-	if not DataService.TrySpend(player, cost) then
-		return false, "Dinero insuficiente"
+	if not RunState.TrySpend(player, cost) then
+		return false, "Billetes insuficientes"
 	end
 
-	DataService.Update(player, function(d)
-		d.Upgrades[statName] = level + 1
-	end)
+	RunState.SetUpgrade(player, statName, level + 1)
 	PlayerStats.Apply(player)
 	return true, nil
 end
@@ -246,9 +265,13 @@ function PlayerStats.Start()
 		PlayerStats.Apply(player)
 	end)
 
+	-- Partida nueva: las mejoras vuelven a 0
+	RunState.Reset:Connect(PlayerStats.Apply)
+
 	Players.PlayerRemoving:Connect(function(player)
 		effects[player] = nil
 		publishedFlags[player] = nil
+		publishedPerks[player] = nil
 	end)
 
 	-- Anti-spam simple para el remote de mejoras

@@ -25,7 +25,8 @@ function Effects.Start()
 	blur.Parent = Lighting
 
 	local function apply()
-		local nv = player:GetAttribute("Flag_NightVision") == true
+		-- Por soda (Flag_) o por la clase Vision nocturna (Perk_)
+		local nv = player:GetAttribute("Flag_NightVision") == true or player:GetAttribute("Perk_NightVision") == true
 		TweenService:Create(nightVision, TWEEN, {
 			Brightness = if nv then 0.35 else 0,
 			Contrast = if nv then 0.2 else 0,
@@ -38,6 +39,7 @@ function Effects.Start()
 	end
 
 	player:GetAttributeChangedSignal("Flag_NightVision"):Connect(apply)
+	player:GetAttributeChangedSignal("Perk_NightVision"):Connect(apply)
 	player:GetAttributeChangedSignal("Flag_BlurryVision"):Connect(apply)
 	apply()
 end

@@ -24,6 +24,9 @@ local LightService = require(script.Parent.LightService)
 local FlashlightService = require(script.Parent.FlashlightService)
 local MissionService = require(script.Parent.MissionService)
 local EnemyService = require(script.Parent.EnemyService)
+local ReviveService = require(script.Parent.ReviveService)
+local ClassService = require(script.Parent.ClassService)
+local RunState = require(script.Parent.RunState)
 
 local NightManager = {}
 
@@ -116,6 +119,8 @@ local function onCharacterAdded(player: Player, character: Model)
 	if not humanoid then
 		return
 	end
+	-- El cuerpo queda entero en el suelo para que lo puedan revivir
+	humanoid.BreakJointsOnDeath = false
 	humanoid.Died:Connect(function()
 		if player.Character ~= character then
 			return
@@ -125,7 +130,9 @@ local function onCharacterAdded(player: Player, character: Model)
 			DataService.Update(player, function(d)
 				d.Lifetime.Deaths += 1
 			end)
-			notifyAll(player.DisplayName .. " ha caido...", "bad")
+			-- El cuerpo siempre queda revivible (el propio caido puede pagar por revivir)
+			ReviveService.OnDowned(player, character)
+			notifyAll(player.DisplayName .. " ha caído.", "bad")
 		else
 			-- Fuera de la noche no se muere de verdad: reaparece
 			task.delay(3, function()
@@ -153,13 +160,17 @@ local function payout(night: number, wiped: boolean)
 			local bonus = math.floor(subtotal * bonusPct)
 			local total = subtotal + bonus
 
-			DataService.AddMoney(player, total)
+			RunState.AddCash(player, total)
 			DataService.Update(player, function(d)
+				d.Lifetime.MoneyEarned += total
 				if survived then
 					d.Lifetime.NightsSurvived += 1
 					d.BestNight = math.max(d.BestNight, night)
 				end
 			end)
+			if survived then
+				ClassService.OnNightSurvived(player) -- diamantes cada N noches y logros
+			end
 
 			Remotes.event("NightResults"):FireClient(player, {
 				Night = night,
@@ -217,6 +228,10 @@ local function runNight(night: number): boolean -- devuelve true si todos murier
 	EnemyService.StartNight(night)
 	MissionService.StartNight(night)
 
+	-- Si caen todos, hay unos segundos para revivir con Robux (solo si el producto existe)
+	local graceSeconds = if Config.DevProducts.Revive ~= 0 then Config.Revive.WipeGraceSeconds else 0
+	local wipeDeadline: number? = nil
+
 	local startedAt = os.clock()
 	local wiped = false
 	while true do
@@ -224,18 +239,35 @@ local function runNight(night: number): boolean -- devuelve true si todos murier
 		local hour = Config.Night.StartHour
 			+ (Config.Night.EndHour - Config.Night.StartHour) * math.min(elapsed / nightSeconds, 1)
 		GameState.Folder:SetAttribute("GameHour", hour)
+
+		local alive = aliveParticipants()
 		if elapsed >= nightSeconds then
+			wiped = alive == 0
 			break
 		end
-		if aliveParticipants() == 0 then
-			wiped = true
-			break
+		if alive == 0 then
+			if not wipeDeadline then
+				wipeDeadline = os.clock() + graceSeconds
+				GameState.Folder:SetAttribute("WipeAt", Workspace:GetServerTimeNow() + graceSeconds)
+				if graceSeconds > 0 then
+					notifyAll(string.format("Todo el equipo cayó. %d segundos para revivir...", graceSeconds), "bad")
+				end
+			end
+			if os.clock() >= wipeDeadline then
+				wiped = true
+				break
+			end
+		elseif wipeDeadline then
+			wipeDeadline = nil
+			GameState.Folder:SetAttribute("WipeAt", nil)
 		end
 		task.wait(0.25)
 	end
+	GameState.Folder:SetAttribute("WipeAt", nil)
 
 	EnemyService.StopNight()
 	MissionService.StopNight()
+	ReviveService.Clear()
 	for player in participants do
 		if player.Parent then
 			FlashlightService.SetOn(player, false)
@@ -248,6 +280,8 @@ end
 
 local function runGame()
 	local night = Config.Debug.StartNight
+	-- Partida nueva: billetes y mejoras a 0
+	RunState.ResetAll()
 	for _, player in Players:GetPlayers() do
 		DataService.Update(player, function(d)
 			d.Lifetime.RunsPlayed += 1

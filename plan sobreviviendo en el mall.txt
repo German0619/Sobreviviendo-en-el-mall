@@ -3,18 +3,27 @@ PLAN: SOBREVIVIENDO EN EL MALL (Roblox)
 
 CONTEXTO
 --------
-Survival horror cooperativo (1-5 jugadores). Los jugadores son conserjes nocturnos de un mall: completan misiones emergentes (luces, limpieza...) mientras sobreviven a monstruos/fantasmas. La dificultad escala por noche; cada noche hay un pago para mejorar al personaje. Incluye tienda, maquinas de sodas, lobby con salas publicas/privadas, 10+ clases con rarezas y microtransacciones.
+Survival horror cooperativo (1-5 jugadores). Los jugadores son conserjes nocturnos de un mall: completan misiones emergentes (luces, limpieza...) mientras sobreviven a monstruos/fantasmas. La dificultad escala por noche; cada noche hay un pago para mejorar al personaje. Incluye tienda, maquinas de sodas, lobby con salas publicas/privadas, 10+ clases con rarezas (ruleta + slots) y microtransacciones.
 Se trabajara con Rojo + VS Code (codigo en archivos .luau). El mapa del mall se modela en Roblox Studio.
 
 
 ARQUITECTURA
 ------------
-- Place 1 - Lobby: crear sala (publica/privada), lista de salas, elegir clase, mejoras permanentes, tienda Robux.
+- Place 1 - Lobby: ruleta de clases, slots de clase, elegir clase, tienda Robux, crear sala (publica/privada), lista de salas.
   * TeleportService:ReserveServer para las salas.
   * MemoryStoreService para la lista de salas publicas.
 - Place 2 - Mall (la partida): servidor reservado, maximo 5 jugadores, rondas por noche.
-- Datos del jugador con DataStoreService (dinero, mejoras, clases, noche record).
+- Datos guardados (DataStoreService): diamantes, slots de clase y sus clases, noche record, logros, estadisticas.
+  Lo de la partida (billetes, mejoras, objetos) vive solo en memoria del servidor de la partida.
 - Servidor autoritativo: enemigos, dinero y compras en el servidor; el cliente solo hace UI e inputs.
+
+
+MONEDAS
+-------
+- Billetes ($): se ganan cada noche (pago). Se gastan en mejoras, tienda del mall y sodas.
+  Son POR PARTIDA: se pierden al terminar la partida o salir.
+- Diamantes: moneda PERMANENTE. Se gastan en la ruleta de clases.
+  Se consiguen: comprandolos con Robux, cada 5 noches sobrevividas (+100) y con logros.
 
 
 ESTRUCTURA DE ARCHIVOS (Rojo)
@@ -22,10 +31,10 @@ ESTRUCTURA DE ARCHIVOS (Rojo)
 default.project.json
 src/
   shared/   Config (noches, precios, clases), tipos, utilidades
-  server/   GameLoop, NightManager, MissionService, EnemyService, PlayerStats,
-            ShopService, VendingService, ClassService, DataService,
+  server/   NightManager, MissionService, EnemyService, PlayerStats, RunState,
+            ShopService, VendingService, ClassService, ReviveService, DataService,
             MonetizationService, LobbyService
-  client/   HUD, Flashlight, MissionUI, ShopUI, ClassUI, Sounds
+  client/   HUD, Flashlight, Movement, ShopUI, UpgradeUI, ClassUI, Effects, Sounds
   enemies/  Mannequin, Blackout, Echo, Tracker, Watcher (un modulo cada uno)
 
 
@@ -34,7 +43,7 @@ SISTEMAS
 1. CICLO DE NOCHE
    12 AM -> 6 AM (tiempo comprimido, ~8-10 min reales).
    Estados: Preparacion -> Noche -> Resultados -> Mejoras -> Siguiente noche.
-   Si todos mueren, termina la run.
+   Si todos mueren, hay unos segundos para revivir (Robux); si nadie revive, termina la partida.
 
 2. MISIONES EMERGENTES
    Generador aleatorio con pesos. Tipos: reparar luces, limpiar derrames, reiniciar generador, sacar basura, cerrar puertas, reponer tienda.
@@ -47,30 +56,45 @@ SISTEMAS
    - Eco: imita pasos/voz de un companero para atraerte.
    - Rastro: te persigue si pisas zonas sucias.
    - Vigilante: patrulla y "ve" a traves de las camaras de seguridad.
+   Deteccion: tienen que verte un momento antes de perseguirte; si no ven a nadie, patrullan.
    Escalado: cantidad, velocidad, deteccion y spawn dependen del numero de noche.
    Nuevos tipos se desbloquean en las noches 2, 3, 5...
 
-4. ESTADISTICAS Y MEJORAS
+4. ESTADISTICAS Y MEJORAS (por partida)
    Vida, estamina, bateria de linterna, velocidad al caminar.
-   Pago por noche = base + misiones + supervivencia. Se gasta en mejoras con coste creciente.
+   Pago por noche (billetes) = base + misiones + supervivencia. Se gasta en mejoras con coste creciente.
+   Las mejoras se reinician al empezar otra partida.
 
 5. TIENDA DEL MALL
-   Linternas mejores, baterias, botiquines (se compran con dinero del juego).
+   Linternas mejores, baterias, botiquines (se compran con billetes).
+   Los objetos son POR VIDA: se pierden al morir o salir.
 
 6. MAQUINAS EXPENDEDORAS
    - Barata: sodas con efectos positivos o negativos aleatorios.
    - Cara: solo efectos positivos.
    Efectos temporales. Positivos: velocidad, vision, regeneracion, estamina infinita. Negativos: ralentizacion, vision borrosa, etc.
 
-7. CLASES (10, con rareza)
+7. CLASES (10, con rareza) - RULETA Y SLOTS
    - Comun:      Conserje (equilibrada), Corredor (+velocidad), Atleta (+estamina)
    - Rara:       Electricista (repara mas rapido), Guardia (+vida), Ahorrador (+% de pago)
-   - Epica:      Vision nocturna, Medico (revive mas rapido a companeros)
+   - Epica:      Vision nocturna, Medico (revive GRATIS a companeros; probabilidad MUY baja)
    - Legendaria: Medium (ve fantasmas a traves de paredes), Sombra (los enemigos tardan mas en detectarte)
-   Se desbloquean con dinero del juego o logros. Definidas en shared/Config.
+   - Se obtienen girando una ruleta en el lobby (antes de crear partida), pagando diamantes.
+     Las probabilidades se muestran siempre.
+   - Slots: free to play = 1 slot. Mas slots se compran con Robux (hasta 5); cada slot nuevo
+     empieza con Conserje. Antes de la partida eliges que slot usar.
+   - La clase que sale en la ruleta REEMPLAZA AUTOMATICAMENTE a la del slot equipado, sea mejor o no.
+     Para cambiar la clase de otro slot: equipalo y gira.
+   - Mientras no exista el lobby (Fase 6), la ruleta se abre con la tecla C fuera de la noche.
 
-8. DEFENSA CONTRA LAS ENTIDADES (por disenar)
-   Hoy solo se puede huir, mirar al Maniqui y alumbrar al Apagon. Falta una forma activa de defenderse,
+8. REVIVIR
+   - Al caer de noche tu cuerpo queda en el suelo con un "+".
+   - Con Robux: el caido puede revivirse a si mismo, o un companero puede pagar por el.
+   - El Medico revive GRATIS (mantener E sobre el cuerpo).
+   - Si una compra de revivir llega cuando ya no se puede usar, se guarda como "ficha de revivir".
+
+9. DEFENSA CONTRA LAS ENTIDADES (por disenar)
+   Hoy solo se puede huir, esconderse, mirar al Maniqui y alumbrar al Apagon. Falta una forma activa de defenderse,
    sin convertir el juego en uno de disparos (debe seguir siendo terror: defenderse cuesta recursos y es temporal).
    Ideas a evaluar:
    - Destello de linterna: gasta mucha bateria de golpe; aturde a los enemigos del cono unos segundos
@@ -79,15 +103,17 @@ SISTEMAS
      (atrae enemigos a otro lado, util contra el Eco), extintor/spray (empuja y ralentiza).
    - Escondites: casilleros, probadores, mostradores; rompen la persecucion si el enemigo no te vio entrar.
    - Puertas/persianas: la mision "Cerrar puertas" bloquea pasillos a ciertos enemigos por un tiempo.
-   - Defensa en equipo: un jugador alumbra mientras otro repara; revivir companeros caidos.
+   - Defensa en equipo: un jugador alumbra mientras otro repara.
    - Clases: perks defensivos (p. ej. Guardia con porra que empuja, Electricista que hace destellos mas baratos).
    Cada enemigo nuevo (Fase 7) debe tener al menos una contramedida clara.
 
-9. MICROTRANSACCIONES
-   - Game Passes (permanentes): x2 dinero, linterna premium, VIP/cosmetico.
-   - Developer Products (consumibles): revivir, soda premium, desbloqueo de clase.
-   - Politicas de Roblox: lo aleatorio de pago debe mostrar probabilidades y respetar PolicyService:ArePaidRandomItemsRestricted.
-     Lo mas simple: que lo aleatorio se pague con dinero del juego y los Robux compren cosas directas.
+10. MICROTRANSACCIONES
+   - Developer Products: revivir, paquetes de diamantes, slot de clase extra, soda premium.
+   - Game Passes (permanentes): x2 billetes, linterna premium, VIP/cosmetico.
+   - Politicas de Roblox: la ruleta es aleatoria y los diamantes se pueden comprar con Robux, asi que:
+     * mostrar siempre las probabilidades;
+     * si PolicyService:ArePaidRandomItemsRestricted es true para el jugador, solo puede girar con
+       diamantes ganados jugando (no con los comprados).
 
 
 FASES DE IMPLEMENTACION
@@ -95,21 +121,23 @@ FASES DE IMPLEMENTACION
 1.  [HECHO] Base: proyecto Rojo, Config, DataService, PlayerStats.
 2.  [HECHO] MVP de partida (un solo place): NightManager + 3 misiones + 2 enemigos (Maniqui, Apagon) + pago + HUD + linterna.
     Incluye un mall de prueba generado por codigo (TestMapBuilder) mientras no exista el mapa real.
-3.  Progresion: mejoras, tienda, maquinas de sodas.
-4.  Clases: sistema + 10 clases.
-5.  Defensa contra las entidades (ver sistema 8): elegir mecanicas e implementarlas.
-6.  Lobby multijugador: salas publicas/privadas, teleports, limite de 5.
+3.  [HECHO] Progresion: mejoras, tienda, maquinas de sodas.
+4.  [HECHO, falta probar] Clases: 10 clases, ruleta con diamantes, slots, revivir (Robux / Medico gratis),
+    deteccion de enemigos (para la clase Sombra), billetes por partida.
+5.  Defensa contra las entidades (ver sistema 9): elegir mecanicas e implementarlas.
+6.  Lobby multijugador: ruleta y slots aqui, salas publicas/privadas, teleports, limite de 5.
 7.  Resto de enemigos y escalado por noche (cada uno con su contramedida).
-8.  Monetizacion: passes y productos + cumplimiento de politicas.
+8.  Monetizacion: game passes, soda premium, tienda de diamantes en el lobby, pulir cumplimiento de politicas.
 9.  Mapa del mall: modelarlo en Studio con los tags de shared/Tags, o un generador de mapa
     mas detallado (tiendas con fachada, escaleras, segundo piso, decoracion) que reemplace al de prueba.
 10. Pulido: sonido, ambientacion, balance, pruebas con varios jugadores.
 
 
-PENDIENTES DEL USUARIO (en Studio)
-----------------------------------
+PENDIENTES DEL USUARIO (en Studio / web de Roblox)
+--------------------------------------------------
 - Modelar el mall (zonas con tags para misiones/spawns), iluminacion y animaciones.
-- Crear Game Passes y Developer Products en la web de Roblox y pasar los IDs.
+- Crear los Developer Products (Revivir, Slot de clase, paquetes de diamantes) y Game Passes en la web
+  de Roblox y poner los IDs en Config.DevProducts / Config.GamePasses.
 - Instalar Rojo (extension de VS Code + plugin de Studio).
 
 
@@ -118,4 +146,4 @@ VERIFICACION
 - Fase 2: en Studio (Play Solo y Test con 2-5 jugadores) comprobar una noche completa: misiones aparecen y se completan, enemigos persiguen, se paga al terminar.
 - Consola de Studio sin errores; probar persistencia (salir y volver a entrar).
 - Probar el teleport lobby <-> mall en un juego publicado (privado).
-- Probar compras de Robux con el modo de prueba de Studio.
+- Probar compras de Robux con el modo de prueba de Studio (necesita IDs de productos reales).

@@ -8,9 +8,13 @@
 require(script.TestMapBuilder).BuildIfNeeded()
 
 local services = {
+	require(script.RunState),
 	require(script.LightService),
 	require(script.FlashlightService),
 	require(script.PlayerStats),
+	require(script.ClassService),
+	require(script.ReviveService),
+	require(script.MonetizationService),
 	require(script.ShopService),
 	require(script.VendingService),
 	require(script.MissionService),

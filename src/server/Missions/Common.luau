@@ -24,6 +24,7 @@ function Common.makePrompt(parent: Instance, actionText: string, objectText: str
 	prompt.ActionText = actionText
 	prompt.ObjectText = objectText or ""
 	prompt.HoldDuration = holdDuration or 0
+	prompt:SetAttribute("BaseHoldDuration", holdDuration or 0)
 	prompt.MaxActivationDistance = 8
 	prompt.RequiresLineOfSight = false
 	prompt.KeyboardKeyCode = Enum.KeyCode.E

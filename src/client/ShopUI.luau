@@ -31,18 +31,18 @@ local function refresh()
 		return
 	end
 	local money = player:GetAttribute("Money") or 0
-	moneyLabel.Text = "Dinero: " .. Util.formatMoney(money)
+	moneyLabel.Text = "Billetes: " .. Util.formatMoney(money)
 	for itemId, row in rows do
 		local item = Config.ShopItems[itemId]
 		local owned = player:GetAttribute("Item_" .. itemId) or 0
-		local full = (item.Permanent and owned >= 1) or (item.MaxStack ~= nil and owned >= item.MaxStack)
-		if item.Permanent then
-			row.Owned.Text = if owned >= 1 then "Comprada" else "Permanente"
+		local full = (item.Unique and owned >= 1) or (item.MaxStack ~= nil and owned >= item.MaxStack)
+		if item.Unique then
+			row.Owned.Text = if owned >= 1 then "Equipada" else "No se gasta"
 		else
 			row.Owned.Text = string.format("Tienes %d / %d", owned, item.MaxStack or 99)
 		end
 		if full then
-			row.Button.Text = if item.Permanent then "TUYA" else "LLENO"
+			row.Button.Text = if item.Unique then "TUYA" else "LLENO"
 			row.Button.BackgroundColor3 = C.ButtonOff
 		else
 			row.Button.Text = Util.formatMoney(item.Price)
@@ -61,7 +61,8 @@ local function buy(itemId: string)
 	end)
 	busy = false
 	if not ok then
-		setStatus("Error de conexión")
+		warn("[ShopUI] RequestPurchase fallo:", result)
+		setStatus("Error: " .. tostring(result))
 	else
 		setStatus(message or "", result == true)
 	end
@@ -70,7 +71,8 @@ end
 
 function ShopUI.Open(position: Vector3)
 	counterPosition = position
-	setStatus("")
+	statusLabel.Text = "Los objetos se pierden si mueres."
+	statusLabel.TextColor3 = C.Dim
 	refresh()
 	window.Visible = true
 end

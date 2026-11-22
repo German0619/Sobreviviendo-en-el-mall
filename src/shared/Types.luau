@@ -14,13 +14,6 @@ export type StatConfig = {
 	CostGrowth: number,
 }
 
-export type ClassUnlock = {
-	Type: "Default" | "Money" | "Achievement",
-	Price: number?, -- si Type == "Money"
-	Achievement: string?, -- si Type == "Achievement"
-	Description: string?,
-}
-
 export type ClassDef = {
 	DisplayName: string,
 	Rarity: Rarity,
@@ -29,7 +22,6 @@ export type ClassDef = {
 	Modifiers: { [string]: number },
 	-- Habilidades pasivas que leen otros sistemas (MissionService, EnemyService, ...)
 	Perks: { [string]: any },
-	Unlock: ClassUnlock,
 }
 
 export type SessionLock = {
@@ -42,17 +34,21 @@ export type LifetimeStats = {
 	MissionsCompleted: number,
 	Deaths: number,
 	MoneyEarned: number,
+	DiamondsEarned: number,
 	RunsPlayed: number,
 }
 
+-- Datos PERMANENTES del jugador (DataStore).
 export type PlayerData = {
 	Version: number,
-	Money: number,
-	Upgrades: { [string]: number },
-	OwnedClasses: { [string]: boolean },
-	EquippedClass: string,
+	Diamonds: number,
+	PaidDiamonds: number,
+	ClassSlots: { string },
+	MaxSlots: number,
+	EquippedSlot: number,
+	ReviveTokens: number,
+	ProcessedReceipts: { string },
 	BestNight: number,
-	Inventory: { [string]: number },
 	Achievements: { [string]: boolean },
 	Lifetime: LifetimeStats,
 	SessionLock: SessionLock?,

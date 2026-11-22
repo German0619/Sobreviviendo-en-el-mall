@@ -23,6 +23,8 @@ function FixLights.Begin(mission, complete)
 	LightService.SetReason(zone, REASON, true)
 
 	local prompt = Common.makePrompt(mission.Spot, "Reparar", "Tablero electrico", def.Duration)
+	-- El Electricista lo hace mas rapido (lo ajusta su cliente con Perk_RepairSpeed)
+	prompt:SetAttribute("RepairTask", true)
 	prompt.Triggered:Connect(function(player)
 		complete(player)
 	end)
