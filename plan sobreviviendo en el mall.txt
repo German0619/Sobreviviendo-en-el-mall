@@ -1,0 +1,103 @@
+PLAN: SOBREVIVIENDO EN EL MALL (Roblox)
+=======================================
+
+CONTEXTO
+--------
+Survival horror cooperativo (1-5 jugadores). Los jugadores son conserjes nocturnos de un mall: completan misiones emergentes (luces, limpieza...) mientras sobreviven a monstruos/fantasmas. La dificultad escala por noche; cada noche hay un pago para mejorar al personaje. Incluye tienda, maquinas de sodas, lobby con salas publicas/privadas, 10+ clases con rarezas y microtransacciones.
+Se trabajara con Rojo + VS Code (codigo en archivos .luau). El mapa del mall se modela en Roblox Studio.
+
+
+ARQUITECTURA
+------------
+- Place 1 - Lobby: crear sala (publica/privada), lista de salas, elegir clase, mejoras permanentes, tienda Robux.
+  * TeleportService:ReserveServer para las salas.
+  * MemoryStoreService para la lista de salas publicas.
+- Place 2 - Mall (la partida): servidor reservado, maximo 5 jugadores, rondas por noche.
+- Datos del jugador con DataStoreService (dinero, mejoras, clases, noche record).
+- Servidor autoritativo: enemigos, dinero y compras en el servidor; el cliente solo hace UI e inputs.
+
+
+ESTRUCTURA DE ARCHIVOS (Rojo)
+-----------------------------
+default.project.json
+src/
+  shared/   Config (noches, precios, clases), tipos, utilidades
+  server/   GameLoop, NightManager, MissionService, EnemyService, PlayerStats,
+            ShopService, VendingService, ClassService, DataService,
+            MonetizationService, LobbyService
+  client/   HUD, Flashlight, MissionUI, ShopUI, ClassUI, Sounds
+  enemies/  Mannequin, Blackout, Echo, Tracker, Watcher (un modulo cada uno)
+
+
+SISTEMAS
+--------
+1. CICLO DE NOCHE
+   12 AM -> 6 AM (tiempo comprimido, ~8-10 min reales).
+   Estados: Preparacion -> Noche -> Resultados -> Mejoras -> Siguiente noche.
+   Si todos mueren, termina la run.
+
+2. MISIONES EMERGENTES
+   Generador aleatorio con pesos. Tipos: reparar luces, limpiar derrames, reiniciar generador, sacar basura, cerrar puertas, reponer tienda.
+   Cada mision tiene zona, tiempo limite y recompensa. A mayor noche, mas misiones simultaneas.
+   Las misiones ignoradas potencian a los enemigos (luces rotas -> el Apagon es mas fuerte).
+
+3. ENEMIGOS (originales)
+   - Maniqui: solo se mueve cuando nadie lo mira.
+   - Apagon: apaga zonas del mall; la luz de la linterna lo hace retroceder.
+   - Eco: imita pasos/voz de un companero para atraerte.
+   - Rastro: te persigue si pisas zonas sucias.
+   - Vigilante: patrulla y "ve" a traves de las camaras de seguridad.
+   Escalado: cantidad, velocidad, deteccion y spawn dependen del numero de noche.
+   Nuevos tipos se desbloquean en las noches 2, 3, 5...
+
+4. ESTADISTICAS Y MEJORAS
+   Vida, estamina, bateria de linterna, velocidad al caminar.
+   Pago por noche = base + misiones + supervivencia. Se gasta en mejoras con coste creciente.
+
+5. TIENDA DEL MALL
+   Linternas mejores, baterias, botiquines (se compran con dinero del juego).
+
+6. MAQUINAS EXPENDEDORAS
+   - Barata: sodas con efectos positivos o negativos aleatorios.
+   - Cara: solo efectos positivos.
+   Efectos temporales. Positivos: velocidad, vision, regeneracion, estamina infinita. Negativos: ralentizacion, vision borrosa, etc.
+
+7. CLASES (10, con rareza)
+   - Comun:      Conserje (equilibrada), Corredor (+velocidad), Atleta (+estamina)
+   - Rara:       Electricista (repara mas rapido), Guardia (+vida), Ahorrador (+% de pago)
+   - Epica:      Vision nocturna, Medico (revive mas rapido a companeros)
+   - Legendaria: Medium (ve fantasmas a traves de paredes), Sombra (los enemigos tardan mas en detectarte)
+   Se desbloquean con dinero del juego o logros. Definidas en shared/Config.
+
+8. MICROTRANSACCIONES
+   - Game Passes (permanentes): x2 dinero, linterna premium, VIP/cosmetico.
+   - Developer Products (consumibles): revivir, soda premium, desbloqueo de clase.
+   - Politicas de Roblox: lo aleatorio de pago debe mostrar probabilidades y respetar PolicyService:ArePaidRandomItemsRestricted.
+     Lo mas simple: que lo aleatorio se pague con dinero del juego y los Robux compren cosas directas.
+
+
+FASES DE IMPLEMENTACION
+-----------------------
+1. Base: proyecto Rojo, Config, DataService, PlayerStats.
+2. MVP de partida (un solo place): NightManager + 3 misiones + 2 enemigos (Maniqui, Apagon) + pago + HUD + linterna.
+3. Progresion: mejoras, tienda, maquinas de sodas.
+4. Clases: sistema + 10 clases.
+5. Lobby multijugador: salas publicas/privadas, teleports, limite de 5.
+6. Resto de enemigos y escalado por noche.
+7. Monetizacion: passes y productos + cumplimiento de politicas.
+8. Pulido: sonido, ambientacion, balance, pruebas con varios jugadores.
+
+
+PENDIENTES DEL USUARIO (en Studio)
+----------------------------------
+- Modelar el mall (zonas con tags para misiones/spawns), iluminacion y animaciones.
+- Crear Game Passes y Developer Products en la web de Roblox y pasar los IDs.
+- Instalar Rojo (extension de VS Code + plugin de Studio).
+
+
+VERIFICACION
+------------
+- Fase 2: en Studio (Play Solo y Test con 2-5 jugadores) comprobar una noche completa: misiones aparecen y se completan, enemigos persiguen, se paga al terminar.
+- Consola de Studio sin errores; probar persistencia (salir y volver a entrar).
+- Probar el teleport lobby <-> mall en un juego publicado (privado).
+- Probar compras de Robux con el modo de prueba de Studio.

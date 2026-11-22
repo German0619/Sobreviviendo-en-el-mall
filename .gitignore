@@ -1,0 +1,14 @@
+# Archivos de Studio generados localmente
+*.rbxl
+*.rbxlx
+*.rbxl.lock
+*.rbxlx.lock
+*.rbxm
+*.rbxmx
+
+# Rojo / luau-lsp
+sourcemap.json
+
+# Sistema
+.DS_Store
+Thumbs.db
