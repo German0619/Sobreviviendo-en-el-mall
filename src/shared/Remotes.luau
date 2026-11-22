@@ -14,11 +14,16 @@ local FOLDER_NAME = "Remotes"
 
 -- Agregar aqui cada remote nuevo.
 local EVENTS = {
-	"Notify", -- servidor -> cliente: mensaje en pantalla
+	"Notify", -- servidor -> cliente: (texto, tipo "info"|"good"|"bad")
+	"NightResults", -- servidor -> cliente: desglose del pago de la noche
+	"ToggleFlashlight", -- cliente -> servidor: (encender: boolean)
+	"OpenShop", -- servidor -> cliente: (posicion del mostrador)
+	"UseItem", -- cliente -> servidor: (itemId)
 }
 
 local FUNCTIONS = {
-	"RequestUpgrade", -- cliente -> servidor: comprar nivel de estadistica
+	"RequestUpgrade", -- cliente -> servidor: (statName) -> (ok, mensaje)
+	"RequestPurchase", -- cliente -> servidor: (itemId) -> (ok, mensaje)
 }
 
 local IS_SERVER = RunService:IsServer()

@@ -15,6 +15,7 @@ local Shared = ReplicatedStorage:WaitForChild("Shared")
 local Config = require(Shared.Config)
 local Types = require(Shared.Types)
 local Remotes = require(Shared.Remotes)
+local GameState = require(Shared.GameState)
 
 local DataService = require(script.Parent.DataService)
 
@@ -123,6 +124,9 @@ function PlayerStats.Apply(player: Player)
 	player:SetAttribute("MaxBattery", stats.Battery)
 	player:SetAttribute("WalkSpeed", stats.WalkSpeed)
 	player:SetAttribute("SprintSpeed", stats.WalkSpeed * Config.Movement.SprintMultiplier)
+	for statName in Config.Stats do
+		player:SetAttribute("Level_" .. statName, PlayerStats.GetLevel(player, statName))
+	end
 	publishFlags(player)
 
 	local character = player.Character
@@ -206,6 +210,9 @@ function PlayerStats.TryUpgrade(player: Player, statName: string): (boolean, str
 	local data = DataService.GetData(player)
 	if not data then
 		return false, "Datos no cargados"
+	end
+	if GameState.Folder:GetAttribute("Phase") == "Night" then
+		return false, "No puedes mejorar durante la noche"
 	end
 
 	local level = data.Upgrades[statName] or 0

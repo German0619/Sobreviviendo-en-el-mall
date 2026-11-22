@@ -5,9 +5,17 @@
 -- DataService.ProfileLoaded en su Start(), y tienen que estar conectados
 -- antes de que se cargue el primer perfil.
 
+require(script.TestMapBuilder).BuildIfNeeded()
+
 local services = {
+	require(script.LightService),
+	require(script.FlashlightService),
 	require(script.PlayerStats),
-	-- Fase 2+: NightManager, MissionService, EnemyService, ...
+	require(script.ShopService),
+	require(script.VendingService),
+	require(script.MissionService),
+	require(script.EnemyService),
+	require(script.NightManager),
 	require(script.DataService),
 }
 

@@ -1,0 +1,241 @@
+-- LightService: zonas del mall y sus luces.
+--
+-- Una zona esta a oscuras si tiene al menos un "motivo" activo
+-- (luces rotas por una mision, el Apagon, etc). Asi varios sistemas pueden
+-- apagar la misma zona sin pisarse.
+
+local CollectionService = game:GetService("CollectionService")
+local Lighting = game:GetService("Lighting")
+local ReplicatedStorage = game:GetService("ReplicatedStorage")
+
+local Shared = ReplicatedStorage:WaitForChild("Shared")
+local Tags = require(Shared.Tags)
+local GameState = require(Shared.GameState)
+local Util = require(Shared.Util)
+
+local OFF_COLOR = Color3.fromRGB(40, 40, 40)
+
+local LightService = {}
+
+local lightsByZone = {} -- [zone] = { entry }
+local zoneParts = {} -- [zone] = BasePart
+local reasons = {} -- [zone] = { [reason] = true }
+local flickering = {} -- [zone] = true
+
+local function zoneOf(inst: Instance): string
+	local z = inst:GetAttribute("Zone")
+	return if type(z) == "string" and z ~= "" then z else "Mall"
+end
+
+local function applyEntry(entry, on: boolean)
+	for _, light in entry.Lights do
+		light.Enabled = on
+	end
+	if entry.Part.Parent then
+		entry.Part.Material = if on then entry.Material else Enum.Material.SmoothPlastic
+		entry.Part.Color = if on then entry.Color else OFF_COLOR
+	end
+end
+
+local function applyZone(zone: string)
+	if flickering[zone] then
+		return -- el parpadeo aplicara el estado final al terminar
+	end
+	local on = not LightService.IsZoneDark(zone)
+	for _, entry in lightsByZone[zone] or {} do
+		applyEntry(entry, on)
+	end
+	-- El HUD lo usa para avisar "zona sin luz"
+	GameState.Folder:SetAttribute("Dark_" .. Util.attributeKey(zone), not on)
+end
+
+local function registerLight(inst: Instance)
+	if not inst:IsA("BasePart") then
+		return
+	end
+	local entry = {
+		Part = inst,
+		Lights = {},
+		Material = inst.Material,
+		Color = inst.Color,
+	}
+	for _, d in inst:GetDescendants() do
+		if d:IsA("Light") then
+			table.insert(entry.Lights, d)
+		end
+	end
+	local zone = zoneOf(inst)
+	lightsByZone[zone] = lightsByZone[zone] or {}
+	table.insert(lightsByZone[zone], entry)
+	applyEntry(entry, not LightService.IsZoneDark(zone))
+end
+
+local function unregisterLight(inst: Instance)
+	for _, list in lightsByZone do
+		for i, entry in list do
+			if entry.Part == inst then
+				table.remove(list, i)
+				return
+			end
+		end
+	end
+end
+
+local function registerZone(inst: Instance)
+	if not inst:IsA("BasePart") then
+		return
+	end
+	-- Los volumenes de zona no deben bloquear rayos, toques ni colisiones.
+	inst.CanCollide = false
+	inst.CanQuery = false
+	inst.CanTouch = false
+	inst.Transparency = 1
+	zoneParts[zoneOf(inst)] = inst
+end
+
+----------------------------------------------------------------------
+-- API
+----------------------------------------------------------------------
+
+function LightService.IsZoneDark(zone: string): boolean
+	local r = reasons[zone]
+	return r ~= nil and next(r) ~= nil
+end
+
+function LightService.HasReason(zone: string, reason: string): boolean
+	local r = reasons[zone]
+	return r ~= nil and r[reason] == true
+end
+
+function LightService.SetReason(zone: string, reason: string, active: boolean)
+	local wasDark = LightService.IsZoneDark(zone)
+	reasons[zone] = reasons[zone] or {}
+	reasons[zone][reason] = if active then true else nil
+	if wasDark ~= LightService.IsZoneDark(zone) then
+		applyZone(zone)
+	end
+end
+
+-- Parpadeo de terror; al terminar aplica el estado real de la zona.
+function LightService.Flicker(zone: string, duration: number)
+	if flickering[zone] then
+		return
+	end
+	flickering[zone] = true
+	task.spawn(function()
+		local endAt = os.clock() + duration
+		local on = true
+		while os.clock() < endAt do
+			on = not on
+			for _, entry in lightsByZone[zone] or {} do
+				applyEntry(entry, on)
+			end
+			task.wait(math.random(4, 18) / 100)
+		end
+		flickering[zone] = nil
+		applyZone(zone)
+	end)
+end
+
+function LightService.ResetAll()
+	reasons = {}
+	for zone in lightsByZone do
+		applyZone(zone)
+	end
+	for zone in zoneParts do
+		applyZone(zone)
+	end
+end
+
+function LightService.GetZones(): { string }
+	local list = {}
+	for zone in zoneParts do
+		table.insert(list, zone)
+	end
+	if #list == 0 then
+		for zone in lightsByZone do
+			table.insert(list, zone)
+		end
+	end
+	return list
+end
+
+function LightService.GetZonePart(zone: string): BasePart?
+	return zoneParts[zone]
+end
+
+function LightService.GetZoneCenter(zone: string): Vector3?
+	local part = zoneParts[zone]
+	if part then
+		return part.Position
+	end
+	local lights = lightsByZone[zone]
+	if lights and #lights > 0 then
+		local sum = Vector3.zero
+		for _, entry in lights do
+			sum += entry.Part.Position
+		end
+		return sum / #lights
+	end
+	return nil
+end
+
+-- Zona en la que esta un punto (nil si fuera de todas).
+function LightService.GetZoneAt(position: Vector3): string?
+	for zone, part in zoneParts do
+		local rel = part.CFrame:PointToObjectSpace(position)
+		local half = part.Size / 2
+		if math.abs(rel.X) <= half.X and math.abs(rel.Y) <= half.Y and math.abs(rel.Z) <= half.Z then
+			return zone
+		end
+	end
+	return nil
+end
+
+function LightService.IsDarkAt(position: Vector3): boolean
+	local zone = LightService.GetZoneAt(position)
+	return zone ~= nil and LightService.IsZoneDark(zone)
+end
+
+----------------------------------------------------------------------
+-- Arranque
+----------------------------------------------------------------------
+
+local function setupAmbience()
+	-- Noche cerrada: casi toda la luz viene de las lamparas del mall y las linternas.
+	-- (Recomendado en Studio: Lighting.Technology = Future para sombras de luces.)
+	Lighting.ClockTime = 0
+	Lighting.Brightness = 0
+	Lighting.Ambient = Color3.fromRGB(6, 6, 10)
+	Lighting.OutdoorAmbient = Color3.fromRGB(4, 4, 8)
+	Lighting.EnvironmentDiffuseScale = 0
+	Lighting.EnvironmentSpecularScale = 0
+	Lighting.GlobalShadows = true
+	Lighting.ExposureCompensation = 0
+	local atmosphere = Lighting:FindFirstChildOfClass("Atmosphere")
+	if atmosphere then
+		atmosphere.Density = 0.35
+		atmosphere.Offset = 0
+		atmosphere.Color = Color3.fromRGB(15, 15, 20)
+		atmosphere.Decay = Color3.fromRGB(5, 5, 8)
+		atmosphere.Glare = 0
+		atmosphere.Haze = 1
+	end
+end
+
+function LightService.Start()
+	setupAmbience()
+
+	for _, inst in CollectionService:GetTagged(Tags.Zone) do
+		registerZone(inst)
+	end
+	CollectionService:GetInstanceAddedSignal(Tags.Zone):Connect(registerZone)
+
+	for _, inst in CollectionService:GetTagged(Tags.Light) do
+		registerLight(inst)
+	end
+	CollectionService:GetInstanceAddedSignal(Tags.Light):Connect(registerLight)
+	CollectionService:GetInstanceRemovedSignal(Tags.Light):Connect(unregisterLight)
+end
+
+return LightService

@@ -6,6 +6,16 @@ local Types = require(script.Parent.Types)
 local Config = {}
 
 ----------------------------------------------------------------------
+-- Pruebas (cambiar para probar mas rapido; dejar en los valores por defecto al publicar)
+----------------------------------------------------------------------
+Config.Debug = {
+	BuildTestMap = true, -- construye un mall de prueba si no hay un mapa con tags
+	StartNight = 1, -- pon 2 para que aparezca el Apagon desde el inicio
+	NightSecondsOverride = nil :: number?, -- ej. 120 para noches de 2 minutos
+	PreparationSecondsOverride = nil :: number?,
+}
+
+----------------------------------------------------------------------
 -- Partida
 ----------------------------------------------------------------------
 Config.MaxPlayersPerRoom = 5
@@ -71,6 +81,14 @@ Config.Movement = {
 	StaminaDrainPerSecond = 20,
 	StaminaRegenPerSecond = 12,
 	StaminaRegenDelay = 1.2,
+}
+
+Config.Flashlight = {
+	DrainPerSecond = 1, -- segundos de bateria por segundo encendida
+	Range = 45,
+	Angle = 55, -- angulo del SpotLight (visual)
+	Brightness = 3,
+	DetectHalfAngle = 22, -- cono (grados) en el que la linterna "alumbra" a un enemigo
 }
 
 function Config.getUpgradeCost(statName: string, currentLevel: number): number?
@@ -200,16 +218,42 @@ Config.Achievements = {
 ----------------------------------------------------------------------
 -- Tienda del mall (dinero del juego)
 ----------------------------------------------------------------------
+-- Use: que hace al usarlo (tecla Hotkey). Permanent: se compra una sola vez.
 Config.ShopItems = {
-	Battery = { DisplayName = "Bateria", Price = 75, Description = "Recarga la linterna al 100%." },
-	Medkit = { DisplayName = "Botiquin", Price = 150, Description = "Cura 50 de vida." },
+	Battery = {
+		DisplayName = "Batería",
+		Price = 75,
+		Description = "Recarga la linterna al 100%.",
+		MaxStack = 5,
+		Use = "RechargeBattery",
+		Hotkey = 1,
+	},
+	Medkit = {
+		DisplayName = "Botiquín",
+		Price = 150,
+		Description = "Cura 50 de vida.",
+		MaxStack = 3,
+		Use = "Heal",
+		Amount = 50,
+		Hotkey = 2,
+	},
 	FlashlightPro = {
 		DisplayName = "Linterna Pro",
 		Price = 1200,
-		Description = "Haz mas amplio y 25% menos consumo.",
+		Description = "Haz más amplio y 25% menos consumo.",
 		Permanent = true,
 	},
 }
+
+Config.ShopOrder = { "Battery", "Medkit", "FlashlightPro" }
+
+Config.FlashlightPro = {
+	ExtraAngle = 15, -- grados extra del haz visible
+	ExtraDetectAngle = 8, -- grados extra del cono que afecta a enemigos
+	DrainMultiplier = 0.75,
+}
+
+Config.ShopRange = 14 -- distancia maxima al mostrador para comprar
 
 ----------------------------------------------------------------------
 -- Maquinas expendedoras
@@ -232,7 +276,8 @@ Config.SodaEffects = {
 	Tired = { DisplayName = "Cansancio", Positive = false, Duration = 25, Modifiers = { Stamina = 0.6 } },
 }
 
--- Las probabilidades se muestran en la UI (politica de Roblox para objetos aleatorios).
+-- Las probabilidades se muestran en la maquina (politica de Roblox para objetos aleatorios).
+-- Solo hay una soda activa a la vez: tomar otra reemplaza el efecto anterior.
 Config.VendingMachines = {
 	Cheap = {
 		DisplayName = "Soda misteriosa",
@@ -263,12 +308,49 @@ function Config.getMaxConcurrentMissions(night: number): number
 	return math.min(2 + math.floor(night / 2), 6)
 end
 
+Config.MissionSpawn = {
+	FirstDelay = 8, -- segundos tras empezar la noche
+	BaseInterval = 30, -- segundos entre misiones nuevas en la noche 1
+	IntervalPerNight = -2, -- cada noche salen antes
+	MinInterval = 12,
+	RewardPerNight = 0.10, -- +10% de recompensa por noche
+}
+
+-- Cuanto se potencian los enemigos por cada mision fallada
+Config.Threat = {
+	SpeedPerFailedMission = 0.04, -- +4% velocidad a todos por mision fallada
+	BlackoutPerFailedLights = 0.15, -- +15% velocidad/resistencia del Apagon por luces sin reparar
+}
+
 ----------------------------------------------------------------------
 -- Enemigos
 ----------------------------------------------------------------------
 Config.Enemies = {
-	Mannequin = { DisplayName = "Maniqui", UnlockNight = 1, BaseCount = 2, Speed = 22, Damage = 35 },
-	Blackout = { DisplayName = "Apagon", UnlockNight = 2, BaseCount = 1, Speed = 12, Damage = 25 },
+	Mannequin = {
+		DisplayName = "Maniqui",
+		UnlockNight = 1,
+		BaseCount = 2,
+		Speed = 20,
+		Damage = 35,
+		AttackRange = 3.5,
+		AttackCooldown = 1.5,
+		ViewHalfAngle = 50, -- grados: cono de vision del jugador que lo congela
+		ViewRange = 150,
+	},
+	Blackout = {
+		DisplayName = "Apagon",
+		UnlockNight = 2,
+		BaseCount = 1,
+		Speed = 11,
+		Damage = 25,
+		AttackRange = 4,
+		AttackCooldown = 1.5,
+		HoverHeight = 4.5,
+		DarkenDelay = 2.5, -- parpadeo antes de apagar la zona
+		ExposureToFlee = 2.5, -- segundos de linterna para hacerlo huir
+		FleeCooldown = 12,
+		ZoneLinger = 15, -- segundos sin victimas antes de cambiar de zona
+	},
 	Echo = { DisplayName = "Eco", UnlockNight = 3, BaseCount = 1, Speed = 14, Damage = 30 },
 	Tracker = { DisplayName = "Rastro", UnlockNight = 5, BaseCount = 1, Speed = 16, Damage = 30 },
 	Watcher = { DisplayName = "Vigilante", UnlockNight = 7, BaseCount = 1, Speed = 13, Damage = 40 },

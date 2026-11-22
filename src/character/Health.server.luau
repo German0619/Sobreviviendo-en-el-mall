@@ -1,0 +1,2 @@
+-- Reemplaza el script "Health" por defecto de Roblox, que regenera vida sola.
+-- En este juego la vida solo se recupera con botiquines, sodas o entre noches.

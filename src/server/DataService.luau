@@ -67,6 +67,9 @@ local function pushAttributes(player: Player, data: PlayerData)
 	player:SetAttribute("Money", data.Money)
 	player:SetAttribute("BestNight", data.BestNight)
 	player:SetAttribute("EquippedClass", data.EquippedClass)
+	for itemId in Config.ShopItems do
+		player:SetAttribute("Item_" .. itemId, data.Inventory[itemId] or 0)
+	end
 end
 
 local function sanitize(data: PlayerData)

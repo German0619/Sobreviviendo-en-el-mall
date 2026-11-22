@@ -49,6 +49,11 @@ function Util.weightedRandom<K>(weights: { [K]: number }, rng: Random?): K?
 	return last
 end
 
+-- Convierte un texto en un nombre de atributo valido ("Patio de comidas" -> "Patio_de_comidas").
+function Util.attributeKey(s: string): string
+	return (string.gsub(s, "[^%w_]", "_"))
+end
+
 -- 12345 -> "$12,345"
 function Util.formatMoney(amount: number): string
 	local s = tostring(math.floor(amount))

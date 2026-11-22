@@ -69,7 +69,21 @@ SISTEMAS
    - Legendaria: Medium (ve fantasmas a traves de paredes), Sombra (los enemigos tardan mas en detectarte)
    Se desbloquean con dinero del juego o logros. Definidas en shared/Config.
 
-8. MICROTRANSACCIONES
+8. DEFENSA CONTRA LAS ENTIDADES (por disenar)
+   Hoy solo se puede huir, mirar al Maniqui y alumbrar al Apagon. Falta una forma activa de defenderse,
+   sin convertir el juego en uno de disparos (debe seguir siendo terror: defenderse cuesta recursos y es temporal).
+   Ideas a evaluar:
+   - Destello de linterna: gasta mucha bateria de golpe; aturde a los enemigos del cono unos segundos
+     (el Apagon huye al instante, el Maniqui queda congelado aunque nadie lo mire).
+   - Objetos de la tienda: bengala (zona iluminada temporal que repele al Apagon), senuelo/petardo
+     (atrae enemigos a otro lado, util contra el Eco), extintor/spray (empuja y ralentiza).
+   - Escondites: casilleros, probadores, mostradores; rompen la persecucion si el enemigo no te vio entrar.
+   - Puertas/persianas: la mision "Cerrar puertas" bloquea pasillos a ciertos enemigos por un tiempo.
+   - Defensa en equipo: un jugador alumbra mientras otro repara; revivir companeros caidos.
+   - Clases: perks defensivos (p. ej. Guardia con porra que empuja, Electricista que hace destellos mas baratos).
+   Cada enemigo nuevo (Fase 7) debe tener al menos una contramedida clara.
+
+9. MICROTRANSACCIONES
    - Game Passes (permanentes): x2 dinero, linterna premium, VIP/cosmetico.
    - Developer Products (consumibles): revivir, soda premium, desbloqueo de clase.
    - Politicas de Roblox: lo aleatorio de pago debe mostrar probabilidades y respetar PolicyService:ArePaidRandomItemsRestricted.
@@ -78,14 +92,18 @@ SISTEMAS
 
 FASES DE IMPLEMENTACION
 -----------------------
-1. Base: proyecto Rojo, Config, DataService, PlayerStats.
-2. MVP de partida (un solo place): NightManager + 3 misiones + 2 enemigos (Maniqui, Apagon) + pago + HUD + linterna.
-3. Progresion: mejoras, tienda, maquinas de sodas.
-4. Clases: sistema + 10 clases.
-5. Lobby multijugador: salas publicas/privadas, teleports, limite de 5.
-6. Resto de enemigos y escalado por noche.
-7. Monetizacion: passes y productos + cumplimiento de politicas.
-8. Pulido: sonido, ambientacion, balance, pruebas con varios jugadores.
+1.  [HECHO] Base: proyecto Rojo, Config, DataService, PlayerStats.
+2.  [HECHO] MVP de partida (un solo place): NightManager + 3 misiones + 2 enemigos (Maniqui, Apagon) + pago + HUD + linterna.
+    Incluye un mall de prueba generado por codigo (TestMapBuilder) mientras no exista el mapa real.
+3.  Progresion: mejoras, tienda, maquinas de sodas.
+4.  Clases: sistema + 10 clases.
+5.  Defensa contra las entidades (ver sistema 8): elegir mecanicas e implementarlas.
+6.  Lobby multijugador: salas publicas/privadas, teleports, limite de 5.
+7.  Resto de enemigos y escalado por noche (cada uno con su contramedida).
+8.  Monetizacion: passes y productos + cumplimiento de politicas.
+9.  Mapa del mall: modelarlo en Studio con los tags de shared/Tags, o un generador de mapa
+    mas detallado (tiendas con fachada, escaleras, segundo piso, decoracion) que reemplace al de prueba.
+10. Pulido: sonido, ambientacion, balance, pruebas con varios jugadores.
 
 
 PENDIENTES DEL USUARIO (en Studio)

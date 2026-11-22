@@ -12,6 +12,9 @@
     "ServerScriptService": {
       "Server": {
         "$path": "src/server"
+      },
+      "Enemies": {
+        "$path": "src/enemies"
       }
     },
 
@@ -19,6 +22,12 @@
       "StarterPlayerScripts": {
         "Client": {
           "$path": "src/client"
+        }
+      },
+      "StarterCharacterScripts": {
+        "$className": "StarterCharacterScripts",
+        "Health": {
+          "$path": "src/character/Health.server.luau"
         }
       }
     }
