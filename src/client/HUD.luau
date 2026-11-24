@@ -33,7 +33,17 @@ local COLORS = {
 	Good = Color3.fromRGB(90, 210, 120),
 	Bad = Color3.fromRGB(230, 80, 80),
 	Accent = Color3.fromRGB(255, 200, 80),
+	Event = Color3.fromRGB(190, 120, 255), -- avisos y misiones de evento
 }
+
+-- Color de la linea del evento activo segun su tipo (Config.Events[x].Kind)
+local EVENT_KIND_COLORS = {
+	Bad = Color3.fromRGB(240, 90, 90),
+	Good = Color3.fromRGB(100, 220, 130),
+	Mixed = Color3.fromRGB(240, 190, 70),
+}
+local EVENT_SOUND = "rbxasset://sounds/electronicpingshort.wav"
+local FLOOR_NAMES = { "planta baja", "planta alta" }
 
 local PHASE_NAMES = {
 	Waiting = "Esperando jugadores",
@@ -128,6 +138,7 @@ end
 -- Construccion
 ----------------------------------------------------------------------
 
+local eventLabel
 local gui, clockLabel, nightLabel, phaseLabel, moneyLabel, zoneLabel, itemsLabel, sodaLabel, classLabel, barsFrame
 local diamondsLabel, deadSubtitle, reviveButton, missionsTitle
 local bars = {}
@@ -151,7 +162,7 @@ local function build()
 	local top = make("Frame", {
 		AnchorPoint = Vector2.new(0.5, 0),
 		Position = UDim2.new(0.5, 0, 0, 14),
-		Size = UDim2.fromOffset(320, 90),
+		Size = UDim2.fromOffset(420, 136),
 		BackgroundTransparency = 1,
 		Parent = gui,
 	})
@@ -172,6 +183,17 @@ local function build()
 		Font = FONT_LIGHT,
 		TextColor3 = COLORS.Dim,
 		Text = "",
+		Parent = top,
+	})
+	-- Evento activo (EventDirector): nombre, planta y tiempo que le queda.
+	-- Debajo de la linea de habilidades (Defense: "Destello [G]", a 98 px de arriba)
+	eventLabel = text({
+		Position = UDim2.fromOffset(0, 110),
+		Size = UDim2.new(1, 0, 0, 22),
+		TextSize = 16,
+		RichText = true,
+		Text = "",
+		Visible = false,
 		Parent = top,
 	})
 
@@ -394,19 +416,26 @@ end
 ----------------------------------------------------------------------
 
 local function addMissionEntry(value: Instance)
+	-- Misiones de evento (EventDirector): arriba del todo, en morado y sin pago
+	local isEvent = value:GetAttribute("Event") == true
+	local order = tonumber(string.sub(value.Name, 2)) or 0
 	local frame = make("Frame", {
 		Size = UDim2.new(1, 0, 0, 48),
-		BackgroundColor3 = COLORS.Panel,
+		BackgroundColor3 = if isEvent then Color3.fromRGB(40, 20, 60) else COLORS.Panel,
 		BackgroundTransparency = 0.25,
-		LayoutOrder = tonumber(string.sub(value.Name, 2)) or 0,
+		LayoutOrder = if isEvent then order - 100000 else order,
 		Parent = missionList,
-	}, { corner(8) })
+	}, {
+		corner(8),
+		isEvent and make("UIStroke", { Color = COLORS.Event, Thickness = 1.5, Transparency = 0.2 }) or nil,
+	})
 	text({
 		Position = UDim2.fromOffset(10, 4),
 		Size = UDim2.new(1, -20, 0, 22),
 		TextXAlignment = Enum.TextXAlignment.Left,
 		TextSize = 16,
-		Text = value:GetAttribute("DisplayName") or "?",
+		TextColor3 = if isEvent then COLORS.Event else COLORS.Text,
+		Text = (if isEvent then "EVENTO · " else "") .. (value:GetAttribute("DisplayName") or "?"),
 		Parent = frame,
 	})
 	local detail = text({
@@ -431,15 +460,26 @@ local function removeMissionEntry(value: Instance)
 end
 
 local function updateMissions(now: number)
+	-- Hora de oro: las tareas pagan x RewardMultiplier
+	local multiplier = GameState.Folder:GetAttribute("RewardMultiplier")
 	for value, entry in missionEntries do
 		local remaining = (value:GetAttribute("ExpiresAt") or now) - now
 		local progress = value:GetAttribute("Progress")
+		local pay
+		if value:GetAttribute("Event") == true then
+			pay = "sin pago"
+		else
+			local reward = value:GetAttribute("Reward") or 0
+			pay = if type(multiplier) == "number"
+				then string.format("+%s x%g", Util.formatMoney(math.floor(reward * multiplier)), multiplier)
+				else "+" .. Util.formatMoney(reward)
+		end
 		entry.Detail.Text = string.format(
-			"%s%s  ·  %s  ·  +%s",
+			"%s%s  ·  %s  ·  %s",
 			if type(progress) == "string" then progress .. "  ·  " else "",
 			value:GetAttribute("Zone") or "?",
 			formatTime(remaining),
-			Util.formatMoney(value:GetAttribute("Reward") or 0)
+			pay
 		)
 		entry.Detail.TextColor3 = if remaining <= 15 then COLORS.Bad else COLORS.Dim
 	end
@@ -453,7 +493,11 @@ local toastOrder = 0
 
 local function toast(message: string, kind: string?)
 	toastOrder += 1
-	local color = if kind == "good" then COLORS.Good elseif kind == "bad" then COLORS.Bad else COLORS.Text
+	local color = if kind == "good"
+		then COLORS.Good
+		elseif kind == "bad" then COLORS.Bad
+		elseif kind == "event" then COLORS.Event
+		else COLORS.Text
 	local label = text({
 		Size = UDim2.fromOffset(0, 30),
 		AutomaticSize = Enum.AutomaticSize.X,
@@ -596,6 +640,25 @@ local function update()
 		phaseText ..= "   ·   " .. InputHints.Label("Upgrades", "Mejoras")
 	end
 	phaseLabel.Text = phaseText
+
+	-- Evento activo: "APAGÓN GENERAL (planta alta) · 1:23"
+	local eventName = state:GetAttribute("EventName")
+	if type(eventName) == "string" and phase == "Night" then
+		local floor = state:GetAttribute("EventFloor")
+		local eventEnds = state:GetAttribute("EventEndsAt") or 0
+		local textValue = string.upper(eventName)
+		if type(floor) == "number" and FLOOR_NAMES[floor] then
+			textValue ..= " (" .. FLOOR_NAMES[floor] .. ")"
+		end
+		if eventEnds > 0 then
+			textValue ..= "  ·  " .. formatTime(eventEnds - now)
+		end
+		eventLabel.Text = "⚠ " .. textValue
+		eventLabel.TextColor3 = EVENT_KIND_COLORS[state:GetAttribute("EventKind") or ""] or COLORS.Event
+		eventLabel.Visible = true
+	else
+		eventLabel.Visible = false
+	end
 
 	local classDef = Config.Classes[player:GetAttribute("EquippedClass") or ""]
 	if classDef and not player:GetAttribute("SpinAnimating") then
@@ -780,6 +843,20 @@ function HUD.Start()
 
 	Remotes.event("Notify").OnClientEvent:Connect(toast)
 	Remotes.event("NightResults").OnClientEvent:Connect(showResults)
+
+	-- Aviso sonoro al empezar un evento: dos pitidos (graves si es malo, agudos si es bueno)
+	local eventSound = make("Sound", { Name = "EventAlert", SoundId = EVENT_SOUND, Volume = 0.8, Parent = gui })
+	GameState.Folder:GetAttributeChangedSignal("EventName"):Connect(function()
+		if GameState.Folder:GetAttribute("EventName") == nil then
+			return
+		end
+		local good = GameState.Folder:GetAttribute("EventKind") == "Good"
+		eventSound.PlaybackSpeed = if good then 1.3 else 0.75
+		eventSound:Play()
+		task.delay(0.35, function()
+			eventSound:Play()
+		end)
+	end)
 
 	-- Ocultar el panel de resultados al empezar la fase de mejoras tras unos segundos
 	GameState.Folder:GetAttributeChangedSignal("Phase"):Connect(function()

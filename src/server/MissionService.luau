@@ -59,6 +59,9 @@ local running = false
 local currentNight = 1
 local idCounter = 0
 local runToken = 0
+local rewardMultiplier = 1 -- evento Hora de oro
+local eventMissions = {} -- [handle] = true (misiones de evento activas)
+local eventCounter = 0
 
 local function notifyAll(text: string, kind: string)
 	Remotes.event("Notify"):FireAllClients(text, kind)
@@ -127,7 +130,8 @@ local function endMission(mission, player: Player?, silent: boolean?)
 	end
 
 	if player then
-		teamEarnings += mission.Reward
+		local reward = math.floor(mission.Reward * rewardMultiplier)
+		teamEarnings += reward
 		doneCount += 1
 		GameState.Folder:SetAttribute("MissionsDone", doneCount)
 		DataService.Update(player, function(d)
@@ -138,7 +142,7 @@ local function endMission(mission, player: Player?, silent: boolean?)
 				"%s completó: %s (+%s para el equipo)  ·  %d/%d",
 				player.DisplayName,
 				mission.DisplayName,
-				Util.formatMoney(mission.Reward),
+				Util.formatMoney(reward),
 				math.min(doneCount, goal),
 				goal
 			),
@@ -285,6 +289,109 @@ function MissionService.StopNight()
 	for _, mission in active do
 		endMission(mission, nil, true)
 	end
+	for handle in eventMissions do
+		handle.Cancel()
+	end
+	MissionService.SetRewardMultiplier(1)
+end
+
+-- Evento Hora de oro: las tareas pagan x multiplier (el HUD lo muestra).
+function MissionService.SetRewardMultiplier(multiplier: number)
+	rewardMultiplier = multiplier
+	GameState.Folder:SetAttribute("RewardMultiplier", if multiplier ~= 1 then multiplier else nil)
+end
+
+-- Un punto libre de un tipo de mision (para las misiones de evento: generadores,
+-- monitores, paneles de alarma). floor: solo de esa planta, si la hay. near: el mas
+-- cercano a ese punto (si no, uno al azar).
+function MissionService.GetFreeSpot(missionType: string, floor: number?, near: Vector3?): BasePart?
+	local list = {}
+	for _, inst in CollectionService:GetTagged(Tags.MissionSpot) do
+		if inst:IsA("BasePart") and inst:GetAttribute("MissionType") == missionType and not spotBusy[inst] then
+			if not floor or Config.getFloor(inst.Position.Y) == floor then
+				table.insert(list, inst)
+			end
+		end
+	end
+	if #list == 0 then
+		return nil
+	end
+	if near then
+		table.sort(list, function(a, b)
+			return (a.Position - near).Magnitude < (b.Position - near).Magnitude
+		end)
+		return list[1]
+	end
+	return list[rng:NextInteger(1, #list)]
+end
+
+----------------------------------------------------------------------
+-- Misiones de evento (EventDirector)
+----------------------------------------------------------------------
+-- No cuentan para la cuota, no pagan y no avanzan el reloj. Se ven en la lista de
+-- tareas con otro color (atributo Event). Si caducan, no hay penalizacion: el evento
+-- decide (normalmente sigue activo y crea otra).
+--
+-- opts = {
+--   DisplayName: string, Spot: BasePart, ActionText: string, ObjectText: string?,
+--   HoldSeconds: number?, TimeLimit: number, RepairTask: boolean?,
+--   OnComplete: (player) -> (), OnExpire: () -> ()?,
+-- }
+-- Devuelve { Cancel: () -> () }.
+function MissionService.StartEventMission(opts)
+	eventCounter += 1
+	local spot: BasePart = opts.Spot
+	local done = false
+	local handle = {}
+	spotBusy[spot] = true
+
+	local value = Instance.new("Configuration")
+	value.Name = "E" .. eventCounter
+	value:SetAttribute("Event", true)
+	value:SetAttribute("Type", "Event")
+	value:SetAttribute("DisplayName", opts.DisplayName)
+	value:SetAttribute("Zone", zoneForSpot(spot))
+	value:SetAttribute("ExpiresAt", Workspace:GetServerTimeNow() + opts.TimeLimit)
+	value:SetAttribute("Reward", 0)
+	value.Parent = GameState.Missions
+
+	local MissionsCommon = require(MissionsFolder.Common)
+	local prompt = MissionsCommon.makePrompt(spot, opts.ActionText, opts.ObjectText, opts.HoldSeconds)
+	if opts.RepairTask then
+		prompt:SetAttribute("RepairTask", true)
+	end
+	local marker = MissionsCommon.makeMarker(spot, "!", Color3.fromRGB(190, 120, 255))
+
+	local function finish()
+		if done then
+			return false
+		end
+		done = true
+		eventMissions[handle] = nil
+		spotBusy[spot] = nil
+		value:Destroy()
+		prompt:Destroy()
+		marker:Destroy()
+		return true
+	end
+	handle.Cancel = finish
+
+	prompt.Triggered:Connect(function(player: Player)
+		if done or player:GetAttribute("Alive") ~= true then
+			return
+		end
+		finish()
+		notifyAll(string.format("%s resolvió: %s", player.DisplayName, opts.DisplayName), "good")
+		task.spawn(opts.OnComplete, player)
+	end)
+
+	eventMissions[handle] = true
+	task.delay(opts.TimeLimit, function()
+		if finish() and opts.OnExpire then
+			opts.OnExpire()
+		end
+	end)
+	return handle
 end
 
 -- Al empezar la preparacion: quitar restos (charcos, etc.) de la noche anterior.

@@ -22,6 +22,8 @@ Config.Debug = {
 	OnlyEnemies = nil :: { string }?, -- ej. { "Echo" }: solo salen esos tipos (para probar uno)
 	Tier3MaxOverride = nil :: number?, -- ej. 3: permite varios de nivel 3 a la vez (para probarlos)
 	MissionGoalOverride = nil :: number?, -- ej. 2: tareas necesarias para pasar la noche (para probar)
+	OnlyEvents = nil :: { string }?, -- ej. { "Fog" }: solo salen esos eventos (para probarlos)
+	EventDelayOverride = nil :: number?, -- ej. 10: segundos hasta el primer evento y entre eventos
 	PreparationSecondsOverride = nil :: number?,
 	-- SOLO en Studio:
 	StudioStartCash = 0, -- billetes al empezar cada partida (ej. 5000 para probar la tienda)
@@ -1100,6 +1102,160 @@ Config.Enemies = {
 		AttackCooldown = 1.8,
 		AlertMemory = 10, -- segundos que va hacia donde una camara te vio
 		Hint = "Nuevo: el Vigilante ve por las cámaras. Evita sus haces rojos o ciégalas con el destello.",
+	},
+}
+
+----------------------------------------------------------------------
+-- Eventos de la noche (EventDirector, un modulo por evento en server/Events)
+----------------------------------------------------------------------
+-- Uno cada 2-3 minutos, como mucho 1 activo, y un numero maximo por noche (PerNight).
+-- Cada evento tiene su enfriamiento (Cooldown, en segundos de juego).
+-- Weight: probabilidad relativa. Los mas fuertes (Apagon general, Oleada, Megafonia hackeada,
+-- Hora de oro, Suministros, Camaras amigas) tienen menos peso que los normales (8-10).
+-- Kind: "Bad" | "Good" | "Mixed" (color del aviso). Floor: true = ocurre en una planta
+-- (la de mas jugadores, con algo de azar); false = en todo el mall.
+-- Las "misiones de evento" no cuentan para la cuota, no pagan y no avanzan el reloj;
+-- si caducan, el evento sigue (se prolonga).
+Config.EventDirector = {
+	FirstDelay = 60, -- segundos desde el inicio de la noche hasta el primer evento
+	Interval = { 120, 180 }, -- segundos entre el inicio de un evento y el siguiente
+	GapAfterEnd = 20, -- y al menos esto tras terminar el anterior
+	-- Eventos por noche. Cada noche se decide al empezar cuantos habra: hay Max huecos y
+	-- cada uno sale con probabilidad Chance (asi no esta asegurado que salgan todos).
+	-- GuaranteedBad: cuantos de ellos seran negativos seguro.
+	PerNight = {
+		{ UpToNight = 4, Max = 1, Chance = 0.65 }, -- noches 1-4: como mucho 1
+		{ UpToNight = 10, Max = 2, Chance = 0.7 }, -- noches 5-10: como mucho 2
+		{ UpToNight = math.huge, Max = 3, Chance = 1, GuaranteedBad = 2 }, -- 11+: 3, 2 negativos
+	},
+	-- Los negativos salen algo mas que los positivos, y los positivos cada vez menos:
+	-- peso de un positivo x max(GoodMin, 1 - GoodFadePerNight * (noche - 1)).
+	BadWeightMultiplier = 1.25,
+	GoodFadePerNight = 0.06,
+	GoodMin = 0.35,
+}
+
+Config.Events = {
+	GeneralBlackout = {
+		DisplayName = "Apagón general",
+		Kind = "Bad",
+		Description = "Todo el mall se queda a oscuras. Reinicien los generadores principales.",
+		MinNight = 4,
+		Weight = 5, -- de los mas fuertes: sale menos
+		Cooldown = 600,
+		Floor = false,
+		MaxSeconds = 240, -- si nadie arregla nada, vuelve la luz a los 4 minutos
+		MissionSeconds = 90, -- tiempo de cada mision de generador (al caducar se renueva)
+		HoldSeconds = 6,
+	},
+	Fog = {
+		DisplayName = "Neblina",
+		Kind = "Bad",
+		Description = "Una niebla densa entra en el mall. Ni tú ni ellos verán lejos.",
+		MinNight = 3,
+		Weight = 10,
+		Cooldown = 420,
+		Floor = false,
+		Duration = 90,
+		FadeSeconds = 10,
+		SenseMultiplier = 0.6, -- los enemigos ven a menos distancia
+	},
+	WeakBatteries = {
+		DisplayName = "Baterías débiles",
+		Kind = "Bad",
+		Description = "Las linternas gastan el doble de batería durante 2 minutos.",
+		MinNight = 2,
+		Weight = 10,
+		Cooldown = 420,
+		Floor = false,
+		Duration = 120,
+		DrainMultiplier = 2,
+	},
+	Wave = {
+		DisplayName = "Oleada",
+		Kind = "Bad",
+		Description = "Una horda de entidades aparece en tu planta durante 60 segundos.",
+		MinNight = 3,
+		Weight = 5, -- de los mas fuertes: sale menos
+		Cooldown = 480,
+		Floor = true,
+		Duration = 60,
+		BaseCount = 3,
+		PerNights = 3, -- +1 enemigo cada 3 noches
+		MaxCount = 8,
+	},
+	MarkedPlayer = {
+		DisplayName = "Jugador marcado",
+		Kind = "Bad",
+		Description = "Un jugador atrae a los enemigos. Se anula acercándose a un compañero.",
+		MinNight = 2,
+		Weight = 8,
+		Cooldown = 420,
+		Floor = false,
+		Duration = 45,
+		LureRadius = 80,
+		ClearDistance = 10, -- junto a un companero a esta distancia...
+		ClearSeconds = 1.5, -- ...durante este tiempo
+	},
+	HackedIntercom = {
+		DisplayName = "Megafonía hackeada",
+		Kind = "Bad",
+		Description = "La megafonía anuncia tareas falsas. Fíate solo de tu lista.",
+		MinNight = 5,
+		Weight = 4, -- de los mas fuertes: sale menos
+		Cooldown = 600,
+		Floor = true,
+		Duration = 120,
+		Interval = { 20, 30 }, -- anuncia mucho mas seguido que la Megafonia normal
+	},
+	FireAlarm = {
+		DisplayName = "Alarma de incendio",
+		Kind = "Bad",
+		Description = "Los rociadores mojan una zona: allí vas más lento y las bengalas se apagan. Apaguen la alarma.",
+		MinNight = 4,
+		Weight = 8,
+		Cooldown = 480,
+		Floor = true,
+		Duration = 90,
+		Radius = 40, -- zona mojada alrededor de donde salta (junto a un jugador de la planta)
+		WalkMultiplier = 0.6, -- suelo mojado (tambien al correr)
+		HoldSeconds = 3,
+	},
+	GoldenHour = {
+		DisplayName = "Hora de oro",
+		Kind = "Good",
+		Description = "Las tareas pagan el doble 2 minutos... pero los enemigos van más rápido.",
+		MinNight = 1,
+		Weight = 6, -- de los mas fuertes: sale menos
+		Cooldown = 480,
+		Floor = false,
+		Duration = 120,
+		RewardMultiplier = 2,
+		EnemySpeedMultiplier = 1.15,
+	},
+	Supplies = {
+		DisplayName = "Suministros",
+		Kind = "Good",
+		Description = "Ha caído una caja de suministros. Ábrela antes de que se la lleven.",
+		MinNight = 1,
+		Weight = 6, -- de los mas fuertes: sale menos
+		Cooldown = 360,
+		Floor = true,
+		MissionSeconds = 90,
+		HoldSeconds = 1.5,
+		Items = { Flare = 1, Battery = 1, Medkit = 1 }, -- para quien la abre
+	},
+	FriendlyCameras = {
+		DisplayName = "Cámaras amigas",
+		Kind = "Good",
+		Description = "Las cámaras de seguridad funcionan: úsalas para ver a todas las entidades.",
+		MinNight = 2,
+		Weight = 6, -- de los mas fuertes: sale menos
+		Cooldown = 420,
+		Floor = false,
+		MissionSeconds = 75,
+		HoldSeconds = 2,
+		RevealSeconds = 10,
 	},
 }
 

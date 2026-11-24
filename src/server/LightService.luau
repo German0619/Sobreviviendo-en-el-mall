@@ -7,6 +7,7 @@
 local CollectionService = game:GetService("CollectionService")
 local Lighting = game:GetService("Lighting")
 local ReplicatedStorage = game:GetService("ReplicatedStorage")
+local TweenService = game:GetService("TweenService")
 
 local Shared = ReplicatedStorage:WaitForChild("Shared")
 local Config = require(Shared.Config)
@@ -164,6 +165,45 @@ function LightService.ResetAll()
 	end
 end
 
+-- Evento Neblina. La bruma de la Atmosphere casi no se ve en un mall a oscuras (no hay
+-- luz que la ilumine), asi que se usa la niebla clasica de Lighting (FogEnd), que tapa de
+-- verdad lo que esta a mas de FOG_END studs. La niebla clasica solo funciona sin
+-- Atmosphere: mientras dura, la Atmosphere se guarda fuera de Lighting.
+local FOG_NORMAL = { Density = 0.14, Haze = 0.7, Color = Color3.fromRGB(15, 15, 20) } -- Atmosphere normal
+local FOG_END = 38 -- con niebla, no se ve nada a mas de esto
+local FOG_CLEAR = 1500 -- "sin niebla" para la transicion
+local FOG_COLOR = Color3.fromRGB(48, 50, 56)
+local storedAtmosphere: Atmosphere? = nil
+local fogToken = 0
+function LightService.SetFog(on: boolean, seconds: number)
+	fogToken += 1
+	local token = fogToken
+	local info = TweenInfo.new(math.max(seconds, 0.01), Enum.EasingStyle.Sine)
+	if on then
+		local atmosphere = Lighting:FindFirstChildOfClass("Atmosphere")
+		if atmosphere then
+			storedAtmosphere = atmosphere
+			atmosphere.Parent = nil
+		end
+		Lighting.FogColor = FOG_COLOR
+		Lighting.FogStart = 0
+		Lighting.FogEnd = FOG_CLEAR
+		TweenService:Create(Lighting, info, { FogEnd = FOG_END }):Play()
+	else
+		TweenService:Create(Lighting, info, { FogEnd = FOG_CLEAR }):Play()
+		task.delay(seconds, function()
+			if fogToken ~= token then
+				return -- volvio a empezar otra niebla
+			end
+			Lighting.FogEnd = 100000
+			if storedAtmosphere then
+				storedAtmosphere.Parent = Lighting
+				storedAtmosphere = nil
+			end
+		end)
+	end
+end
+
 function LightService.GetZones(): { string }
 	local list = {}
 	for zone in zoneParts do
@@ -232,12 +272,13 @@ local function setupAmbience()
 	local atmosphere = Lighting:FindFirstChildOfClass("Atmosphere")
 	if atmosphere then
 		-- Bruma ligera: oscurece lo lejano sin tapar el interior (con 0.35 se veia todo negro)
-		atmosphere.Density = 0.14
+		-- (los mismos valores que FOG_NORMAL: la Neblina vuelve a ellos)
+		atmosphere.Density = FOG_NORMAL.Density
 		atmosphere.Offset = 0
-		atmosphere.Color = Color3.fromRGB(15, 15, 20)
+		atmosphere.Color = FOG_NORMAL.Color
 		atmosphere.Decay = Color3.fromRGB(5, 5, 8)
 		atmosphere.Glare = 0
-		atmosphere.Haze = 0.7
+		atmosphere.Haze = FOG_NORMAL.Haze
 	end
 
 	-- Postprocesado "realista": un poco de contraste, tono frio de noche y un bloom

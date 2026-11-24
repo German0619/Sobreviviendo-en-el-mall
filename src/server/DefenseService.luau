@@ -477,6 +477,20 @@ function DefenseService.GetFlareNear(position: Vector3, margin: number?): Vector
 	return best
 end
 
+-- Apaga las bengalas cuya posicion cumpla `filter` (evento Alarma de incendio). Devuelve cuantas.
+function DefenseService.ExtinguishFlares(filter: (Vector3) -> boolean): number
+	local count = 0
+	for i = #flares, 1, -1 do
+		local flare = flares[i]
+		if filter(flare.Position) then
+			table.remove(flares, i)
+			flare.Part:Destroy() -- su bucle de parpadeo termina al no tener padre
+			count += 1
+		end
+	end
+	return count
+end
+
 function DefenseService.IsInFlare(position: Vector3): boolean
 	return DefenseService.GetFlareNear(position) ~= nil
 end

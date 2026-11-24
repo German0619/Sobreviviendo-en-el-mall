@@ -87,6 +87,22 @@ function ShopService.GetCount(player: Player, itemId: string): number
 	return if inv then inv[itemId] or 0 else 0
 end
 
+-- Da objetos gratis (caja de Suministros), respetando el maximo que se puede llevar.
+-- Devuelve cuantos se dieron.
+function ShopService.GiveItem(player: Player, itemId: string, amount: number): number
+	local item = Config.ShopItems[itemId]
+	if not item or item.Weapon or amount <= 0 then
+		return 0
+	end
+	local owned = ShopService.GetCount(player, itemId)
+	local max = item.MaxStack or (if item.Unique then 1 else math.huge)
+	local given = math.max(0, math.min(amount, max - owned))
+	if given > 0 then
+		setCount(player, itemId, owned + given)
+	end
+	return given
+end
+
 function ShopService.Purchase(player: Player, itemId: any): (boolean, string)
 	if type(itemId) ~= "string" then
 		return false, "Objeto inválido"

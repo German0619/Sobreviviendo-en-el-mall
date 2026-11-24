@@ -183,23 +183,37 @@
   - La marca se rompe si te juntas 3 s con otro jugador, si te escondes con él a más de 25 studs, o a los 35 s.
 - Probado jugando: el Maniquí del escaparate, la Estatua, el Mímico y el Cazador.
 
-**Fase 8: director de eventos.**
-- Lanza un evento cada 2–3 minutos, con máximo 1 activo, enfriamientos y un piso asignado.
-- Añade un tipo "misión de evento" a `MissionService`: no cuenta para la cuota, no paga y se muestra con otro color en el HUD.
-- **Evento nuevo: Neblina** (malo, en todo el mall), que se suma a los 15 del documento:
-  - Una niebla densa entra poco a poco (~10 s) en las dos plantas y dura unos 90 s.
-  - Se implementa subiendo la densidad y la bruma de la `Atmosphere` de Lighting con un tween en `LightService`, y luego bajándola. Opcionalmente, partículas de niebla a ras de suelo en el atrio.
-  - La visibilidad baja mucho: la linterna corta menos y la luz de las lámparas apenas llega.
-  - Los enemigos también ven menos: se reduce temporalmente `Config.Detection.SenseRange`.
-  - Sinergia: favorece al Eco y al Ducto, que te oyen sin necesidad de verte.
-  - Se anuncia con sonido y texto en pantalla, como los demás eventos.
-- Los 15 eventos, empezando por los que reutilizan sistemas existentes:
-  - Apagón general (LightService y generadores);
-  - Oleada (director de aparición);
-  - Baterías débiles;
-  - Hora de oro;
-  - Cámaras amigas (la misión CheckCameras);
-  - Suministros.
+**Fase 8: director de eventos.** — Parte 1 [HECHO] (`src/server/EventDirector.luau`, `src/server/Events/*`, `Config.EventDirector`, `Config.Events`)
+- Director:
+  - Un evento cada 2–3 minutos, con máximo 1 activo, enfriamiento por evento y planta asignada (la de más jugadores, con azar).
+  - Eventos por noche, decididos al empezarla (`PerNight`):
+    - noches 1–4: como mucho 1 (65 %);
+    - noches 5–10: como mucho 2 (70 % cada uno);
+    - noche 11 en adelante: 3, con 2 negativos asegurados.
+  - Pesos: los negativos ×1,25; los positivos pierden un 6 % por noche (mínimo ×0,35). Los más fuertes tienen menos peso base.
+- Aviso: texto morado, dos pitidos (graves si es malo, agudos si es bueno) y una línea bajo el reloj con nombre, planta y tiempo. Va debajo de la línea de habilidades.
+- Misiones de evento (`MissionService.StartEventMission`):
+  - no cuentan para la cuota, no pagan y no avanzan el reloj;
+  - salen arriba de la lista, en morado, "sin pago";
+  - si caducan, el evento sigue.
+- Para probar: `Config.Debug.OnlyEvents` (no repite hasta que salen todos) y `EventDelayOverride`; también `EventDirector.Force(id)`.
+- Eventos hechos (10), todos probados jugando:
+  - **Apagón general:** todo el mall a oscuras hasta reiniciar los generadores principales; máximo 4 min.
+  - **Neblina:** niebla clásica de Lighting (`FogEnd` 38; la Atmosphere se quita mientras dura) durante 90 s; los enemigos ven un 40 % menos.
+  - **Baterías débiles:** las linternas gastan el doble durante 2 min.
+  - **Oleada:** enemigos de nivel 1 en una planta durante 60 s (3 más 1 cada 3 noches, máximo 8).
+  - **Jugador marcado:** atrae a los enemigos con un señuelo que le sigue; se anula juntándose 1,5 s con un compañero.
+  - **Megafonía hackeada:** una Megafonía que anuncia tareas falsas cada 20–30 s durante 2 min.
+  - **Alarma de incendio:** rociadores en un círculo de 40 studs junto a un jugador; dentro vas al 60 % y se apagan las bengalas; apagar el panel más cercano lo termina.
+  - **Hora de oro:** tareas ×2 (la lista muestra "x2") y enemigos un 15 % más rápidos durante 2 min.
+  - **Suministros:** caja con bengala, batería y botiquín para quien la abre.
+  - **Cámaras amigas:** usar los monitores revela a todas las entidades 10 s a través de las paredes.
+- Parte 2 (pendiente): los eventos que necesitan piezas nuevas del mapa:
+  - **Piso aislado:** las escaleras se bloquean hasta una misión de reparación.
+  - **Persianas cerradas:** tiendas selladas que se abren con una misión.
+  - **Mercader nocturno:** vendedor 60 s con ofertas raras.
+  - **Maletín perdido:** billetes en una zona peligrosa; cargarlo ralentiza.
+  - **Tienda abierta:** botín, pero activa una alarma al entrar.
 
 **Fase 9: jefes cada 5 noches.**
 - El Gerente, Luni, El Coleccionista y La Central.
@@ -299,6 +313,9 @@ Que toda la interfaz use las herramientas nativas de Roblox para adaptarse a cad
 - Animaciones de movimiento para todas las entidades que no las tienen, como el Maniquí.
 - Ruleta de clases: el resultado aparece en el slot antes de que la ruleta se pare. Debe mostrarse solo cuando termine el giro.
 - Mejorar el diseño del lobby.
+- Subir el precio de las armas: en una sola noche se ganan fácilmente más de 300 billetes.
+- Revivir con Robux no debe hacer perder los objetos (hoy morir vacía el inventario aunque luego revivas).
+- Poder llevar más de un arma (hoy solo hay un hueco de arma).
 
 **Orden elegido:**
 - La Fase 3 cambia la base de cómo aparece el peligro; el resto se apoya en ella.

@@ -30,6 +30,7 @@ local LightService = require(script.Parent.LightService)
 local FlashlightService = require(script.Parent.FlashlightService)
 local MissionService = require(script.Parent.MissionService)
 local EnemyService = require(script.Parent.EnemyService)
+local EventDirector = require(script.Parent.EventDirector)
 local ReviveService = require(script.Parent.ReviveService)
 local ClassService = require(script.Parent.ClassService)
 local RunState = require(script.Parent.RunState)
@@ -217,6 +218,7 @@ local function runNight(night: number): boolean -- devuelve true si todos murier
 	-- Preparacion
 	local prepSeconds = Config.Debug.PreparationSecondsOverride or Config.Night.PreparationSeconds
 	setPhase("Preparation", prepSeconds)
+	EventDirector.StopNight()
 	EnemyService.StopNight()
 	LightService.ResetAll()
 	MissionService.ResetNight()
@@ -249,6 +251,7 @@ local function runNight(night: number): boolean -- devuelve true si todos murier
 	setPhase("Night")
 	EnemyService.StartNight(night)
 	MissionService.StartNight(night, teamSize)
+	EventDirector.StartNight(night)
 	local _, goal = MissionService.GetProgress()
 	notifyAll(string.format("Noche %d: completen %d tareas en equipo para llegar a las 6 AM.", night, goal), "bad")
 
@@ -307,6 +310,7 @@ local function runNight(night: number): boolean -- devuelve true si todos murier
 	end
 	GameState.Folder:SetAttribute("WipeAt", nil)
 
+	EventDirector.StopNight() -- antes que enemigos y misiones: deshace sus efectos
 	EnemyService.StopNight()
 	MissionService.StopNight()
 	ReviveService.Clear()
@@ -324,6 +328,7 @@ end
 local function waitForStart()
 	startRequested = false
 	setPhase("Waiting")
+	EventDirector.StopNight()
 	EnemyService.StopNight()
 	MissionService.StopNight()
 	LightService.ResetAll()
@@ -453,6 +458,7 @@ function NightManager.Start()
 			local ok, err = pcall(runGame)
 			if not ok then
 				warn("[NightManager] Error en la partida:", err)
+				EventDirector.StopNight()
 				EnemyService.StopNight()
 				MissionService.StopNight()
 				task.wait(3)

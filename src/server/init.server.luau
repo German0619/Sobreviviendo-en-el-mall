@@ -49,6 +49,7 @@ else
 		require(script.VendingService),
 		require(script.MissionService),
 		require(script.EnemyService),
+		require(script.EventDirector), -- eventos de la noche (server/Events)
 		require(script.NightManager),
 		require(script.RoomService),
 		require(script.LeaderboardService), -- sube los records (noche, jefes)

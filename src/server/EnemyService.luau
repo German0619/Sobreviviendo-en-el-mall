@@ -53,7 +53,10 @@ local threat = {} -- [missionType] = misiones falladas esta noche
 local heartbeatConn: RBXScriptConnection? = nil
 local nightToken = 0 -- invalida las apariciones escalonadas de una noche anterior
 local currentDifficulty = nil -- tabla compartida con los enemigos (ctx.Difficulty)
+local currentCtx = nil -- ctx de la noche (para las apariciones de los eventos)
 local baseSpeedMultiplier = 1
+local overtimeBonus = 0 -- horas extra (NightManager)
+local eventSpeed = 1 -- evento Hora de oro (EventDirector)
 local rng = Random.new()
 local hinted: { [string]: boolean } = {} -- tipos cuyo aviso ya se mostro en esta partida
 local camerasStarted = false
@@ -168,7 +171,7 @@ local function spawnEnemy(enemyType: string, ctx, floor: number?)
 	local ok, enemy = pcall(module.new, position, ctx)
 	if not ok then
 		warn("[EnemyService] Error creando", enemyType, enemy)
-		return
+		return nil
 	end
 	enemy.EnemyType = enemyType -- lo usan las armas (nivel del enemigo)
 	if enemy.Model then
@@ -187,6 +190,7 @@ local function spawnEnemy(enemyType: string, ctx, floor: number?)
 		hinted[enemyType] = true
 		Remotes.event("Notify"):FireAllClients(def.Hint, "bad")
 	end
+	return enemy
 end
 
 function startCameras(ctx)
@@ -213,6 +217,8 @@ function EnemyService.StartNight(night: number, options: { BudgetMultiplier: num
 	local difficulty = Config.getDifficulty(night)
 	currentDifficulty = difficulty
 	baseSpeedMultiplier = difficulty.SpeedMultiplier
+	overtimeBonus = 0
+	eventSpeed = 1
 	local ctx = {
 		Night = night,
 		Difficulty = difficulty,
@@ -222,6 +228,7 @@ function EnemyService.StartNight(night: number, options: { BudgetMultiplier: num
 		end,
 		GetTotalThreat = getTotalThreat,
 	}
+	currentCtx = ctx
 
 	-- El director decide que aparece, en que planta y cuando
 	local plan, budget = SpawnDirector.Plan(night, playersPerFloor(), {
@@ -256,11 +263,86 @@ function EnemyService.StartNight(night: number, options: { BudgetMultiplier: num
 	end)
 end
 
+local function applySpeed()
+	if currentDifficulty then
+		currentDifficulty.SpeedMultiplier = baseSpeedMultiplier * (1 + overtimeBonus) * eventSpeed
+	end
+end
+
 -- Horas extra (NightManager): bonus = 0.1 -> enemigos un 10% mas rapidos.
 function EnemyService.SetOvertime(bonus: number)
-	if currentDifficulty then
-		currentDifficulty.SpeedMultiplier = baseSpeedMultiplier * (1 + bonus)
+	overtimeBonus = bonus
+	applySpeed()
+end
+
+-- Eventos (Hora de oro): multiplicador extra de velocidad (1 = normal).
+function EnemyService.SetEventSpeed(multiplier: number)
+	eventSpeed = multiplier
+	applySpeed()
+end
+
+-- Quita un enemigo antes de que acabe la noche (al terminar un evento).
+function EnemyService.RemoveEnemy(enemy)
+	local index = table.find(activeEnemies, enemy)
+	if index then
+		table.remove(activeEnemies, index)
+		pcall(enemy.Destroy, enemy)
 	end
+end
+
+-- Aparicion de un evento (Oleada, Megafonia hackeada): un enemigo que se va solo a
+-- los `seconds`. Devuelve el enemigo (o nil).
+function EnemyService.SpawnTemporary(enemyType: string, floor: number?, seconds: number)
+	if not currentCtx then
+		return nil
+	end
+	local token = nightToken
+	local enemy = spawnEnemy(enemyType, currentCtx, floor)
+	if enemy then
+		task.delay(seconds, function()
+			if token == nightToken then
+				EnemyService.RemoveEnemy(enemy)
+			end
+		end)
+	end
+	return enemy
+end
+
+-- Tipos de nivel 1 que ya pueden salir esta noche (para la Oleada).
+function EnemyService.GetTier1Types(): { string }
+	local night = currentCtx and currentCtx.Night or 1
+	local list = {}
+	for enemyType, def in Config.Enemies do
+		if def.Tier == 1 and night >= (def.UnlockNight or 1) and enemyModules[enemyType] then
+			table.insert(list, enemyType)
+		end
+	end
+	table.sort(list)
+	return list
+end
+
+-- Evento Camaras amigas: contorno de todas las entidades visible a traves de las paredes.
+function EnemyService.RevealAll(seconds: number)
+	local marks = {}
+	for _, enemy in activeEnemies do
+		local model = enemy.Model
+		if model and model:IsA("Model") and not model:FindFirstChild("EventReveal") then
+			local h = Instance.new("Highlight")
+			h.Name = "EventReveal"
+			h.FillColor = Color3.fromRGB(255, 120, 40)
+			h.FillTransparency = 0.7
+			h.OutlineColor = Color3.fromRGB(255, 170, 60)
+			h.DepthMode = Enum.HighlightDepthMode.AlwaysOnTop
+			h.Parent = model
+			table.insert(marks, h)
+		end
+	end
+	task.delay(seconds, function()
+		for _, h in marks do
+			h:Destroy()
+		end
+	end)
+	return #marks
 end
 
 function EnemyService.StopNight()

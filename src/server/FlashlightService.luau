@@ -15,6 +15,7 @@ local Remotes = require(Shared.Remotes)
 local FlashlightService = {}
 
 local ATTACHMENT_NAME = "FlashlightAttachment"
+local drainMultiplier = 1 -- evento Baterias debiles (EventDirector)
 local COS_DETECT = math.cos(math.rad(Config.Flashlight.DetectHalfAngle))
 local COS_DETECT_PRO = math.cos(math.rad(Config.Flashlight.DetectHalfAngle + Config.FlashlightPro.ExtraDetectAngle))
 
@@ -71,6 +72,11 @@ function FlashlightService.SetOn(player: Player, on: boolean)
 	if light then
 		light.Enabled = on
 	end
+end
+
+-- Multiplica el consumo de todas las linternas (1 = normal).
+function FlashlightService.SetDrainMultiplier(multiplier: number)
+	drainMultiplier = multiplier
 end
 
 function FlashlightService.Recharge(player: Player, amount: number?)
@@ -262,6 +268,7 @@ function FlashlightService.Start()
 			for _, player in Players:GetPlayers() do
 				if FlashlightService.IsOn(player) then
 					local drain = Config.Flashlight.DrainPerSecond
+						* drainMultiplier
 						* (if hasPro(player) then Config.FlashlightPro.DrainMultiplier else 1)
 						* (if player:GetAttribute("UVOn") == true then Config.Weapons.UVFlashlight.DrainMultiplier else 1)
 					local battery = (player:GetAttribute("Battery") or 0) - drain * dt
