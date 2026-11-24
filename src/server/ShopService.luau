@@ -21,6 +21,8 @@ local RunState = require(script.Parent.RunState)
 local FlashlightService = require(script.Parent.FlashlightService)
 local DefenseService = require(script.Parent.DefenseService)
 local WeaponService = require(script.Parent.WeaponService)
+local VendingService = require(script.Parent.VendingService)
+local Workspace = game:GetService("Workspace")
 
 local ShopService = {}
 
@@ -108,7 +110,7 @@ function ShopService.Purchase(player: Player, itemId: any): (boolean, string)
 		return false, "Objeto inválido"
 	end
 	local item = Config.ShopItems[itemId]
-	if not item then
+	if not item or item.MerchantOnly then
 		return false, "Objeto inválido"
 	end
 	if not DataService.GetData(player) then
@@ -189,13 +191,28 @@ function ShopService.UseItem(player: Player, itemId: any)
 		humanoid.Health = math.min(humanoid.MaxHealth, humanoid.Health + (item.Amount or 0))
 		notify(player, string.format("+%d de vida.", item.Amount or 0), "good")
 	elseif item.Use == "ThrowFlare" then
-		if not DefenseService.ThrowFlare(player) then
+		-- item.Flare: { Duration, Radius } (la Bengala de magnesio del mercader)
+		if not DefenseService.ThrowFlare(player, item.Flare) then
 			return
 		end
 	elseif item.Use == "ThrowFirecracker" then
-		if not DefenseService.ThrowFirecracker(player) then
+		-- item.Firecracker: { Duration, Radius, ThrowRange } (el Petardo gordo del mercader)
+		if not DefenseService.ThrowFirecracker(player, item.Firecracker) then
 			return
 		end
+	elseif item.Use == "LithiumBattery" then
+		-- Bateria de litio: recarga y un rato sin gastar
+		FlashlightService.Recharge(player)
+		player:SetAttribute("FreeBatteryUntil", Workspace:GetServerTimeNow() + (item.FreeSeconds or 60))
+		notify(player, string.format("Linterna recargada: %d s sin gastar batería.", item.FreeSeconds or 60), "good")
+	elseif item.Use == "SmokeBomb" then
+		if not DefenseService.SmokeBomb(player, item.Radius or 14, item.Duration or 8) then
+			return
+		end
+		notify(player, "¡Bomba de humo! Los enemigos no te ven unos segundos.", "good")
+	elseif item.Use == "MysterySoda" then
+		local effects = Config.ChoiceSoda.Effects
+		VendingService.ApplyEffect(player, effects[math.random(1, #effects)], item.DurationMultiplier or 1)
 	else
 		return
 	end

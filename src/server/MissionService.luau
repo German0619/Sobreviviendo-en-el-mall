@@ -336,6 +336,9 @@ end
 --   DisplayName: string, Spot: BasePart, ActionText: string, ObjectText: string?,
 --   HoldSeconds: number?, TimeLimit: number, RepairTask: boolean?,
 --   OnComplete: (player) -> (), OnExpire: () -> ()?,
+--   CanTrigger: (player) -> (boolean, string?)?,  -- p. ej. solo quien lleva el maletin
+--   Silent: boolean?,  -- sin el aviso "X resolvio: ..."
+--   MarkerText: string?, MaxDistance: number?,
 -- }
 -- Devuelve { Cancel: () -> () }.
 function MissionService.StartEventMission(opts)
@@ -360,7 +363,10 @@ function MissionService.StartEventMission(opts)
 	if opts.RepairTask then
 		prompt:SetAttribute("RepairTask", true)
 	end
-	local marker = MissionsCommon.makeMarker(spot, "!", Color3.fromRGB(190, 120, 255))
+	if opts.MaxDistance then
+		prompt.MaxActivationDistance = opts.MaxDistance
+	end
+	local marker = MissionsCommon.makeMarker(spot, opts.MarkerText or "!", Color3.fromRGB(190, 120, 255))
 
 	local function finish()
 		if done then
@@ -380,8 +386,19 @@ function MissionService.StartEventMission(opts)
 		if done or player:GetAttribute("Alive") ~= true then
 			return
 		end
+		if opts.CanTrigger then
+			local ok, reason = opts.CanTrigger(player)
+			if not ok then
+				if reason then
+					Remotes.event("Notify"):FireClient(player, reason, "info")
+				end
+				return
+			end
+		end
 		finish()
-		notifyAll(string.format("%s resolvió: %s", player.DisplayName, opts.DisplayName), "good")
+		if not opts.Silent then
+			notifyAll(string.format("%s resolvió: %s", player.DisplayName, opts.DisplayName), "good")
+		end
 		task.spawn(opts.OnComplete, player)
 	end)
 

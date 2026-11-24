@@ -1886,6 +1886,7 @@ local function escalator(lowX: number, highX: number, zc: number, up: boolean)
 		Spacing = spacing,
 		Speed = if up then ESC_SPEED else -ESC_SPEED,
 	})
+	tag(model, Tags.FloorConnector, { Low = low, High = high, Width = W })
 	return model
 end
 
@@ -2994,7 +2995,12 @@ local STAIR_HOLE = { STAIR.X1, STAIR.X2, STAIR.Z1 - 1, STAIR.Z2 + 1 }
 local function serviceStairs()
 	local W = STAIR.Z2 - STAIR.Z1
 	local zc = (STAIR.Z1 + STAIR.Z2) / 2
-	rampBody("ServiceStairs", STAIR.X1, STAIR.X2, zc, W, M.Concrete, Color3.fromRGB(150, 150, 146))
+	local ramp = rampBody("ServiceStairs", STAIR.X1, STAIR.X2, zc, W, M.Concrete, Color3.fromRGB(150, 150, 146))
+	tag(ramp, Tags.FloorConnector, {
+		Low = Vector3.new(STAIR.X1, Y0, zc),
+		High = Vector3.new(STAIR.X2, Y0 + F2, zc),
+		Width = W,
+	})
 	-- Peldaños (visuales) sobre la rampa
 	local steps = 16
 	for i = 0, steps - 1 do

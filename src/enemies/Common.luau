@@ -24,8 +24,14 @@ local Common = {}
 -- Jugadores
 ----------------------------------------------------------------------
 
+-- Para los enemigos: vivo y no protegido. Quien acaba de revivir pagando (ReviveService,
+-- atributo ProtectedUntil) no existe para ellos durante unos segundos.
 function Common.isAlive(player: Player): boolean
 	if player:GetAttribute("Alive") ~= true then
+		return false
+	end
+	local protectedUntil = player:GetAttribute("ProtectedUntil")
+	if type(protectedUntil) == "number" and protectedUntil > Workspace:GetServerTimeNow() then
 		return false
 	end
 	local character = player.Character

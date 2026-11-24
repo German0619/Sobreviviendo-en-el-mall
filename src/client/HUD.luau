@@ -273,6 +273,7 @@ local function build()
 		TextSize = 14,
 		Font = FONT_LIGHT,
 		TextColor3 = COLORS.Dim,
+		RichText = true, -- (el aviso PROTEGIDO va en azul)
 		Text = "",
 		LayoutOrder = 0,
 		Parent = barsFrame,
@@ -763,6 +764,12 @@ local function update()
 			zoneText = if dark then zoneName .. "  ·  SIN LUZ" else zoneName
 		end
 		zoneBad = dark
+	end
+	-- Escudo al revivir pagando: los enemigos te ignoran (ReviveService)
+	local protectedUntil = player:GetAttribute("ProtectedUntil")
+	if type(protectedUntil) == "number" and protectedUntil > now then
+		local shieldText = string.format('<font color="#8CD2FF">PROTEGIDO %ds</font>', math.ceil(protectedUntil - now))
+		zoneText = if zoneText ~= "" then zoneText .. "  ·  " .. shieldText else shieldText
 	end
 	-- Olor de derrame: el Rastro te sigue (Tracker)
 	local scentUntil = player:GetAttribute("ScentUntil")

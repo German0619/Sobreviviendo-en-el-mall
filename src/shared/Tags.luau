@@ -64,6 +64,10 @@ return {
 	-- Length (studs a lo largo de la rampa), Spacing (entre escalones), Speed (+ sube, - baja).
 	Escalator = "Escalator",
 
+	-- Escalera entre plantas (mecanica o de servicio): la bloquea el evento Piso aislado.
+	-- Atributos: Low y High (Vector3: centro de cada extremo, a ras de suelo) y Width (studs).
+	FloorConnector = "FloorConnector",
+
 	-- Agua de las fuentes (solo visual, la anima el cliente): laminas de agua que giran
 	-- despacio (atributo Spin, rad/s) y focos sumergidos que titilan (atributo Shimmer).
 	FountainWater = "FountainWater",

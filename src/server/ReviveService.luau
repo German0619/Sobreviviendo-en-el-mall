@@ -7,12 +7,15 @@
 --   * El propio caido: paga Robux desde su pantalla de muerte.
 --   * Si tienes "fichas de revivir" (compras que no se pudieron usar), se usa
 --     una ficha en vez de pedir Robux.
+--   * Revivir pagando (Robux o ficha) da un escudo: los enemigos te ignoran y no te
+--     hacen dano durante Config.Revive.PaidProtectionSeconds (atributo ProtectedUntil).
 -- La entrega de la compra la hace MonetizationService -> OnRevivePurchased.
 -- Atributo del Player: Downed (true mientras su cuerpo se puede revivir)
 
 local MarketplaceService = game:GetService("MarketplaceService")
 local Players = game:GetService("Players")
 local ReplicatedStorage = game:GetService("ReplicatedStorage")
+local Workspace = game:GetService("Workspace")
 
 local Shared = ReplicatedStorage:WaitForChild("Shared")
 local Config = require(Shared.Config)
@@ -56,8 +59,36 @@ function ReviveService.IsDowned(player: Player): boolean
 	return downed[player] ~= nil and GameState.Folder:GetAttribute("Phase") == "Night"
 end
 
--- Revive de verdad (ya pagado / gratis).
-local function revive(player: Player, by: Player)
+-- Escudo al revivir pagando: los enemigos te ignoran (Common.isAlive mira ProtectedUntil)
+-- y el ForceField evita el dano.
+local function protect(player: Player, seconds: number)
+	local character = player.Character
+	if not character then
+		return
+	end
+	player:SetAttribute("ProtectedUntil", Workspace:GetServerTimeNow() + seconds)
+	-- Escudo invisible (el brillo del ForceField molesta): protege del dano sin verse
+	local shield = Instance.new("ForceField")
+	shield.Name = "ReviveShield"
+	shield.Visible = false
+	shield.Parent = character
+	-- Contorno suave para que los companeros sepan que esta protegido (el HUD muestra el tiempo)
+	local outline = Instance.new("Highlight")
+	outline.Name = "ReviveShieldOutline"
+	outline.FillTransparency = 1
+	outline.OutlineColor = Color3.fromRGB(140, 210, 255)
+	outline.OutlineTransparency = 0.55
+	outline.DepthMode = Enum.HighlightDepthMode.Occluded
+	outline.Parent = character
+	task.delay(seconds, function()
+		shield:Destroy()
+		outline:Destroy()
+	end)
+	notify(player, string.format("Los enemigos te ignoran durante %d s.", seconds), "good")
+end
+
+-- Revive de verdad (ya pagado / gratis). paid: con Robux o ficha (da el escudo).
+local function revive(player: Player, by: Player, paid: boolean?)
 	local entry = downed[player]
 	if not entry or not player.Parent then
 		return false
@@ -71,6 +102,9 @@ local function revive(player: Player, by: Player)
 		player.Character:PivotTo(CFrame.new(position + Vector3.new(0, 3, 0)))
 	end
 	player:SetAttribute("Alive", true)
+	if paid then
+		protect(player, Config.Revive.PaidProtectionSeconds)
+	end
 
 	local message = if by == player
 		then player.DisplayName .. " volvió a la vida"
@@ -89,7 +123,7 @@ local function requestPaidRevive(buyer: Player, target: Player)
 		DataService.Update(buyer, function(d)
 			d.ReviveTokens -= 1
 		end)
-		revive(target, buyer)
+		revive(target, buyer, true)
 		return
 	end
 	if Config.DevProducts.Revive == 0 then
@@ -108,7 +142,7 @@ function ReviveService.OnRevivePurchased(buyer: Player): boolean
 	if not target and ReviveService.IsDowned(buyer) then
 		target = buyer
 	end
-	if target and ReviveService.IsDowned(target) and revive(target, buyer) then
+	if target and ReviveService.IsDowned(target) and revive(target, buyer, true) then
 		return true
 	end
 	DataService.Update(buyer, function(d)

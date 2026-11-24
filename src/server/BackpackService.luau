@@ -59,10 +59,14 @@ function BackpackService.Sync(player: Player)
 	end
 	syncing[player] = true
 
-	-- Objetos usables, en el orden de la tienda
-	for _, itemId in Config.ShopOrder do
+	-- Objetos usables, en el orden de la tienda (y luego los exclusivos del mercader)
+	local order = table.clone(Config.ShopOrder)
+	for _, itemId in Config.MerchantOrder or {} do
+		table.insert(order, itemId)
+	end
+	for _, itemId in order do
 		local item = Config.ShopItems[itemId]
-		if item.Use then
+		if item and item.Use then
 			local count = player:GetAttribute("Item_" .. itemId) or 0
 			local key = "Item_" .. itemId
 			local tool = findTool(player, key)

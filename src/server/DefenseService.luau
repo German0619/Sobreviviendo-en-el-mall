@@ -41,7 +41,7 @@ DefenseService.PlayerHid = Signal.new()
 
 local Def = Config.Defense
 
-type Flare = { Position: Vector3, ExpiresAt: number, Part: BasePart }
+type Flare = { Position: Vector3, ExpiresAt: number, Part: BasePart, Radius: number }
 type Lure = { Position: Vector3, ActiveFrom: number, ExpiresAt: number, Part: BasePart?, Radius: number? }
 type HideEntry = { Spot: BasePart, Character: Model, Until: number }
 type Zone = { Position: Vector3, Radius: number, ExpiresAt: number, Part: BasePart?, Multiplier: number? }
@@ -399,25 +399,30 @@ end
 -- Bengala
 ----------------------------------------------------------------------
 
-function DefenseService.ThrowFlare(player: Player): boolean
+-- options: { Duration, Radius } para bengalas especiales (Bengala de magnesio).
+function DefenseService.ThrowFlare(player: Player, options: { Duration: number?, Radius: number? }?): boolean
 	if not canAct(player) then
 		return false
 	end
+	local duration = (options and options.Duration) or Def.Flare.Duration
+	local radius = (options and options.Radius) or Def.Flare.Radius
 	local origin, ground = throwTarget(player, Def.Flare.ThrowRange)
 	if not origin or not ground then
 		return false
 	end
 
+	-- Las de magnesio (mas radio) dan luz blanca
+	local special = radius > Def.Flare.Radius
 	local part = prop({
 		Name = "Flare",
 		Size = Vector3.new(0.4, 1.4, 0.4),
 		CFrame = CFrame.new(origin),
 		Material = Enum.Material.Neon,
-		Color = Color3.fromRGB(255, 60, 40),
+		Color = if special then Color3.fromRGB(255, 245, 230) else Color3.fromRGB(255, 60, 40),
 	})
 	local light = Instance.new("PointLight")
-	light.Color = Color3.fromRGB(255, 90, 60)
-	light.Range = Def.Flare.Radius + 6
+	light.Color = if special then Color3.fromRGB(255, 240, 220) else Color3.fromRGB(255, 90, 60)
+	light.Range = math.min(radius + 6, 60)
 	light.Brightness = 2.5
 	light.Shadows = true
 	light.Parent = part
@@ -449,7 +454,7 @@ function DefenseService.ThrowFlare(player: Player): boolean
 		if not part.Parent then
 			return
 		end
-		local flare: Flare = { Position = ground, ExpiresAt = os.clock() + Def.Flare.Duration, Part = part }
+		local flare: Flare = { Position = ground, ExpiresAt = os.clock() + duration, Part = part, Radius = radius }
 		table.insert(flares, flare)
 
 		-- Parpadeo suave y apagado gradual en los ultimos 2 segundos
@@ -470,7 +475,7 @@ function DefenseService.GetFlareNear(position: Vector3, margin: number?): Vector
 	local best, bestDist = nil, math.huge
 	for _, flare in flares do
 		local d = flatDistance(position, flare.Position)
-		if d <= Def.Flare.Radius + (margin or 0) and math.abs(position.Y - flare.Position.Y) < 20 and d < bestDist then
+		if d <= flare.Radius + (margin or 0) and math.abs(position.Y - flare.Position.Y) < 20 and d < bestDist then
 			best, bestDist = flare.Position, d
 		end
 	end
@@ -499,11 +504,14 @@ end
 -- Petardo
 ----------------------------------------------------------------------
 
-function DefenseService.ThrowFirecracker(player: Player): boolean
+-- options: { Duration, Radius, ThrowRange } para petardos especiales (Petardo gordo).
+function DefenseService.ThrowFirecracker(player: Player, options: { Duration: number?, Radius: number?, ThrowRange: number? }?): boolean
 	if not canAct(player) then
 		return false
 	end
-	local origin, ground = throwTarget(player, Def.Firecracker.ThrowRange)
+	local lureDuration = (options and options.Duration) or Def.Firecracker.Duration
+	local lureRadius = options and options.Radius -- nil = el radio normal
+	local origin, ground = throwTarget(player, (options and options.ThrowRange) or Def.Firecracker.ThrowRange)
 	if not origin or not ground then
 		return false
 	end
@@ -541,8 +549,9 @@ function DefenseService.ThrowFirecracker(player: Player): boolean
 		local lure: Lure = {
 			Position = ground,
 			ActiveFrom = now + Def.Firecracker.Fuse,
-			ExpiresAt = now + Def.Firecracker.Fuse + Def.Firecracker.Duration,
+			ExpiresAt = now + Def.Firecracker.Fuse + lureDuration,
 			Part = part,
+			Radius = lureRadius,
 		}
 		table.insert(lures, lure)
 
@@ -569,6 +578,44 @@ function DefenseService.ThrowFirecracker(player: Player): boolean
 		removeFrom(lures, lure)
 		part:Destroy()
 	end)
+	return true
+end
+
+-- Bomba de humo (exclusiva del mercader): nube alrededor del jugador. Los enemigos no
+-- ven a quien esta dentro (como la nube del extintor).
+function DefenseService.SmokeBomb(player: Player, radius: number, duration: number): boolean
+	if not canAct(player) then
+		return false
+	end
+	local root = getRoot(player)
+	if not root then
+		return false
+	end
+	local center = root.Position
+	local cloud = prop({
+		Name = "SmokeBomb",
+		Size = Vector3.new(1, 1, 1),
+		CFrame = CFrame.new(center),
+		Transparency = 1,
+	})
+	local smoke = Instance.new("ParticleEmitter")
+	smoke.Color = ColorSequence.new(Color3.fromRGB(150, 150, 160))
+	smoke.LightInfluence = 1
+	smoke.Size = NumberSequence.new({ NumberSequenceKeypoint.new(0, 5), NumberSequenceKeypoint.new(1, radius * 0.9) })
+	smoke.Transparency = NumberSequence.new({
+		NumberSequenceKeypoint.new(0, 0.15),
+		NumberSequenceKeypoint.new(0.7, 0.3),
+		NumberSequenceKeypoint.new(1, 1),
+	})
+	smoke.Lifetime = NumberRange.new(2.5, 3.5)
+	smoke.Rate = 35
+	smoke.Speed = NumberRange.new(3, 7)
+	smoke.SpreadAngle = Vector2.new(180, 180)
+	smoke.Drag = 2
+	smoke.Parent = cloud
+	cloud.Parent = getPropsFolder()
+	smoke:Emit(30)
+	DefenseService.AddSmoke(center, radius, duration, cloud)
 	return true
 end
 

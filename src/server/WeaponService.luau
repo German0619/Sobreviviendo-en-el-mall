@@ -118,7 +118,8 @@ function WeaponService.CanEquip(player: Player, weaponId: string): (boolean, str
 	return true, nil
 end
 
-function WeaponService.Equip(player: Player, weaponId: string)
+-- uses: usos de esta version (el Mercader vende armas con mas usos); por defecto, los de Config.
+function WeaponService.Equip(player: Player, weaponId: string, uses: number?)
 	local def = W[weaponId]
 	if not def then
 		return
@@ -128,7 +129,7 @@ function WeaponService.Equip(player: Player, weaponId: string)
 		WeaponService.SetUV(player, false)
 	end
 	player:SetAttribute("Weapon", weaponId)
-	player:SetAttribute("WeaponUses", def.Uses or -1)
+	player:SetAttribute("WeaponUses", if def.Uses then (uses or def.Uses) else -1)
 	player:SetAttribute("WeaponReadyAt", 0)
 	if previous and previous ~= weaponId then
 		notify(player, string.format("Dejaste %s; ahora llevas %s en la mochila.", displayName(previous), displayName(weaponId)))
@@ -315,7 +316,8 @@ local function buildSign(ground: Vector3, facing: Vector3): Model
 		local panel = part({
 			Name = "Panel",
 			Size = Vector3.new(1.6, 2.6, 0.12),
-			CFrame = base * CFrame.new(0, 1.25, side * 0.45) * CFrame.Angles(math.rad(side * 12), 0, 0),
+			-- Caballete en A: los dos paneles se juntan arriba y se abren abajo
+			CFrame = base * CFrame.new(0, 1.25, side * 0.3) * CFrame.Angles(math.rad(-side * 12), 0, 0),
 			Material = Enum.Material.SmoothPlastic,
 			Color = yellow,
 			CanCollide = false,

@@ -489,6 +489,9 @@ Config.Revive = {
 	HoldSeconds = 8, -- lo que mantiene E el Medico (dividido por su ReviveSpeed)
 	HealthFraction = 0.5, -- vida con la que vuelves
 	WipeGraceSeconds = 12, -- si caen todos: segundos para revivir con Robux antes de perder
+	-- Al revivir PAGANDO (Robux o ficha): los enemigos te ignoran y no te hacen dano
+	-- durante este tiempo (escudo visible). El revivir gratis del Medico no lo da.
+	PaidProtectionSeconds = 20,
 }
 
 -- Los enemigos tienen que "notarte" antes de perseguirte.
@@ -562,7 +565,7 @@ Config.ShopItems = {
 	WetFloorSign = {
 		DisplayName = "Cartel de piso mojado",
 		Price = 150,
-		Description = "Trampa: los enemigos que pasan van a mitad de velocidad. 3 usos.",
+		Description = "Trampa: los enemigos que pasan resbalan y van muy lentos. 3 usos.",
 		Weapon = true,
 	},
 	UVFlashlight = {
@@ -577,6 +580,74 @@ Config.ShopItems = {
 		Description = "Empujón corto que aturde 1.5 s. Sin límite de usos.",
 		Weapon = true,
 	},
+
+	-- Exclusivos del Mercader nocturno (MerchantOnly: no salen en la tienda del mall).
+	-- Van en la mochila como los demas (Config.MerchantOrder).
+	BigMedkit = {
+		DisplayName = "Botiquín grande",
+		Price = 250,
+		Description = "Cura 100 de vida. Solo lo vende el mercader nocturno.",
+		MaxStack = 2,
+		Use = "Heal",
+		Amount = 100,
+		MerchantOnly = true,
+	},
+	MagnesiumFlare = {
+		DisplayName = "Bengala de magnesio",
+		Price = 220,
+		Description = "Alumbra más y dura más del doble que una bengala. Solo la vende el mercader nocturno.",
+		MaxStack = 2,
+		Use = "ThrowFlare",
+		Flare = { Duration = 45, Radius = 28 },
+		MerchantOnly = true,
+	},
+	LithiumBattery = {
+		DisplayName = "Batería de litio",
+		Price = 180,
+		Description = "Recarga la linterna y durante 60 s no gasta batería. Solo la vende el mercader nocturno.",
+		MaxStack = 2,
+		Use = "LithiumBattery",
+		FreeSeconds = 60,
+		MerchantOnly = true,
+	},
+	BigFirecracker = {
+		DisplayName = "Petardo gordo",
+		Price = 160,
+		Description = "Se lanza más lejos y atrae a los enemigos de mucho más lejos y durante más tiempo. Solo lo vende el mercader nocturno.",
+		MaxStack = 2,
+		Use = "ThrowFirecracker",
+		Firecracker = { Duration = 14, Radius = 130, ThrowRange = 40 },
+		MerchantOnly = true,
+	},
+	SmokeBomb = {
+		DisplayName = "Bomba de humo",
+		Price = 200,
+		Description = "Una nube a tu alrededor: los enemigos no te ven durante 8 s. Para escapar. Solo la vende el mercader nocturno.",
+		MaxStack = 2,
+		Use = "SmokeBomb",
+		Radius = 14,
+		Duration = 8,
+		MerchantOnly = true,
+	},
+	MysterySoda = {
+		DisplayName = "Soda misteriosa",
+		Price = 150,
+		Description = "Una soda buena al azar, que dura 1,5 veces más. Solo la vende el mercader nocturno.",
+		MaxStack = 2,
+		Use = "MysterySoda",
+		DurationMultiplier = 1.5,
+		MerchantOnly = true,
+	},
+}
+
+-- Orden de los exclusivos del Mercader en la mochila (despues de los de ShopOrder)
+Config.MerchantOrder = {
+	"BigMedkit",
+	"MagnesiumFlare",
+	"LithiumBattery",
+	"BigFirecracker",
+	"SmokeBomb",
+	"MysterySoda",
 }
 
 Config.ShopOrder = {
@@ -613,8 +684,8 @@ Config.Weapons = {
 	WetFloorSign = {
 		Uses = 3,
 		Cooldown = 4,
-		Radius = 7,
-		SpeedMultiplier = 0.5, -- los enemigos dentro van a mitad de velocidad
+		Radius = 9,
+		SpeedMultiplier = 0.3, -- los enemigos dentro van al 30% de su velocidad
 		Duration = 45,
 	},
 	UVFlashlight = {
@@ -1256,6 +1327,88 @@ Config.Events = {
 		MissionSeconds = 75,
 		HoldSeconds = 2,
 		RevealSeconds = 10,
+	},
+	IsolatedFloor = {
+		DisplayName = "Piso aislado",
+		Kind = "Bad",
+		Description = "Unas rejas bloquean las escaleras: tu planta queda cortada. Desbloqueen el acceso.",
+		MinNight = 3,
+		Weight = 7,
+		Cooldown = 480,
+		Floor = true, -- la planta que queda aislada
+		MaxSeconds = 450, -- si nadie la arregla, las rejas suben solas (7,5 min)
+		MissionSeconds = 225, -- al caducar, otra oportunidad
+		HoldSeconds = 15, -- cuesta desbloquear la reja
+	},
+	ShuttersClosed = {
+		DisplayName = "Persianas cerradas",
+		Kind = "Bad",
+		Description = "Varias tiendas se sellan. Ábranlas desde su persiana (también desde dentro).",
+		MinNight = 2,
+		Weight = 8,
+		Cooldown = 420,
+		Floor = true,
+		Stores = 6,
+		MaxSeconds = 150,
+		MissionSeconds = 75,
+		HoldSeconds = 3,
+	},
+	NightMerchant = {
+		DisplayName = "Mercader nocturno",
+		Kind = "Good",
+		Description = "Un mercader aparece un minuto con ofertas raras. Búscalo por su marca $.",
+		MinNight = 2,
+		Weight = 6,
+		Cooldown = 480,
+		Floor = true,
+		Duration = 60,
+		OffersShown = 3,
+		-- Solo cosas importantes: armas (algunas mejoradas) y exclusivos del mercader.
+		-- Cada jugador puede comprar cada oferta una vez.
+		--   Item = clave de Config.ShopItems (+ Amount)
+		--   Weapon = clave de Config.Weapons (+ Uses: usos de esta version; reemplaza al arma que lleves)
+		Offers = {
+			{ Weapon = "Taser", Uses = 20, Price = 300, Label = "Taser cargado (20 usos)" },
+			{ Weapon = "Extinguisher", Uses = 12, Price = 250, Label = "Extintor doble (12 usos)" },
+			{ Weapon = "UVFlashlight", Price = 200, Label = "Linterna UV (rebajada)" },
+			{ Weapon = "WetFloorSign", Uses = 6, Price = 220, Label = "Carteles de piso mojado (6 usos)" },
+			{ Item = "FlashlightPro", Amount = 1, Price = 700, Label = "Linterna Pro (rebajada)" },
+			-- Exclusivos
+			{ Item = "BigMedkit", Amount = 1, Price = 250 },
+			{ Item = "MagnesiumFlare", Amount = 1, Price = 220 },
+			{ Item = "LithiumBattery", Amount = 1, Price = 180 },
+			{ Item = "BigFirecracker", Amount = 1, Price = 160 },
+			{ Item = "SmokeBomb", Amount = 1, Price = 200 },
+			{ Item = "MysterySoda", Amount = 1, Price = 150 },
+		},
+	},
+	LostBriefcase = {
+		DisplayName = "Maletín perdido",
+		Kind = "Mixed",
+		Description = "Hay un maletín con billetes en una zona oscura. Llévalo a Objetos perdidos (pesa: irás más lento).",
+		MinNight = 2,
+		Weight = 7,
+		Cooldown = 420,
+		Floor = true,
+		MaxSeconds = 150,
+		Reward = 500, -- para quien lo entrega
+		RewardPerNight = 0,
+		CarryWalkMultiplier = 0.75,
+	},
+	OpenStore = {
+		DisplayName = "Tienda abierta",
+		Kind = "Mixed",
+		Description = "Una tienda se abrió con botín dentro... pero tiene alarma.",
+		MinNight = 3,
+		Weight = 7,
+		Cooldown = 420,
+		Floor = true,
+		Duration = 90,
+		Bags = 3,
+		BagValue = { 40, 80 }, -- billetes por bolsa (para quien la coge)
+		BagValuePerNight = 10,
+		LureSeconds = 15,
+		LureRadius = 110,
 	},
 }
 

@@ -183,7 +183,7 @@
   - La marca se rompe si te juntas 3 s con otro jugador, si te escondes con él a más de 25 studs, o a los 35 s.
 - Probado jugando: el Maniquí del escaparate, la Estatua, el Mímico y el Cazador.
 
-**Fase 8: director de eventos.** — Parte 1 [HECHO] (`src/server/EventDirector.luau`, `src/server/Events/*`, `Config.EventDirector`, `Config.Events`)
+**Fase 8: director de eventos.** — [HECHO] (partes 1 y 2) (`src/server/EventDirector.luau`, `src/server/Events/*`, `Config.EventDirector`, `Config.Events`)
 - Director:
   - Un evento cada 2–3 minutos, con máximo 1 activo, enfriamiento por evento y planta asignada (la de más jugadores, con azar).
   - Eventos por noche, decididos al empezarla (`PerNight`):
@@ -208,12 +208,26 @@
   - **Hora de oro:** tareas ×2 (la lista muestra "x2") y enemigos un 15 % más rápidos durante 2 min.
   - **Suministros:** caja con bengala, batería y botiquín para quien la abre.
   - **Cámaras amigas:** usar los monitores revela a todas las entidades 10 s a través de las paredes.
-- Parte 2 (pendiente): los eventos que necesitan piezas nuevas del mapa:
-  - **Piso aislado:** las escaleras se bloquean hasta una misión de reparación.
-  - **Persianas cerradas:** tiendas selladas que se abren con una misión.
-  - **Mercader nocturno:** vendedor 60 s con ofertas raras.
-  - **Maletín perdido:** billetes en una zona peligrosa; cargarlo ralentiza.
-  - **Tienda abierta:** botín, pero activa una alarma al entrar.
+- Parte 2 [HECHO] (5 eventos más, todos probados jugando; utilidades en `Events/EventUtil`):
+  - **Piso aislado:**
+    - rejas en el extremo de cada escalera (tag nuevo `FloorConnector`) en una planta;
+    - desbloquear una reja (15 s, desde los dos lados) las abre todas; se abren solas a los 7,5 min.
+  - **Persianas cerradas:**
+    - 6 tiendas de la planta se sellan hasta el suelo, con colisión;
+    - cada una se abre con su misión (también desde dentro); se abren solas a los 2,5 min;
+    - la misión normal Bajar persianas no toca una persiana sellada (`EventSealed`).
+  - **Mercader nocturno:** 60 s con 3 ofertas al azar de 12, cada una con su botón E.
+    - Armas mejoradas: Taser de 20 usos, Extintor de 12, Carteles de 6, UV rebajada; también la Linterna Pro rebajada.
+    - Exclusivos (`MerchantOnly`, `Config.MerchantOrder`): Botiquín grande, Bengala de magnesio, Batería de litio, Petardo gordo, Bomba de humo y Soda misteriosa.
+  - **Maletín perdido:**
+    - aparece en una zona oscura; llevarlo te deja al 75 % de velocidad;
+    - entregarlo en Objetos perdidos da 500; si mueres, cae al suelo.
+  - **Tienda abierta:**
+    - la persiana baja y sube, y dentro hay 3 bolsas de billetes;
+    - al entrar salta una alarma que atrae a los enemigos 15 s.
+- Ajustes hechos de paso:
+  - Cartel de piso mojado: el caballete ya no sale invertido; deja a los enemigos al 30 % en un radio de 9.
+  - Revivir pagando (Robux o ficha): 20 s en los que los enemigos te ignoran y no te hacen daño (`ProtectedUntil`). Se ve como un contorno azul suave y "PROTEGIDO" en el HUD.
 
 **Fase 9: jefes cada 5 noches.**
 - El Gerente, Luni, El Coleccionista y La Central.

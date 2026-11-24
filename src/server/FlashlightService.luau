@@ -265,8 +265,11 @@ function FlashlightService.Start()
 			local now = os.clock()
 			local dt = now - last
 			last = now
+			local serverNow = Workspace:GetServerTimeNow()
 			for _, player in Players:GetPlayers() do
-				if FlashlightService.IsOn(player) then
+				-- Bateria de litio (mercader): un rato sin gastar
+				local free = player:GetAttribute("FreeBatteryUntil")
+				if FlashlightService.IsOn(player) and not (type(free) == "number" and free > serverNow) then
 					local drain = Config.Flashlight.DrainPerSecond
 						* drainMultiplier
 						* (if hasPro(player) then Config.FlashlightPro.DrainMultiplier else 1)

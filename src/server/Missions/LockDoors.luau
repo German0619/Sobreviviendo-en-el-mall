@@ -16,6 +16,10 @@ local function setShutter(control: Instance, closed: boolean, instant: boolean?)
 	if not shutter or not shutter:IsA("BasePart") then
 		return
 	end
+	-- Sellada por un evento (Persianas cerradas / Tienda abierta): no tocarla
+	if control:GetAttribute("EventSealed") then
+		return
+	end
 	local size = shutter:GetAttribute(if closed then "ClosedSize" else "OpenSize")
 	local cframe = shutter:GetAttribute(if closed then "ClosedCFrame" else "OpenCFrame")
 	if typeof(size) ~= "Vector3" or typeof(cframe) ~= "CFrame" then
