@@ -798,10 +798,11 @@ end
 ----------------------------------------------------------------------
 -- Monetizacion (IDs de la web de Roblox; 0 = aun no creado)
 ----------------------------------------------------------------------
+-- Creados el 2026-11-23 (precio inicial: 199 / 149 / 249 R$; se cambia en el Creator Dashboard)
 Config.GamePasses = {
-	DoubleMoney = 0,
-	PremiumFlashlight = 0,
-	VIP = 0,
+	DoubleMoney = 2098534334,
+	PremiumFlashlight = 2100340312,
+	VIP = 2100244294,
 }
 
 -- Lo que se muestra en la tienda del lobby para cada pase (orden = Config.GamePassOrder)
@@ -823,15 +824,16 @@ Config.GamePassOrder = { "DoubleMoney", "PremiumFlashlight", "VIP" }
 
 -- Developer Products (se crean en create.roblox.com -> tu experiencia -> Monetization).
 -- El precio en Robux se define alli; aqui solo va el ID.
+-- Creados el 2026-11-23 (precio inicial en R$ entre parentesis)
 Config.DevProducts = {
-	Revive = 0, -- revivir (a ti mismo o a un companero)
-	ClassSlot = 0, -- +1 slot de clase (hasta Config.Roulette.MaxSlots)
-	PremiumSoda = 0, -- soda a eleccion (Config.ChoiceSoda)
-	LuckySpin = 0, -- tiro afortunado: garantiza clase Epica o superior (lobby)
+	Revive = 3735454697, -- (25) revivir (a ti mismo o a un companero)
+	ClassSlot = 3735454585, -- (99) +1 slot de clase (hasta Config.Roulette.MaxSlots)
+	PremiumSoda = 3735454715, -- (15) soda a eleccion (Config.ChoiceSoda)
+	LuckySpin = 3735454677, -- (49) tiro afortunado: garantiza clase Epica o superior (lobby)
 	DiamondPacks = {
-		{ Id = 0, Amount = 100 },
-		{ Id = 0, Amount = 550 },
-		{ Id = 0, Amount = 1200 },
+		{ Id = 3735454464, Amount = 100 }, -- (49)
+		{ Id = 3735454548, Amount = 550 }, -- (199)
+		{ Id = 3735454564, Amount = 1200 }, -- (399)
 	},
 }
 
