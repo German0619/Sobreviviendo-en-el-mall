@@ -745,15 +745,16 @@ Config.Threat = {
 ----------------------------------------------------------------------
 -- Enemigos
 ----------------------------------------------------------------------
--- Cantidad por noche: BaseCount + 1 cada CountEveryNights noches desde UnlockNight, hasta MaxCount.
--- Hint: aviso (con su contramedida) la noche en que aparece por primera vez.
+-- Cuantos y cuales aparecen lo decide el director por presupuesto (Config.SpawnDirector).
+-- UnlockNight: primera noche en que puede salir. Tier: nivel de peligro (1-3, ver su coste).
+-- MaxPerFloor: tope de ese tipo en cada planta.
+-- Hint: aviso con su contramedida la primera vez que aparece en la partida.
 Config.Enemies = {
 	Mannequin = {
 		DisplayName = "Maniqui",
 		UnlockNight = 1,
-		BaseCount = 2,
-		CountEveryNights = 2,
-		MaxCount = 5,
+		Tier = 1,
+		MaxPerFloor = 3,
 		Speed = 20,
 		Damage = 35,
 		AttackRange = 3.5,
@@ -764,9 +765,8 @@ Config.Enemies = {
 	Blackout = {
 		DisplayName = "Apagon",
 		UnlockNight = 2,
-		BaseCount = 1,
-		CountEveryNights = 3,
-		MaxCount = 3,
+		Tier = 1,
+		MaxPerFloor = 2,
 		Hint = "Nuevo: el Apagón deja zonas a oscuras. Alúmbralo con la linterna o usa el destello [G] para que huya.",
 		Speed = 11,
 		Damage = 25,
@@ -783,9 +783,8 @@ Config.Enemies = {
 	Echo = {
 		DisplayName = "Eco",
 		UnlockNight = 3,
-		BaseCount = 1,
-		CountEveryNights = 3,
-		MaxCount = 2,
+		Tier = 2,
+		MaxPerFloor = 2,
 		Speed = 8, -- acechando
 		LungeSpeed = 17, -- al acercarse sin que lo alumbren
 		LungeDistance = 14,
@@ -803,9 +802,8 @@ Config.Enemies = {
 	Tracker = {
 		DisplayName = "Rastro",
 		UnlockNight = 5,
-		BaseCount = 1,
-		CountEveryNights = 4,
-		MaxCount = 2,
+		Tier = 2,
+		MaxPerFloor = 1,
 		Speed = 10, -- patrullando
 		ChaseSpeed = 15, -- si te ve sin olor
 		TrackSpeed = 18, -- siguiendo tu olor
@@ -821,9 +819,8 @@ Config.Enemies = {
 	Watcher = {
 		DisplayName = "Vigilante",
 		UnlockNight = 7,
-		BaseCount = 1,
-		CountEveryNights = 4,
-		MaxCount = 2,
+		Tier = 3,
+		MaxPerFloor = 1,
 		Speed = 11,
 		ChaseSpeed = 17,
 		Damage = 40,
@@ -844,23 +841,73 @@ Config.SecurityCameras = {
 	DisabledSeconds = 20, -- cegada por un destello
 }
 
--- Los enemigos que se suman en una noche aparecen escalonados, no todos al empezar.
-Config.EnemySpawn = {
-	StaggerSeconds = 25,
+-- Plantas del mall: por debajo de SplitY es la planta baja (1), por encima la alta (2).
+-- (La planta alta esta a 18 studs; sirve para spawns y para la posicion de los jugadores.)
+Config.Floors = {
+	SplitY = 10,
 }
 
-function Config.getEnemyCount(enemyType: string, night: number): number
-	local def = Config.Enemies[enemyType]
-	if not def or night < def.UnlockNight then
-		return 0
-	end
-	local extra = math.floor((night - def.UnlockNight) / math.max(def.CountEveryNights or 99, 1))
-	local count = math.min(def.BaseCount + extra, def.MaxCount or def.BaseCount)
-	-- Escala con el mapa (floor: la noche en que debuta un tipo sigue saliendo 1)
-	return math.max(1, math.floor(count * Config.MapScale))
+function Config.getFloor(y: number): number
+	return if y >= Config.Floors.SplitY then 2 else 1
 end
 
--- Multiplicador de dificultad por noche (velocidad y deteccion; la cantidad va en getEnemyCount)
+-- Director de aparicion por presupuesto (SpawnDirector). Cada noche:
+--   1. Presupuesto = (Base + PerNight * (noche - 1)) x (1 + PerExtraPlayer por jugador extra) x MapScale.
+--   2. Se sortea el nivel de cada enemigo con TierOdds (la fila de la noche) y se paga su TierCost.
+--      Si un nivel no tiene enemigos disponibles (por UnlockNight o topes) se reparte entre los demas.
+--   3. Topes: Tier3Max(noche) de nivel 3 y MaxPerFloor de cada tipo por planta.
+--   4. Cada enemigo va a una planta segun cuantos jugadores hay en cada una.
+--   5. InitialShare del presupuesto aparece al empezar; el resto, uno cada StaggerSeconds.
+--      Los de nivel 3 nunca aparecen al principio.
+-- Valores de partida para ajustar jugando.
+Config.SpawnDirector = {
+	TierCost = { 1, 3, 6 },
+	Budget = {
+		Base = 2,
+		PerNight = 1.5,
+		PerExtraPlayer = 0.35,
+		Max = 60,
+	},
+	-- { desde la noche, { % nivel 1, % nivel 2, % nivel 3 } } (tabla del documento de diseno)
+	TierOdds = {
+		{ 1, { 85, 15, 0 } },
+		{ 3, { 60, 35, 5 } },
+		{ 5, { 40, 40, 20 } },
+		{ 8, { 25, 45, 30 } },
+		{ 11, { 15, 40, 45 } },
+	},
+	InitialShare = 0.5,
+	StaggerSeconds = 25,
+	EmptyFloorWeight = 0.5, -- peso de una planta sin jugadores al repartir (para que no quede vacia)
+	BossBudgetMultiplier = 0.5, -- las noches de jefe (Fase 9) usan la mitad
+}
+
+-- Maximo de enemigos de nivel 3 a la vez.
+function Config.getTier3Max(night: number): number
+	return if night >= 11 then 2 else 1
+end
+
+-- Presupuesto de peligro de la noche.
+function Config.getDangerBudget(night: number, players: number, multiplier: number?): number
+	local b = Config.SpawnDirector.Budget
+	local base = b.Base + b.PerNight * math.max(night - 1, 0)
+	local playerFactor = 1 + b.PerExtraPlayer * math.max(players - 1, 0)
+	local budget = math.floor(base * playerFactor * Config.MapScale * (multiplier or 1))
+	return math.clamp(budget, 1, b.Max)
+end
+
+-- % de cada nivel en esta noche ({ n1, n2, n3 }).
+function Config.getTierOdds(night: number): { number }
+	local odds = Config.SpawnDirector.TierOdds[1][2]
+	for _, row in Config.SpawnDirector.TierOdds do
+		if night >= row[1] then
+			odds = row[2]
+		end
+	end
+	return odds
+end
+
+-- Multiplicador de dificultad por noche (velocidad y deteccion; la cantidad la decide el director)
 function Config.getDifficulty(night: number)
 	local n = math.max(night - 1, 0)
 	return {
