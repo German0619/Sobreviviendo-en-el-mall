@@ -45,6 +45,7 @@ else
 		require(script.DefenseService),
 		require(script.WeaponService), -- armas [R] (taser, extintor, cartel, UV, trapeador)
 		require(script.ShopService),
+		require(script.BackpackService), -- objetos y arma en la mochila nativa de Roblox
 		require(script.VendingService),
 		require(script.MissionService),
 		require(script.EnemyService),

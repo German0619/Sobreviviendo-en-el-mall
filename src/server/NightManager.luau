@@ -348,7 +348,7 @@ local function waitForStart()
 	end
 
 	if #Players:GetPlayers() > 0 and not Config.Debug.AutoStart then
-		notifyAll("Modo prueba: el anfitrión inicia la partida con [P].")
+		notifyAll("Modo prueba: el anfitrión inicia la partida.")
 	end
 	while #Players:GetPlayers() == 0 or not (startRequested or Config.Debug.AutoStart) do
 		task.wait(0.25)

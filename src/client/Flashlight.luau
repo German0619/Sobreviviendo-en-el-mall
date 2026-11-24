@@ -143,8 +143,8 @@ function Flashlight.Start()
 		end
 		return Enum.ContextActionResult.Pass
 	end, true, Enum.KeyCode.F, Enum.KeyCode.ButtonR1)
-	ContextActionService:SetTitle("Flashlight", "Luz")
-	ContextActionService:SetPosition("Flashlight", UDim2.new(1, -170, 1, -160))
+	ContextActionService:SetTitle("Flashlight", "🔦")
+	-- (posicion: la coloca Roblox en el arco junto al boton de saltar)
 
 	-- Apuntar la linterna con la camara (incluida la inclinacion arriba/abajo).
 	-- Es solo visual en este cliente; el servidor usa la direccion del personaje.

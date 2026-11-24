@@ -12,9 +12,9 @@ Config.Debug = {
 	-- Que place simular en Studio cuando el place no esta publicado ni tiene el
 	-- atributo PlaceRole en Workspace: "Mall" (la partida) o "Lobby".
 	PlaceRole = "Mall",
-	-- En Studio se puede abrir la ruleta/slots (C) tambien en el mall, para probar rapido.
-	-- En un servidor real solo se usan en el lobby.
-	ClassesInMallInStudio = true,
+	-- La ruleta y los slots solo existen en el lobby. (true = permitirlos tambien en el
+	-- mall dentro de Studio; desactivado: en el mall no se cambia de clase)
+	ClassesInMallInStudio = false,
 	BuildTestMap = true, -- construye el mall (MallBuilder) o el lobby si el place no tiene uno propio
 	-- true = la partida empieza sola en cuanto hay alguien (sin esperar a que el anfitrion pulse Iniciar)
 	AutoStart = false,
@@ -220,7 +220,7 @@ Config.Classes = {
 	Guardia = {
 		DisplayName = "Guardia",
 		Rarity = "Rare",
-		Description = "+30% de vida. [Q] Porrazo: empuja y aturde a los enemigos cercanos.",
+		Description = "+30% de vida. Porrazo: empuja y aturde a los enemigos cercanos.",
 		Modifiers = { Health = 1.30 },
 		Perks = { Shove = true },
 	},
@@ -565,7 +565,7 @@ Config.ShopItems = {
 	UVFlashlight = {
 		DisplayName = "Linterna UV",
 		Price = 300,
-		Description = "[R] activa la luz UV: revela al Eco de lejos. Gasta más batería.",
+		Description = "Enciende la luz UV: revela al Eco de lejos. Gasta más batería.",
 		Weapon = true,
 	},
 	Mop = {
@@ -850,7 +850,7 @@ Config.Enemies = {
 		UnlockNight = 2,
 		Tier = 1,
 		MaxPerFloor = 2,
-		Hint = "Nuevo: el Apagón deja zonas a oscuras. Alúmbralo con la linterna o usa el destello [G] para que huya.",
+		Hint = "Nuevo: el Apagón deja zonas a oscuras. Alúmbralo con la linterna o usa el destello para que huya.",
 		Speed = 11,
 		Damage = 25,
 		AttackRange = 4,
@@ -910,7 +910,7 @@ Config.Enemies = {
 		AttackRange = 4,
 		AttackCooldown = 1.8,
 		AlertMemory = 10, -- segundos que va hacia donde una camara te vio
-		Hint = "Nuevo: el Vigilante ve por las cámaras. Evita sus haces rojos o ciégalas con el destello [G].",
+		Hint = "Nuevo: el Vigilante ve por las cámaras. Evita sus haces rojos o ciégalas con el destello.",
 	},
 }
 

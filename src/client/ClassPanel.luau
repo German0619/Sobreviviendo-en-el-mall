@@ -109,7 +109,7 @@ local PERK_TEXT = {
 		return string.format("Destello -%d%% espera", pct(1 - v))
 	end,
 	Shove = function()
-		return "[Q] Porrazo que aturde"
+		return "Porrazo que aturde"
 	end,
 	PayBonus = function(v)
 		return string.format("+%d%% de pago", pct(v))

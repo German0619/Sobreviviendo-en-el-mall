@@ -131,7 +131,7 @@ function WeaponService.Equip(player: Player, weaponId: string)
 	player:SetAttribute("WeaponUses", def.Uses or -1)
 	player:SetAttribute("WeaponReadyAt", 0)
 	if previous and previous ~= weaponId then
-		notify(player, string.format("Dejaste %s y equipaste %s [R].", displayName(previous), displayName(weaponId)))
+		notify(player, string.format("Dejaste %s; ahora llevas %s en la mochila.", displayName(previous), displayName(weaponId)))
 	end
 end
 

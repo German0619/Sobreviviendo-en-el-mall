@@ -16,6 +16,8 @@ local Util = require(Shared.Util)
 local Remotes = require(Shared.Remotes)
 local GameState = require(Shared.GameState)
 local Place = require(Shared.Place)
+local UIKit = require(script.Parent.UIKit)
+local InputHints = require(script.Parent.InputHints)
 
 local player = Players.LocalPlayer
 
@@ -126,7 +128,7 @@ end
 -- Construccion
 ----------------------------------------------------------------------
 
-local gui, clockLabel, nightLabel, phaseLabel, moneyLabel, zoneLabel, itemsLabel, sodaLabel, classLabel
+local gui, clockLabel, nightLabel, phaseLabel, moneyLabel, zoneLabel, itemsLabel, sodaLabel, classLabel, barsFrame
 local diamondsLabel, deadSubtitle, reviveButton, missionsTitle
 local bars = {}
 local missionList, missionEntries = nil, {}
@@ -143,6 +145,7 @@ local function build()
 		ZIndexBehavior = Enum.ZIndexBehavior.Sibling,
 		Parent = player:WaitForChild("PlayerGui"),
 	})
+	UIKit.adapt(gui) -- escala segun la pantalla y respeta el notch
 
 	-- Arriba al centro: reloj, noche, fase
 	local top = make("Frame", {
@@ -206,11 +209,13 @@ local function build()
 		Parent = gui,
 	})
 
-	-- Abajo a la izquierda: barras y zona actual
-	local barsFrame = make("Frame", {
+	-- Columna de estado: sodas, arma, zona y barras. Abajo a la izquierda con teclado
+	-- o mando; arriba a la izquierda en tactil (abajo esta el joystick).
+	-- Abajo al centro queda libre para la mochila nativa de Roblox (objetos y armas).
+	barsFrame = make("Frame", {
 		AnchorPoint = Vector2.new(0, 1),
 		Position = UDim2.new(0, 18, 1, -18),
-		Size = UDim2.fromOffset(260, 108),
+		Size = UDim2.fromOffset(280, 170),
 		BackgroundTransparency = 1,
 		Parent = gui,
 	}, {
@@ -221,6 +226,25 @@ local function build()
 		}),
 	})
 	table.insert(nightOnly, barsFrame)
+	sodaLabel = text({
+		Size = UDim2.new(1, 0, 0, 18),
+		AutomaticSize = Enum.AutomaticSize.Y,
+		TextXAlignment = Enum.TextXAlignment.Left,
+		TextWrapped = true,
+		TextSize = 14,
+		Text = "",
+		RichText = true, -- cada soda con su color
+		LayoutOrder = -2,
+		Parent = barsFrame,
+	})
+	itemsLabel = text({ -- estado del arma (usos, espera)
+		Size = UDim2.new(1, 0, 0, 18),
+		TextXAlignment = Enum.TextXAlignment.Left,
+		TextSize = 14,
+		Text = "",
+		LayoutOrder = -1,
+		Parent = barsFrame,
+	})
 	zoneLabel = text({
 		Size = UDim2.new(1, 0, 0, 18),
 		TextXAlignment = Enum.TextXAlignment.Left,
@@ -234,27 +258,6 @@ local function build()
 	bars.Health = makeBar(barsFrame, "VIDA", COLORS.Health, 1)
 	bars.Stamina = makeBar(barsFrame, "ESTAMINA", COLORS.Stamina, 2)
 	bars.Battery = makeBar(barsFrame, "BATERÍA", COLORS.Battery, 3)
-
-	-- Abajo al centro: objetos y soda activa
-	itemsLabel = text({
-		AnchorPoint = Vector2.new(0.5, 1),
-		Position = UDim2.new(0.5, 0, 1, -18),
-		Size = UDim2.fromOffset(720, 24),
-		TextSize = 16,
-		Text = "",
-		Parent = gui,
-	})
-	sodaLabel = text({
-		AnchorPoint = Vector2.new(0.5, 1),
-		Position = UDim2.new(0.5, 0, 1, -46),
-		Size = UDim2.fromOffset(760, 22),
-		TextSize = 15,
-		Text = "",
-		RichText = true, -- cada soda con su color
-		Parent = gui,
-	})
-	table.insert(nightOnly, itemsLabel)
-	table.insert(nightOnly, sodaLabel)
 
 	-- Derecha: tareas
 	local missionsFrame = make("Frame", {
@@ -589,10 +592,8 @@ local function update()
 		phaseText ..= "  ·  " .. formatTime(endsAt - now)
 	end
 	if phase ~= "Night" then
-		phaseText ..= "   [U] Mejoras"
-		if Place.ClassesEnabledHere() then
-			phaseText ..= "   [C] Clases"
-		end
+		-- (las clases solo se cambian en el lobby)
+		phaseText ..= "   ·   " .. InputHints.Label("Upgrades", "Mejoras")
 	end
 	phaseLabel.Text = phaseText
 
@@ -602,34 +603,27 @@ local function update()
 		classLabel.TextColor3 = Config.Rarities[classDef.Rarity].Color
 	end
 
-	-- Objetos con tecla
-	local slots = {}
-	for _, itemId in Config.ShopOrder do
-		local item = Config.ShopItems[itemId]
-		if item.Hotkey and item.Use then
-			table.insert(slots, string.format("[%d] %s x%d", item.Hotkey, item.DisplayName, player:GetAttribute("Item_" .. itemId) or 0))
-		end
-	end
-	-- Arma equipada [R]: usos y enfriamiento
+	-- Los objetos y el arma estan en la mochila nativa (abajo). Aqui solo el estado
+	-- del arma: usos, luz UV y espera.
 	local weaponId = player:GetAttribute("Weapon")
 	local weaponItem = if type(weaponId) == "string" then Config.ShopItems[weaponId] else nil
 	if weaponItem then
-		local text = "[R] " .. weaponItem.DisplayName
+		local weaponText = weaponItem.DisplayName
 		if weaponId == "UVFlashlight" then
-			text ..= if player:GetAttribute("UVOn") == true then " (UV ON)" else " (UV off)"
+			weaponText ..= if player:GetAttribute("UVOn") == true then "  ·  UV encendida" else "  ·  UV apagada"
 		else
 			local uses = player:GetAttribute("WeaponUses") or -1
 			if uses >= 0 then
-				text ..= " x" .. uses
+				weaponText ..= string.format("  ·  %d usos", uses)
 			end
 		end
 		local readyIn = (player:GetAttribute("WeaponReadyAt") or 0) - now
-		if readyIn > 0.05 then
-			text ..= string.format("  (%d s)", math.ceil(readyIn))
-		end
-		table.insert(slots, text)
+		weaponText ..= if readyIn > 0.05 then string.format("  ·  %d s", math.ceil(readyIn)) else "  ·  lista"
+		itemsLabel.Text = weaponText
+		itemsLabel.TextColor3 = if readyIn > 0.05 then COLORS.Dim else COLORS.Good
+	else
+		itemsLabel.Text = ""
 	end
-	itemsLabel.Text = table.concat(slots, "     ")
 
 	-- Sodas activas (positiva en verde, negativas acumuladas en rojo, cada una con su tiempo)
 	local sodas = {}
@@ -677,7 +671,7 @@ local function update()
 	local on = player:GetAttribute("FlashlightOn") == true
 	bars.Battery.Set(
 		battery / maxBattery,
-		string.format("BATERÍA  %d%%  [F] %s", math.floor(battery / maxBattery * 100), if on then "ON" else "OFF")
+		string.format("BATERÍA  %d%%  %s", math.floor(battery / maxBattery * 100), InputHints.Label("Flashlight", if on then "ON" else "OFF"))
 	)
 
 	-- Zona actual y si esta sin luz
@@ -701,7 +695,7 @@ local function update()
 		local dark = state:GetAttribute("Dark_" .. key) == true
 		if state:GetAttribute("Ambient_" .. key) == true then
 			-- Zona de servicio: oscura siempre (no es un apagon)
-			zoneText = zoneName .. "  ·  SIN LUZ: usa la linterna [F]"
+			zoneText = zoneName .. "  ·  SIN LUZ: enciende la linterna"
 		else
 			zoneText = if dark then zoneName .. "  ·  SIN LUZ" else zoneName
 		end
@@ -761,6 +755,22 @@ function HUD.Start()
 		classLabel.Position = UDim2.new(1, -18, 0, 40)
 		classLabel.TextSize = 17
 	end
+
+	-- Tactil: la columna de estado arriba a la izquierda (abajo esta el joystick)
+	local function applyLayout()
+		local layout = barsFrame:FindFirstChildOfClass("UIListLayout")
+		if InputHints.IsTouch() then
+			barsFrame.AnchorPoint = Vector2.new(0, 0)
+			barsFrame.Position = UDim2.new(0, 18, 0, 10)
+			layout.VerticalAlignment = Enum.VerticalAlignment.Top
+		else
+			barsFrame.AnchorPoint = Vector2.new(0, 1)
+			barsFrame.Position = UDim2.new(0, 18, 1, -18)
+			layout.VerticalAlignment = Enum.VerticalAlignment.Bottom
+		end
+	end
+	applyLayout()
+	InputHints.Changed.Event:Connect(applyLayout)
 
 	for _, value in GameState.Missions:GetChildren() do
 		addMissionEntry(value)

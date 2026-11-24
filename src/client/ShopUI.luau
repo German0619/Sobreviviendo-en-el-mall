@@ -34,16 +34,16 @@ local function refresh()
 	moneyLabel.Text = "Billetes: " .. Util.formatMoney(money)
 	for itemId, row in rows do
 		local item = Config.ShopItems[itemId]
-		-- Armas: un solo hueco [R]; la misma se recarga, otra la reemplaza
+		-- Armas: un solo hueco (en la mochila); la misma se recarga, otra la reemplaza
 		if item.Weapon then
 			local def = Config.Weapons[itemId]
 			local equipped = player:GetAttribute("Weapon") == itemId
 			local uses = player:GetAttribute("WeaponUses") or 0
 			local full = equipped and (def.Uses == nil or uses >= def.Uses)
 			if equipped then
-				row.Owned.Text = if def.Uses then string.format("Equipada [R] · %d/%d usos", uses, def.Uses) else "Equipada [R]"
+				row.Owned.Text = if def.Uses then string.format("Equipada · %d/%d usos", uses, def.Uses) else "Equipada"
 			else
-				row.Owned.Text = "Arma [R] · reemplaza a la que llevas"
+				row.Owned.Text = "Arma · reemplaza a la que llevas"
 			end
 			if full then
 				row.Button.Text = "EQUIPADA"
@@ -116,6 +116,7 @@ local function build()
 		DisplayOrder = 5,
 		Parent = player:WaitForChild("PlayerGui"),
 	})
+	UIKit.adapt(gui) -- escala segun la pantalla y respeta el notch
 	local content
 	-- Alto segun el numero de objetos (70 px por fila), con tope: el resto con scroll
 	local height = math.min(130 + #Config.ShopOrder * 70, 560)
@@ -152,9 +153,6 @@ local function build()
 			Parent = list,
 		}, { UIKit.corner(8) })
 		local name = item.DisplayName
-		if item.Hotkey then
-			name ..= string.format("  [%d]", item.Hotkey)
-		end
 		UIKit.text({
 			Position = UDim2.fromOffset(12, 6),
 			Size = UDim2.new(1, -140, 0, 22),

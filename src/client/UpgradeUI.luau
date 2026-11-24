@@ -103,6 +103,7 @@ local function build()
 		DisplayOrder = 5,
 		Parent = player:WaitForChild("PlayerGui"),
 	})
+	UIKit.adapt(gui) -- escala segun la pantalla y respeta el notch
 	local content
 	window, content = UIKit.window(gui, "MEJORAS", Vector2.new(460, 400), UpgradeUI.Close)
 
@@ -192,8 +193,8 @@ function UpgradeUI.Start()
 		end
 		return Enum.ContextActionResult.Pass
 	end, true, Enum.KeyCode.U)
-	ContextActionService:SetTitle("Upgrades", "Mejoras")
-	ContextActionService:SetPosition("Upgrades", UDim2.new(1, -100, 1, -230))
+	ContextActionService:SetTitle("Upgrades", "⬆")
+	-- (posicion: la coloca Roblox)
 end
 
 return UpgradeUI

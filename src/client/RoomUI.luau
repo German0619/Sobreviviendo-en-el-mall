@@ -15,6 +15,7 @@ local Config = require(Shared.Config)
 local Remotes = require(Shared.Remotes)
 local GameState = require(Shared.GameState)
 local UIKit = require(script.Parent.UIKit)
+local InputHints = require(script.Parent.InputHints)
 
 local player = Players.LocalPlayer
 local C = UIKit.COLORS
@@ -57,6 +58,7 @@ local function updateWaiting()
 	end
 
 	startButton.Visible = host
+	startButton.Text = InputHints.Label("Start", "INICIAR PARTIDA")
 	if fromLobby then
 		waitTitle.Text = string.format("LLEGANDO JUGADORES  ·  %d/%d", #Players:GetPlayers(), expected)
 		waitSubtitle.Text = "La partida empieza en cuanto lleguen todos."
@@ -77,15 +79,19 @@ end
 local function updateInfo()
 	local state = GameState.Folder
 	local code = state:GetAttribute("RoomCode")
+	-- La tecla solo con teclado; en tactil esta el boton "Lobby"
+	local tag = InputHints.Tag("Lobby")
+	local lobbyHint = if tag ~= "" then tag .. " Volver al lobby" else ""
 	if type(code) ~= "string" or code == "" then
-		infoLabel.Text = "[L] Volver al lobby"
+		infoLabel.Text = lobbyHint
 		return
 	end
 	infoLabel.Text = string.format(
-		'<b>%s</b>  ·  %s  ·  código <font color="#FFC850"><b>%s</b></font>\n<font color="#9696A0">[L] Volver al lobby</font>',
+		'<b>%s</b>  ·  %s  ·  código <font color="#FFC850"><b>%s</b></font>%s',
 		state:GetAttribute("RoomName") or "Sala",
 		if state:GetAttribute("RoomPublic") then "pública" else "privada",
-		code
+		code,
+		if lobbyHint ~= "" then '\n<font color="#9696A0">' .. lobbyHint .. "</font>" else ""
 	)
 end
 
@@ -105,6 +111,7 @@ local function build()
 		DisplayOrder = 6,
 		Parent = player:WaitForChild("PlayerGui"),
 	})
+	UIKit.adapt(gui)
 
 	infoLabel = UIKit.text({
 		Position = UDim2.fromOffset(18, 14),
@@ -120,9 +127,9 @@ local function build()
 
 	-- Sala de espera
 	waitPanel = UIKit.make("Frame", {
-		-- Abajo al centro, encima de las lineas de objetos/habilidades del HUD
-		AnchorPoint = Vector2.new(0.5, 1),
-		Position = UDim2.new(0.5, 0, 1, -110),
+		-- Algo por debajo del centro (abajo del todo esta la mochila nativa)
+		AnchorPoint = Vector2.new(0.5, 0.5),
+		Position = UDim2.fromScale(0.5, 0.66),
 		Size = UDim2.fromOffset(440, 130),
 		BackgroundColor3 = C.Panel,
 		BackgroundTransparency = 0.15,
@@ -157,7 +164,7 @@ local function build()
 		Position = UDim2.new(0.5, 0, 1, -12),
 		Size = UDim2.fromOffset(260, 44),
 		TextSize = 20,
-		Text = "INICIAR PARTIDA  [P]",
+		Text = "INICIAR PARTIDA",
 		Visible = false,
 		Parent = waitPanel,
 	}, requestStart)
@@ -225,8 +232,14 @@ function RoomUI.Start()
 		end
 		return Enum.ContextActionResult.Pass
 	end, true, Enum.KeyCode.L)
-	ContextActionService:SetTitle("ReturnToLobby", "Lobby")
-	ContextActionService:SetPosition("ReturnToLobby", UDim2.new(0, 20, 0, 70))
+	ContextActionService:SetTitle("ReturnToLobby", "🏠")
+	-- (posicion: la coloca Roblox)
+
+	-- Si cambia el control (teclado / mando / tactil) cambian las pistas
+	InputHints.Changed.Event:Connect(function()
+		updateInfo()
+		updateWaiting()
+	end)
 end
 
 return RoomUI

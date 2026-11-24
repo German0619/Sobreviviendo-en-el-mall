@@ -54,6 +54,7 @@ local function build()
 		DisplayOrder = 5,
 		Parent = player:WaitForChild("PlayerGui"),
 	})
+	UIKit.adapt(gui) -- escala segun la pantalla y respeta el notch
 	local effects = Config.ChoiceSoda.Effects
 	local content
 	window, content = UIKit.window(

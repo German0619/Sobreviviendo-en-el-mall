@@ -19,6 +19,7 @@ local Config = require(Shared.Config)
 local Tags = require(Shared.Tags)
 local Remotes = require(Shared.Remotes)
 local UIKit = require(script.Parent.UIKit)
+local InputHints = require(script.Parent.InputHints)
 
 local player = Players.LocalPlayer
 local C = UIKit.COLORS
@@ -42,11 +43,12 @@ local function build()
 		DisplayOrder = 2,
 		Parent = player:WaitForChild("PlayerGui"),
 	})
+	UIKit.adapt(gui)
 
-	-- Encima de la linea de objetos y soda del HUD
+	-- Arriba al centro, bajo la hora y la fase del HUD (abajo esta la mochila)
 	abilitiesLabel = UIKit.text({
-		AnchorPoint = Vector2.new(0.5, 1),
-		Position = UDim2.new(0.5, 0, 1, -72),
+		AnchorPoint = Vector2.new(0.5, 0),
+		Position = UDim2.new(0.5, 0, 0, 98),
 		Size = UDim2.fromOffset(600, 22),
 		TextSize = 15,
 		RichText = true,
@@ -101,14 +103,16 @@ local function playFlash()
 	TweenService:Create(flashFrame, TweenInfo.new(0.35, Enum.EasingStyle.Quad), { BackgroundTransparency = 1 }):Play()
 end
 
-local function cooldownText(key: string, name: string, readyAt: number, now: number, blockedReason: string?): string
+-- action: nombre en InputHints (la tecla solo se muestra con teclado o mando).
+local function cooldownText(action: string, name: string, readyAt: number, now: number, blockedReason: string?): string
+	local label = InputHints.Label(action, name)
 	local remaining = readyAt - now
 	if remaining > 0 then
-		return string.format('<font color="#9696A0">[%s] %s  %ds</font>', key, name, math.ceil(remaining))
+		return string.format('<font color="#9696A0">%s  %ds</font>', label, math.ceil(remaining))
 	elseif blockedReason then
-		return string.format('<font color="#E65050">[%s] %s  (%s)</font>', key, name, blockedReason)
+		return string.format('<font color="#E65050">%s  (%s)</font>', label, blockedReason)
 	end
-	return string.format('<font color="#5AD278">[%s] %s  listo</font>', key, name)
+	return string.format('<font color="#5AD278">%s  listo</font>', label)
 end
 
 local function update()
@@ -124,10 +128,10 @@ local function update()
 		local cost = Config.Defense.Flash.BatteryCost * (player:GetAttribute("Perk_FlashCostMultiplier") or 1)
 		local battery = player:GetAttribute("Battery") or 0
 		local parts = {
-			cooldownText("G", "Destello", player:GetAttribute("FlashReadyAt") or 0, now, if battery < cost then "sin batería" else nil),
+			cooldownText("Flash", "Destello", player:GetAttribute("FlashReadyAt") or 0, now, if battery < cost then "sin batería" else nil),
 		}
 		if player:GetAttribute("Perk_Shove") then
-			table.insert(parts, cooldownText("Q", "Porrazo", player:GetAttribute("AbilityReadyAt") or 0, now, nil))
+			table.insert(parts, cooldownText("Ability", "Porrazo", player:GetAttribute("AbilityReadyAt") or 0, now, nil))
 		end
 		abilitiesLabel.Text = table.concat(parts, "     ")
 	end
@@ -135,7 +139,8 @@ local function update()
 	overlay.Visible = hidden and alive
 	if overlay.Visible then
 		local remaining = math.max(0, math.ceil((player:GetAttribute("HiddenUntil") or now) - now))
-		overlayLabel.Text = string.format("Escondido  ·  [Espacio] o [E] para salir  ·  aire: %ds", remaining)
+		local exitHint = if InputHints.IsTouch() then "toca Salir" else InputHints.Label("Unhide", "para salir")
+		overlayLabel.Text = string.format("Escondido  ·  %s  ·  aire: %ds", exitHint, remaining)
 		overlayLabel.TextColor3 = if remaining <= 5 then C.Bad else C.Text
 	end
 end
@@ -258,7 +263,7 @@ local function onHiddenChanged()
 			end
 			return Enum.ContextActionResult.Sink -- no saltar
 		end, true, Enum.ContextActionPriority.High.Value, Enum.KeyCode.Space, Enum.KeyCode.ButtonA)
-		ContextActionService:SetTitle("ExitHiding", "Salir")
+		ContextActionService:SetTitle("ExitHiding", "🚪")
 	else
 		ContextActionService:UnbindAction("ExitHiding")
 	end
@@ -278,14 +283,15 @@ local function bindClassAbility()
 			end
 			return Enum.ContextActionResult.Pass
 		end, true, Enum.KeyCode.Q, Enum.KeyCode.ButtonY)
-		ContextActionService:SetTitle("ClassAbility", "Porrazo")
-		ContextActionService:SetPosition("ClassAbility", UDim2.new(1, -100, 1, -230))
+		ContextActionService:SetTitle("ClassAbility", "🛡")
+		-- (posicion: la coloca Roblox)
 	else
 		ContextActionService:UnbindAction("ClassAbility")
 	end
 end
 
--- [R] Arma equipada (WeaponService). El boton tactil solo aparece si llevas una.
+-- Arma equipada: se usa desde la mochila nativa (herramienta). [R] queda como
+-- atajo de teclado (sin boton tactil: en tactil se toca la herramienta).
 local function bindWeapon()
 	local weaponId = player:GetAttribute("Weapon")
 	local item = if type(weaponId) == "string" then Config.ShopItems[weaponId] else nil
@@ -295,9 +301,7 @@ local function bindWeapon()
 				Remotes.event("UseWeapon"):FireServer()
 			end
 			return Enum.ContextActionResult.Pass
-		end, true, Enum.KeyCode.R, Enum.KeyCode.ButtonL1)
-		ContextActionService:SetTitle("Weapon", item.DisplayName)
-		ContextActionService:SetPosition("Weapon", UDim2.new(1, -170, 1, -195))
+		end, false, Enum.KeyCode.R)
 	else
 		ContextActionService:UnbindAction("Weapon")
 	end
@@ -315,8 +319,8 @@ function Defense.Start()
 		end
 		return Enum.ContextActionResult.Pass
 	end, true, Enum.KeyCode.G, Enum.KeyCode.ButtonX)
-	ContextActionService:SetTitle("Flash", "Destello")
-	ContextActionService:SetPosition("Flash", UDim2.new(1, -100, 1, -160))
+	ContextActionService:SetTitle("Flash", "💥")
+	-- (posicion: la coloca Roblox)
 
 	bindClassAbility()
 	player:GetAttributeChangedSignal("Perk_Shove"):Connect(bindClassAbility)

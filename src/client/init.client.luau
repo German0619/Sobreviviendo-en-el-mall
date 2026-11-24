@@ -20,9 +20,10 @@ local LOBBY_MODULES = {
 	Movement = true,
 }
 
--- ClassUI (ruleta vieja) solo se usa en el mall dentro de Studio, para probar.
--- StoreUI y LobbyUI son del lobby de prueba y ya no arrancan.
+-- StoreUI, LobbyUI y ClassUI (ruleta vieja) son del lobby de prueba y ya no arrancan:
+-- las clases solo se cambian en el lobby (ClassPanel).
 local LOBBY_ONLY = {
+	ClassUI = true,
 	LobbyHUD = true,
 	LobbyPanels = true,
 	PadUI = true,

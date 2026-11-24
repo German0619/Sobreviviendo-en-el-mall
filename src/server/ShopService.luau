@@ -116,7 +116,7 @@ function ShopService.Purchase(player: Player, itemId: any): (boolean, string)
 			return false, "Billetes insuficientes"
 		end
 		WeaponService.Equip(player, itemId)
-		return true, "Equipaste: " .. item.DisplayName .. "  [R]"
+		return true, "Equipaste: " .. item.DisplayName .. " (en tu mochila)"
 	end
 
 	local owned = ShopService.GetCount(player, itemId)

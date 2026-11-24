@@ -33,6 +33,41 @@ function UIKit.make(className: string, props, children)
 	return inst
 end
 
+-- Hace que un ScreenGui hecho en pixeles se vea igual en cualquier pantalla:
+--   * respeta el notch y la barra superior de Roblox (ScreenInsets);
+--   * escala todo con un UIScale segun el tamano de la pantalla
+--     (diseno base 1280x720; entre MIN_SCALE y MAX_SCALE).
+-- Devuelve el UIScale (su Scale cambia si cambia la pantalla, p. ej. al girar).
+local BASE = Vector2.new(1280, 720)
+local MIN_SCALE, MAX_SCALE = 0.6, 1.25
+
+function UIKit.adapt(gui: ScreenGui): UIScale
+	gui.ScreenInsets = Enum.ScreenInsets.CoreUISafeInsets
+	local scale = gui:FindFirstChildOfClass("UIScale") or Instance.new("UIScale")
+	scale.Parent = gui
+	local function refresh()
+		local camera = workspace.CurrentCamera
+		if not camera then
+			return
+		end
+		local size = camera.ViewportSize
+		local s = math.min(size.X / BASE.X, size.Y / BASE.Y)
+		scale.Scale = math.clamp(s, MIN_SCALE, MAX_SCALE)
+	end
+	refresh()
+	local function watch(camera: Camera?)
+		if camera then
+			camera:GetPropertyChangedSignal("ViewportSize"):Connect(refresh)
+			refresh()
+		end
+	end
+	watch(workspace.CurrentCamera)
+	workspace:GetPropertyChangedSignal("CurrentCamera"):Connect(function()
+		watch(workspace.CurrentCamera)
+	end)
+	return scale
+end
+
 function UIKit.corner(radius: number?)
 	return UIKit.make("UICorner", { CornerRadius = UDim.new(0, radius or 8) })
 end
