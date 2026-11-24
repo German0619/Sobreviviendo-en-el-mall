@@ -1483,6 +1483,12 @@ Config.Bosses = {
 	-- De mas facil a mas dificil: Luni (noche 5), Gerente (10), Coleccionista (15), Central (20)
 	Order = { "Luni", "Manager", "Collector", "Central" },
 	GoalMultiplier = 0.5,
+	-- Diamantes al vencer a un jefe que ya habias vencido antes: esta fraccion de los
+	-- diamantes de su logro (la primera vez se cobran reclamando el logro en el lobby).
+	RepeatDiamondFraction = 0.75,
+	-- Despues del ultimo jefe (noche Every x #Order = 20): cada Every noches de la partida
+	-- que se sobreviven (25, 30...), estos diamantes para cada uno.
+	PostBossDiamonds = 300,
 	-- Musica de la noche de jefe: un SoundId de audio (rbxassetid://...). Vacio = un latido
 	-- grave de los sonidos de Roblox.
 	MusicSoundId = "",

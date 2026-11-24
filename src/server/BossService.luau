@@ -66,15 +66,31 @@ function BossService.IsDefeated(): boolean
 end
 
 -- Premio al vencerlo: billetes para todos, el contador de jefes y el de ese jefe (logro).
+-- Si ya lo habia vencido antes, el logro ya esta cobrado: recibe al momento
+-- RepeatDiamondFraction de los diamantes de ese logro.
 local function reward(id: string, def)
+	local key = "Boss_" .. id
+	local achievement = Config.Achievements["Boss" .. id]
+	local repeatDiamonds = if achievement then math.floor(achievement.Diamonds * Config.Bosses.RepeatDiamondFraction) else 0
 	for _, player in Players:GetPlayers() do
-		if DataService.GetData(player) then
+		local data = DataService.GetData(player)
+		if data then
+			local before = (data.Lifetime :: any)[key] or 0
 			RunState.AddCash(player, def.Reward or 0)
 			DataService.Update(player, function(d)
 				d.Lifetime.BossesDefeated = (d.Lifetime.BossesDefeated or 0) + 1
-				local key = "Boss_" .. id
 				d.Lifetime[key] = ((d.Lifetime :: any)[key] or 0) + 1
 			end)
+			if before >= 1 and repeatDiamonds > 0 then
+				DataService.AddDiamonds(player, repeatDiamonds, false)
+				Remotes.event("Notify"):FireClient(player, string.format("Jefe repetido: +%d diamantes.", repeatDiamonds), "good")
+			elseif achievement then
+				Remotes.event("Notify"):FireClient(
+					player,
+					string.format("¡Primera vez! Reclama el logro \"%s\" en el lobby (+%d diamantes).", achievement.DisplayName, achievement.Diamonds),
+					"good"
+				)
+			end
 		end
 	end
 	Remotes.event("Notify"):FireAllClients(
@@ -141,6 +157,21 @@ function BossService.StopNight()
 		end
 	end
 	clearState()
+end
+
+-- Lo llama NightManager al pagar una noche sobrevivida. Despues del ultimo jefe (noche
+-- Every x #Order), cada Every noches de la partida: PostBossDiamonds diamantes.
+function BossService.OnNightSurvived(player: Player, night: number)
+	local cfg = Config.Bosses
+	local lastBossNight = cfg.Every * #cfg.Order
+	if night > lastBossNight and night % cfg.Every == 0 and cfg.PostBossDiamonds > 0 then
+		DataService.AddDiamonds(player, cfg.PostBossDiamonds, false)
+		Remotes.event("Notify"):FireClient(
+			player,
+			string.format("¡Noche %d superada! +%d diamantes.", night, cfg.PostBossDiamonds),
+			"good"
+		)
+	end
 end
 
 function BossService.Start()

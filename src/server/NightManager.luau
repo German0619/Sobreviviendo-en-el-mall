@@ -190,6 +190,7 @@ local function payout(night: number, wiped: boolean)
 				d.BestNight = math.max(d.BestNight, night)
 			end)
 			ClassService.OnNightSurvived(player) -- diamantes cada N noches y logros
+			BossService.OnNightSurvived(player, night) -- desde la noche 25: diamantes cada 5 noches
 		end
 
 		Remotes.event("NightResults"):FireClient(player, {
