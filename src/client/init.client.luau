@@ -13,15 +13,17 @@ local Place = require(ReplicatedStorage:WaitForChild("Shared"):WaitForChild("Pla
 local LOBBY_MODULES = {
 	LobbyHUD = true, -- diamantes, botones laterales y paneles de los puestos
 	PadUI = true, -- cuadros de sala
-	ClassUI = true,
+	ClassPanel = true, -- clases y ruleta (puesto CLASES)
 	StoreUI = true,
 	Movement = true,
 }
 
+-- ClassUI (ruleta vieja) solo se usa en el mall dentro de Studio, para probar.
 local LOBBY_ONLY = {
 	LobbyHUD = true,
 	LobbyPanels = true,
 	PadUI = true,
+	ClassPanel = true,
 	LobbyUI = true,
 	StoreUI = true,
 }

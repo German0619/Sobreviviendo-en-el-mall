@@ -3,7 +3,7 @@
 -- HUD / los puestos de la plaza solo piden abrirlo por su id:
 --   "Shop"         boton TIENDA          (Fase 4)
 --   "Achievements" boton LOGROS          (Fase 5)
---   "Classes"      puesto CLASES         (Fase 3)
+--   "Classes"      puesto CLASES         (ClassPanel)
 --   "Upgrades"     puesto MEJORAS        (por decidir)
 -- Mientras un panel no exista se muestra un aviso nativo de "Proximamente".
 

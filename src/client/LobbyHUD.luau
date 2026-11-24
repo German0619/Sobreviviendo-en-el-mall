@@ -15,7 +15,7 @@ local Shared = ReplicatedStorage:WaitForChild("Shared")
 local Remotes = require(Shared.Remotes)
 local LobbyPanels = require(script.Parent.LobbyPanels)
 -- Paneles que ya existian (se rehacen en formato nativo en sus fases)
-local ClassUI = require(script.Parent.ClassUI)
+local ClassPanel = require(script.Parent.ClassPanel)
 local StoreUI = require(script.Parent.StoreUI)
 
 local LobbyHUD = {}
@@ -199,10 +199,10 @@ function LobbyHUD.Start()
 
 	LobbyPanels.register("Classes", function()
 		StoreUI.Close()
-		ClassUI.Open()
+		ClassPanel.Open()
 	end)
 	LobbyPanels.register("Shop", function()
-		ClassUI.Close()
+		ClassPanel.Close()
 		StoreUI.Open()
 	end)
 

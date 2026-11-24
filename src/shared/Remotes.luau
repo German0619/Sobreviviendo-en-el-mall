@@ -31,6 +31,7 @@ local EVENTS = {
 	"OpenSodaPicker", -- servidor -> cliente (mall): abrir el selector de soda a eleccion
 	"RequestChoiceSoda", -- cliente -> servidor (mall): (efecto) usar ficha o comprar con Robux
 	"PadPrompt", -- servidor -> cliente (lobby): (padId) elegir sala publica / solo amigos, o (nil) cerrar
+	"SpinResult", -- servidor -> cliente (lobby): (clase, mensaje) resultado de un tiro afortunado (Robux)
 }
 
 local FUNCTIONS = {

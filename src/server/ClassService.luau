@@ -58,22 +58,53 @@ function ClassService.IsRestricted(player: Player): boolean
 end
 
 -- Probabilidades en porcentaje (para mostrarlas). Ordenadas como Config.ClassOrder.
-function ClassService.GetOdds(): { { Class: string, Percent: number } }
-	local total = 0
-	for _, w in Config.Roulette.Weights do
-		total += w
-	end
-	local list = {}
-	for _, className in Config.ClassOrder do
-		local w = Config.Roulette.Weights[className] or 0
-		table.insert(list, { Class = className, Percent = w / total * 100 })
-	end
-	return list
+function ClassService.GetOdds(lucky: boolean?): { { Class: string, Percent: number } }
+	return Config.getRouletteOdds(lucky)
 end
 
 ----------------------------------------------------------------------
 -- Ruleta y slots
 ----------------------------------------------------------------------
+
+-- Pone la clase en el slot equipado (sea mejor o peor) y guarda.
+-- Devuelve el mensaje para el jugador.
+local function applySpinResult(player: Player, className: string): string
+	local data = DataService.GetData(player)
+	if not data then
+		return ""
+	end
+	local slot = data.EquippedSlot
+	local previous = data.ClassSlots[slot] or Config.DefaultClass
+	-- La placa sobre la cabeza espera a que termine la animacion del cliente
+	player:SetAttribute("SpinRevealAt", workspace:GetServerTimeNow() + Config.Roulette.RevealSeconds)
+	DataService.Update(player, function(d)
+		d.ClassSlots[slot] = className
+	end)
+	PlayerStats.Apply(player)
+	DataService.Save(player) -- que no se pierda el giro si se cae el servidor
+	return string.format(
+		"¡Obtuviste %s! Reemplazó a %s en el slot %d.",
+		Config.Classes[className].DisplayName,
+		Config.Classes[previous].DisplayName,
+		slot
+	)
+end
+
+-- Tiro afortunado (compra con Robux): garantiza una clase Epica o Legendaria.
+-- Lo llama MonetizationService al procesar el recibo. false = Roblox lo reintenta
+-- (p. ej. si el jugador no esta en el lobby).
+function ClassService.LuckySpin(player: Player): boolean
+	if not DataService.GetData(player) or not Place.ClassesEnabledHere() then
+		return false
+	end
+	local className = Util.weightedRandom(Config.getRouletteWeights(true), rng)
+	if not className then
+		return false
+	end
+	local message = applySpinResult(player, className)
+	Remotes.event("SpinResult"):FireClient(player, className, message)
+	return true
+end
 
 function ClassService.Spin(player: Player): (boolean, string, string?)
 	local data = DataService.GetData(player)
@@ -93,25 +124,8 @@ function ClassService.Spin(player: Player): (boolean, string, string?)
 		return false, "Diamantes insuficientes", nil
 	end
 
-	local className = Util.weightedRandom(Config.Roulette.Weights, rng) or Config.DefaultClass
-	local slot = data.EquippedSlot
-	local previous = data.ClassSlots[slot] or Config.DefaultClass
-
-	-- Reemplaza la clase del slot equipado, sea mejor o peor
-	DataService.Update(player, function(d)
-		d.ClassSlots[slot] = className
-	end)
-	PlayerStats.Apply(player)
-	DataService.Save(player) -- que no se pierda el giro si se cae el servidor
-
-	return true,
-		string.format(
-			"¡Obtuviste %s! Reemplazó a %s en el slot %d.",
-			Config.Classes[className].DisplayName,
-			Config.Classes[previous].DisplayName,
-			slot
-		),
-		className
+	local className = Util.weightedRandom(Config.getRouletteWeights(false), rng) or Config.DefaultClass
+	return true, applySpinResult(player, className), className
 end
 
 function ClassService.EquipSlot(player: Player, slot: any): (boolean, string)

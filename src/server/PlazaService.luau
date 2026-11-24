@@ -83,6 +83,19 @@ local function buildOverhead(player: Player, character: Model, humanoid: Humanoi
 	recordLabel.TextColor3 = Color3.fromRGB(255, 210, 90)
 
 	local function refresh()
+		-- Tras un giro, no revelar la clase antes de que acabe la animacion del cliente
+		local revealAt = player:GetAttribute("SpinRevealAt")
+		if type(revealAt) == "number" then
+			local wait = revealAt - workspace:GetServerTimeNow()
+			if wait > 0 then
+				task.delay(wait, function()
+					if bb.Parent then
+						refresh()
+					end
+				end)
+				return
+			end
+		end
 		local className = player:GetAttribute("EquippedClass")
 		local class = if type(className) == "string" then Config.Classes[className] else nil
 		local rarity = class and Config.Rarities[class.Rarity]

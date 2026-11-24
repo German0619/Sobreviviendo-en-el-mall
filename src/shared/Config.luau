@@ -297,7 +297,41 @@ Config.Roulette = {
 		Sombra = 2.5,
 		Medico = 1,
 	},
+	-- Tiro afortunado (Robux, Config.DevProducts.LuckySpin): solo sale una clase de
+	-- estas rarezas, con los mismos pesos relativos. Sus % tambien se muestran siempre.
+	LuckyRarities = { Epic = true, Legendary = true },
+	-- Segundos que dura la animacion del giro (la placa sobre la cabeza espera a que termine)
+	RevealSeconds = 3,
 }
+
+-- Probabilidades en % de la ruleta (lucky = tiro afortunado), en el orden de Config.ClassOrder.
+-- Las usan el servidor (para sortear) y el cliente (para mostrarlas).
+function Config.getRouletteWeights(lucky: boolean?): { [string]: number }
+	local weights = {}
+	for className, weight in Config.Roulette.Weights do
+		local class = Config.Classes[className]
+		if class and (not lucky or Config.Roulette.LuckyRarities[class.Rarity]) then
+			weights[className] = weight
+		end
+	end
+	return weights
+end
+
+function Config.getRouletteOdds(lucky: boolean?): { { Class: string, Percent: number } }
+	local weights = Config.getRouletteWeights(lucky)
+	local total = 0
+	for _, w in weights do
+		total += w
+	end
+	local list = {}
+	for _, className in Config.ClassOrder do
+		local w = weights[className]
+		if w and total > 0 then
+			table.insert(list, { Class = className, Percent = w / total * 100 })
+		end
+	end
+	return list
+end
 
 -- Diamantes: moneda permanente (ruleta). Tambien se compran con Robux.
 Config.Diamonds = {
@@ -741,6 +775,7 @@ Config.DevProducts = {
 	Revive = 0, -- revivir (a ti mismo o a un companero)
 	ClassSlot = 0, -- +1 slot de clase (hasta Config.Roulette.MaxSlots)
 	PremiumSoda = 0, -- soda a eleccion (Config.ChoiceSoda)
+	LuckySpin = 0, -- tiro afortunado: garantiza clase Epica o Legendaria (lobby)
 	DiamondPacks = {
 		{ Id = 0, Amount = 100 },
 		{ Id = 0, Amount = 550 },

@@ -23,6 +23,7 @@ local Remotes = require(Shared.Remotes)
 local DataService = require(script.Parent.DataService)
 local ReviveService = require(script.Parent.ReviveService)
 local VendingService = require(script.Parent.VendingService)
+local ClassService = require(script.Parent.ClassService)
 
 local MonetizationService = {}
 
@@ -67,6 +68,11 @@ local function buildHandlers()
 
 	register(Config.DevProducts.PremiumSoda, function(player)
 		return VendingService.OnChoiceSodaPurchased(player)
+	end)
+
+	-- Tiro afortunado: solo se entrega en el lobby (si no, Roblox lo reintenta luego)
+	register(Config.DevProducts.LuckySpin, function(player)
+		return ClassService.LuckySpin(player)
 	end)
 
 	for _, pack in Config.DevProducts.DiamondPacks do
@@ -142,6 +148,13 @@ local function promptProduct(player: Player, kind: any, index: any)
 		end
 		local pack = Config.DevProducts.DiamondPacks[index]
 		productId = if pack then pack.Id else 0
+	elseif kind == "LuckySpin" then
+		-- Es un objeto aleatorio pagado: no se vende donde esta restringido
+		if player:GetAttribute("PaidRandomRestricted") ~= false then
+			notify(player, "En tu país el tiro afortunado no está disponible.", "info")
+			return
+		end
+		productId = Config.DevProducts.LuckySpin
 	else
 		return
 	end
