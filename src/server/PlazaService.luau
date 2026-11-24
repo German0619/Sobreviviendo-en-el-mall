@@ -103,12 +103,17 @@ local function buildOverhead(player: Player, character: Model, humanoid: Humanoi
 		classLabel.TextColor3 = if rarity then rarity.Color else Color3.new(1, 1, 1)
 		local best = player:GetAttribute("BestNight")
 		recordLabel.Text = if type(best) == "number" and best > 0 then "🏆 Noche " .. best else "🏆 --"
+		-- Pase VIP: etiqueta y nombre dorado
+		local vip = player:GetAttribute("Pass_VIP") == true
+		nameLabel.Text = if vip then "VIP · " .. player.DisplayName else player.DisplayName
+		nameLabel.TextColor3 = if vip then Color3.fromRGB(255, 200, 60) else Color3.new(1, 1, 1)
 	end
 	refresh()
 
 	local connections = {
 		player:GetAttributeChangedSignal("EquippedClass"):Connect(refresh),
 		player:GetAttributeChangedSignal("BestNight"):Connect(refresh),
+		player:GetAttributeChangedSignal("Pass_VIP"):Connect(refresh),
 	}
 	bb.Destroying:Connect(function()
 		for _, c in connections do

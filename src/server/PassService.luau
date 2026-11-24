@@ -19,6 +19,7 @@ local Shared = ReplicatedStorage:WaitForChild("Shared")
 local Config = require(Shared.Config)
 local Remotes = require(Shared.Remotes)
 local Signal = require(Shared.Signal)
+local Place = require(Shared.Place)
 
 local PassService = {}
 
@@ -50,6 +51,9 @@ end
 ----------------------------------------------------------------------
 
 local function addVipTag(character: Model)
+	if Place.IsLobby then
+		return -- en el lobby la placa de PlazaService ya muestra el VIP (nombre dorado)
+	end
 	local head = character:WaitForChild("Head", 10)
 	if not head or head:FindFirstChild("VipTag") then
 		return

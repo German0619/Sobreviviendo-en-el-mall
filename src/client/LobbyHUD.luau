@@ -18,7 +18,7 @@ local Tags = require(Shared.Tags)
 local LobbyPanels = require(script.Parent.LobbyPanels)
 -- Paneles que ya existian (se rehacen en formato nativo en sus fases)
 local ClassPanel = require(script.Parent.ClassPanel)
-local StoreUI = require(script.Parent.StoreUI)
+local ShopPanel = require(script.Parent.ShopPanel)
 
 local LobbyHUD = {}
 
@@ -200,12 +200,12 @@ function LobbyHUD.Start()
 	buildSideButtons(gui)
 
 	LobbyPanels.register("Classes", function()
-		StoreUI.Close()
+		ShopPanel.Close()
 		ClassPanel.Open()
 	end)
 	LobbyPanels.register("Shop", function()
 		ClassPanel.Close()
-		StoreUI.Open()
+		ShopPanel.Open()
 	end)
 
 	-- Puestos de la plaza (ProximityPrompt creado por PlazaService)
