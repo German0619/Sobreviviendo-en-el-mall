@@ -143,17 +143,25 @@ local function setBlocked(player: Player, blocked: boolean)
 	end
 end
 
--- Deja al jugador justo fuera del cuadro, por el lado mas cercano.
-local function eject(pad: Pad, player: Player, message: string)
+-- Deja al jugador justo fuera del cuadro: por el lado mas cercano, o (facing)
+-- por el lado hacia el que mira.
+local function pushOut(pad: Pad, player: Player, facing: boolean?)
 	local root = rootOf(player)
-	if root then
-		local rel = pad.Base.CFrame:PointToObjectSpace(root.Position)
-		local offset = if math.abs(rel.X) > math.abs(rel.Z)
-			then Vector3.new(math.sign(rel.X) * EJECT_DISTANCE, 3, 0)
-			else Vector3.new(0, 3, (if rel.Z == 0 then 1 else math.sign(rel.Z)) * EJECT_DISTANCE)
-		local target = pad.Base.CFrame:PointToWorldSpace(offset)
-		root.CFrame = CFrame.new(target) * root.CFrame.Rotation
+	if not root then
+		return
 	end
+	local dir = if facing
+		then pad.Base.CFrame:VectorToObjectSpace(root.CFrame.LookVector)
+		else pad.Base.CFrame:PointToObjectSpace(root.Position)
+	local offset = if math.abs(dir.X) > math.abs(dir.Z)
+		then Vector3.new(math.sign(dir.X) * EJECT_DISTANCE, 3, 0)
+		else Vector3.new(0, 3, (if dir.Z == 0 then 1 else math.sign(dir.Z)) * EJECT_DISTANCE)
+	local target = pad.Base.CFrame:PointToWorldSpace(offset)
+	root.CFrame = CFrame.new(target) * root.CFrame.Rotation
+end
+
+local function eject(pad: Pad, player: Player, message: string)
+	pushOut(pad, player, false)
 	local last = lastWarn[player]
 	if not last or os.clock() - last > 3 then
 		lastWarn[player] = os.clock()
@@ -518,6 +526,25 @@ function PadService.Start()
 		end
 		return createRoom(pad, isPublic == true)
 	end
+
+	-- Saltar dentro del cuadro = salir de la sala y quedar fuera del cuadro
+	Remotes.event("RequestLeavePad").OnServerEvent:Connect(function(player: Player)
+		local pad = padOf[player]
+		if not pad then
+			return
+		end
+		if pad.Chooser == player then
+			if pad.State == "Choosing" then
+				resetPad(pad) -- aun no habia sala
+			end
+			-- "Creating": createRoom ve que ya no esta en el cuadro y deshace la sala
+		else
+			removeMember(pad, player)
+			task.spawn(LobbyService.LeaveRoom, player)
+			notify(player, "Saliste de la sala.", "info")
+		end
+		pushOut(pad, player, true)
+	end)
 
 	Remotes.func("RequestStartRoom").OnServerInvoke = function(player: Player)
 		local pad = padOf[player]

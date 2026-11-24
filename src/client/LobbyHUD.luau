@@ -7,12 +7,14 @@
 -- ScreenGui respeta las zonas seguras (notch, barra de Roblox), asi que se ve
 -- igual de proporcionado en PC, telefono, tableta y consola.
 
+local CollectionService = game:GetService("CollectionService")
 local Players = game:GetService("Players")
 local ProximityPromptService = game:GetService("ProximityPromptService")
 local ReplicatedStorage = game:GetService("ReplicatedStorage")
 
 local Shared = ReplicatedStorage:WaitForChild("Shared")
 local Remotes = require(Shared.Remotes)
+local Tags = require(Shared.Tags)
 local LobbyPanels = require(script.Parent.LobbyPanels)
 -- Paneles que ya existian (se rehacen en formato nativo en sus fases)
 local ClassPanel = require(script.Parent.ClassPanel)
@@ -211,6 +213,33 @@ function LobbyHUD.Start()
 		local stand = prompt:GetAttribute("Stand")
 		if type(stand) == "string" then
 			LobbyPanels.open(stand)
+		end
+	end)
+
+	-- Pararse sobre el circulo de luz de un puesto tambien abre su panel
+	-- (una vez por cada vez que entras al circulo).
+	task.spawn(function()
+		local inside: { [Instance]: boolean } = {}
+		while gui.Parent do
+			task.wait(0.2)
+			local character = player.Character
+			local root = character and character:FindFirstChild("HumanoidRootPart") :: BasePart?
+			for _, stand in CollectionService:GetTagged(Tags.LobbyStand) do
+				local glow = stand:FindFirstChild("FloorGlow")
+				local standId = stand:GetAttribute("Stand")
+				if glow and glow:IsA("BasePart") and type(standId) == "string" then
+					local onIt = false
+					if root then
+						local offset = root.Position - glow.Position
+						local radius = math.max(glow.Size.Y, glow.Size.Z) / 2 -- cilindro tumbado: su eje es X
+						onIt = Vector3.new(offset.X, 0, offset.Z).Magnitude <= radius and math.abs(offset.Y) < 6
+					end
+					if onIt and not inside[stand] then
+						LobbyPanels.open(standId)
+					end
+					inside[stand] = onIt
+				end
+			end
 		end
 	end)
 

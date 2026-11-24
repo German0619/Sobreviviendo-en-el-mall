@@ -13,6 +13,7 @@
 local CollectionService = game:GetService("CollectionService")
 local Players = game:GetService("Players")
 local ReplicatedStorage = game:GetService("ReplicatedStorage")
+local UserInputService = game:GetService("UserInputService")
 local Workspace = game:GetService("Workspace")
 
 local Shared = ReplicatedStorage:WaitForChild("Shared")
@@ -177,6 +178,21 @@ function PadUI.Start()
 			Remotes.func("RequestStartRoom"):InvokeServer()
 			starting = false
 		end)
+	end)
+
+	------------------------------------------------------------------
+	-- Saltar dentro de un cuadro = salir (el servidor te deja fuera)
+	------------------------------------------------------------------
+	local lastLeave = 0
+	UserInputService.JumpRequest:Connect(function()
+		if type(player:GetAttribute("PadId")) ~= "number" or os.clock() - lastLeave < 1 then
+			return
+		end
+		lastLeave = os.clock()
+		choosing = false
+		choose.Visible = false
+		room.Visible = false
+		Remotes.event("RequestLeavePad"):FireServer()
 	end)
 
 	------------------------------------------------------------------
