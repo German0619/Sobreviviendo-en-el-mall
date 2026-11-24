@@ -7,6 +7,8 @@
 --   * Bengala (tienda): zona iluminada temporal. La consultan los enemigos.
 --   * Petardo (tienda): tras la mecha atrae a los enemigos cercanos.
 --   * Escondites (tag HidingSpot): rompen la persecucion si el enemigo no te vio entrar.
+--   * Zonas de las armas (WeaponService): nube del extintor (IsInSmoke: ciega) y
+--     piso mojado (GetSpeedFactor: ralentiza). Empujon con fuerza variable (Push).
 --
 -- Los enemigos consultan este servicio (IsStunned, IsInFlare, GetLure, IsHidden...);
 -- este servicio NO requiere los modulos de enemigos (EnemyService le pasa la lista).
@@ -42,9 +44,12 @@ local Def = Config.Defense
 type Flare = { Position: Vector3, ExpiresAt: number, Part: BasePart }
 type Lure = { Position: Vector3, ActiveFrom: number, ExpiresAt: number, Part: BasePart?, Radius: number? }
 type HideEntry = { Spot: BasePart, Character: Model, Until: number }
+type Zone = { Position: Vector3, Radius: number, ExpiresAt: number, Part: BasePart?, Multiplier: number? }
 
 local flares: { Flare } = {}
 local lures: { Lure } = {}
+local smokes: { Zone } = {}
+local slowZones: { Zone } = {}
 local hiding: { [Player]: HideEntry } = {}
 local occupants: { [BasePart]: Player } = {}
 
@@ -211,6 +216,65 @@ function DefenseService.SetEnemyProvider(fn: () -> { any })
 	enemyProvider = fn
 end
 
+-- Enemigos activos (para las armas).
+function DefenseService.GetEnemies(): { any }
+	return enemyProvider()
+end
+
+----------------------------------------------------------------------
+-- Zonas de las armas: nube (ciega) y piso mojado (ralentiza)
+----------------------------------------------------------------------
+
+local function activeZones(list: { Zone }): { Zone }
+	local now = os.clock()
+	for i = #list, 1, -1 do
+		local zone = list[i]
+		if now >= zone.ExpiresAt then
+			if zone.Part then
+				zone.Part:Destroy()
+			end
+			table.remove(list, i)
+		end
+	end
+	return list
+end
+
+-- Nube que ciega: los enemigos dentro no ven, y nadie ve a quien esta dentro.
+function DefenseService.AddSmoke(position: Vector3, radius: number, duration: number, part: BasePart?)
+	table.insert(smokes, { Position = position, Radius = radius, ExpiresAt = os.clock() + duration, Part = part })
+end
+
+function DefenseService.IsInSmoke(position: Vector3): boolean
+	for _, zone in activeZones(smokes) do
+		if (position - zone.Position).Magnitude <= zone.Radius then
+			return true
+		end
+	end
+	return false
+end
+
+-- Zona que ralentiza a los enemigos (multiplicador de velocidad < 1).
+function DefenseService.AddSlowZone(position: Vector3, radius: number, multiplier: number, duration: number, part: BasePart?)
+	table.insert(slowZones, {
+		Position = position,
+		Radius = radius,
+		ExpiresAt = os.clock() + duration,
+		Part = part,
+		Multiplier = multiplier,
+	})
+end
+
+-- Multiplicador de velocidad de un enemigo en `position` (1 = normal).
+function DefenseService.GetSpeedFactor(position: Vector3): number
+	local factor = 1
+	for _, zone in activeZones(slowZones) do
+		if flatDistance(position, zone.Position) <= zone.Radius and math.abs(position.Y - zone.Position.Y) < 8 then
+			factor = math.min(factor, zone.Multiplier or 1)
+		end
+	end
+	return factor
+end
+
 ----------------------------------------------------------------------
 -- [G] Destello de linterna
 ----------------------------------------------------------------------
@@ -275,22 +339,15 @@ local function shockwave(position: Vector3, look: Vector3)
 	end)
 end
 
-function DefenseService.UseClassAbility(player: Player)
-	if not PlayerStats.GetPerk(player, "Shove") or not canAct(player) then
-		return
-	end
-	local now = serverNow()
-	if (player:GetAttribute("AbilityReadyAt") or 0) > now then
-		return
-	end
+-- Empuja y aturde a los enemigos de enfrente. strength = { StunSeconds, Distance }
+-- (el Porrazo usa Config.Defense.Shove; el Trapeador, uno mas debil). Devuelve los golpeados.
+function DefenseService.Push(player: Player, range: number, strength: { StunSeconds: number, Distance: number }): number
 	local root = getRoot(player)
 	local look = root and flatLook(root)
 	if not root or not look then
-		return
+		return 0
 	end
-	player:SetAttribute("AbilityReadyAt", now + Def.Shove.Cooldown)
 	shockwave(root.Position, look)
-
 	local hits = 0
 	for _, enemy in enemyProvider() do
 		local model = enemy.Model
@@ -299,23 +356,43 @@ function DefenseService.UseClassAbility(player: Player)
 			local flat = Vector3.new(offset.X, 0, offset.Z)
 			local dist = flat.Magnitude
 			-- Delante del jugador (o pegado a el)
-			if dist <= Def.Shove.Range and (dist < 2 or look:Dot(flat.Unit) >= 0.2) then
+			if dist <= range and (dist < 2 or look:Dot(flat.Unit) >= 0.2) then
 				hits += 1
 				local direction = if dist > 0.01 then flat.Unit else look
 				if enemy.OnShove then
-					local ok, err = pcall(enemy.OnShove, enemy, player, direction)
+					local ok, err = pcall(enemy.OnShove, enemy, player, direction, strength)
 					if not ok then
 						warn("[DefenseService] OnShove:", err)
 					end
 				else
-					DefenseService.Stun(model, Def.Shove.StunSeconds)
+					DefenseService.Stun(model, strength.StunSeconds)
 				end
 			end
 		end
 	end
-	if hits == 0 then
+	return hits
+end
+
+function DefenseService.UseClassAbility(player: Player)
+	if not PlayerStats.GetPerk(player, "Shove") or not canAct(player) then
+		return
+	end
+	local now = serverNow()
+	if (player:GetAttribute("AbilityReadyAt") or 0) > now then
+		return
+	end
+	if not getRoot(player) then
+		return
+	end
+	player:SetAttribute("AbilityReadyAt", now + Def.Shove.Cooldown)
+	if DefenseService.Push(player, Def.Shove.Range, Def.Shove) == 0 then
 		notify(player, "El porrazo no alcanzó a nadie.")
 	end
+end
+
+-- Para las armas: puede actuar (vivo y no escondido).
+function DefenseService.CanAct(player: Player): boolean
+	return canAct(player)
 end
 
 ----------------------------------------------------------------------
@@ -622,7 +699,7 @@ end
 -- Limpieza y arranque
 ----------------------------------------------------------------------
 
--- Fin de la noche: quitar bengalas y petardos.
+-- Fin de la noche: quitar bengalas, petardos, nubes y carteles.
 function DefenseService.ClearAll()
 	for _, flare in flares do
 		flare.Part:Destroy()
@@ -634,6 +711,15 @@ function DefenseService.ClearAll()
 	end
 	flares = {}
 	lures = {}
+	-- Nubes y carteles de piso mojado
+	for _, list in { smokes, slowZones } do
+		for _, zone in list do
+			if zone.Part then
+				zone.Part:Destroy()
+			end
+		end
+		table.clear(list)
+	end
 end
 
 function DefenseService.Start()

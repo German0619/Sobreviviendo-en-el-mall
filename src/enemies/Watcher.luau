@@ -155,10 +155,12 @@ function Watcher:OnFlash(_player: Player)
 end
 
 -- Porrazo: sale despedido y queda aturdido.
-function Watcher:OnShove(_player: Player, direction: Vector3)
+-- strength: { StunSeconds, Distance } (Porrazo por defecto; el Trapeador es mas debil)
+function Watcher:OnShove(_player: Player, direction: Vector3, strength: { StunSeconds: number, Distance: number }?)
+	local s = strength or Config.Defense.Shove
 	self.Mover:Clear()
-	DefenseService.Stun(self.Model, Config.Defense.Shove.StunSeconds)
-	Common.knockback(self.Model, direction, Config.Defense.Shove.Distance)
+	DefenseService.Stun(self.Model, s.StunSeconds)
+	Common.knockback(self.Model, direction, s.Distance)
 end
 
 function Watcher:Destroy()

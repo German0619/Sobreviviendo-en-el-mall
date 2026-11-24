@@ -610,6 +610,25 @@ local function update()
 			table.insert(slots, string.format("[%d] %s x%d", item.Hotkey, item.DisplayName, player:GetAttribute("Item_" .. itemId) or 0))
 		end
 	end
+	-- Arma equipada [R]: usos y enfriamiento
+	local weaponId = player:GetAttribute("Weapon")
+	local weaponItem = if type(weaponId) == "string" then Config.ShopItems[weaponId] else nil
+	if weaponItem then
+		local text = "[R] " .. weaponItem.DisplayName
+		if weaponId == "UVFlashlight" then
+			text ..= if player:GetAttribute("UVOn") == true then " (UV ON)" else " (UV off)"
+		else
+			local uses = player:GetAttribute("WeaponUses") or -1
+			if uses >= 0 then
+				text ..= " x" .. uses
+			end
+		end
+		local readyIn = (player:GetAttribute("WeaponReadyAt") or 0) - now
+		if readyIn > 0.05 then
+			text ..= string.format("  (%d s)", math.ceil(readyIn))
+		end
+		table.insert(slots, text)
+	end
 	itemsLabel.Text = table.concat(slots, "     ")
 
 	-- Sodas activas (positiva en verde, negativas acumuladas en rojo, cada una con su tiempo)

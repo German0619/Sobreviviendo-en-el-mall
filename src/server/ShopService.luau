@@ -20,6 +20,7 @@ local DataService = require(script.Parent.DataService)
 local RunState = require(script.Parent.RunState)
 local FlashlightService = require(script.Parent.FlashlightService)
 local DefenseService = require(script.Parent.DefenseService)
+local WeaponService = require(script.Parent.WeaponService)
 
 local ShopService = {}
 
@@ -36,9 +37,12 @@ end
 -- Vacia el inventario (al morir, al salir, al empezar otra partida).
 function ShopService.ClearInventory(player: Player)
 	inventories[player] = nil
-	for itemId in Config.ShopItems do
-		player:SetAttribute("Item_" .. itemId, 0)
+	for itemId, item in Config.ShopItems do
+		if not item.Weapon then
+			player:SetAttribute("Item_" .. itemId, 0)
+		end
 	end
+	WeaponService.Clear(player) -- el arma tambien es por vida
 	FlashlightService.Refresh(player)
 end
 
@@ -100,6 +104,19 @@ function ShopService.Purchase(player: Player, itemId: any): (boolean, string)
 	local humanoid = getHumanoid(player)
 	if not humanoid or humanoid.Health <= 0 then
 		return false, "Estás muerto"
+	end
+
+	-- Armas: van al hueco de arma (reemplazan a la actual; la misma se recarga)
+	if item.Weapon then
+		local canEquip, reason = WeaponService.CanEquip(player, itemId)
+		if not canEquip then
+			return false, reason or "No puedes comprarla"
+		end
+		if not RunState.TrySpend(player, item.Price) then
+			return false, "Billetes insuficientes"
+		end
+		WeaponService.Equip(player, itemId)
+		return true, "Equipaste: " .. item.DisplayName .. "  [R]"
 	end
 
 	local owned = ShopService.GetCount(player, itemId)

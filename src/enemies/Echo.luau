@@ -201,6 +201,8 @@ function Echo:Vanish()
 	self.Steps:Stop()
 	self.Model:PivotTo(HIDDEN_CFRAME)
 	self:SetRevealed(false)
+	self.UVUntil = 0
+	self:SetUVMark(false)
 end
 
 -- Vuelve en un punto lejos de los jugadores.
@@ -272,7 +274,10 @@ function Echo:Update(dt: number)
 		return
 	end
 	self.Exposure = math.max(0, self.Exposure - dt)
-	self:SetRevealed(false)
+	-- La linterna UV lo deja marcado un rato (se ve lo que es, aunque no lo ahuyenta)
+	local uvMarked = now < (self.UVUntil or 0)
+	self:SetRevealed(uvMarked)
+	self:SetUVMark(uvMarked)
 
 	local groundY = position.Y - self.Height / 2
 	local multiplier = self:GetSpeedMultiplier()
@@ -315,6 +320,29 @@ function Echo:Update(dt: number)
 		self.LastAttack = now
 		Common.damage(target, self.Def.Damage)
 		self:Vanish() -- golpea y se esfuma
+	end
+end
+
+-- Contorno morado visible a traves de las paredes para todos (linterna UV).
+function Echo:SetUVMark(on: boolean)
+	local mark = self.Model:FindFirstChild("UVMark") :: Highlight?
+	if on and not mark then
+		local h = Instance.new("Highlight")
+		h.Name = "UVMark"
+		h.FillColor = Color3.fromRGB(170, 60, 255)
+		h.FillTransparency = 0.6
+		h.OutlineColor = Color3.fromRGB(210, 140, 255)
+		h.DepthMode = Enum.HighlightDepthMode.AlwaysOnTop
+		h.Parent = self.Model
+	elseif not on and mark then
+		mark:Destroy()
+	end
+end
+
+-- Linterna UV (WeaponService): lo revela de lejos durante unos segundos.
+function Echo:OnUV(_player: Player, seconds: number)
+	if self.State ~= "Vanished" then
+		self.UVUntil = os.clock() + seconds
 	end
 end
 

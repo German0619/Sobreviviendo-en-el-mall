@@ -43,6 +43,7 @@ else
 		require(script.PassService),
 		require(script.MonetizationService),
 		require(script.DefenseService),
+		require(script.WeaponService), -- armas [R] (taser, extintor, cartel, UV, trapeador)
 		require(script.ShopService),
 		require(script.VendingService),
 		require(script.MissionService),

@@ -363,7 +363,9 @@ function Mover:Step(dt: number): boolean
 	end
 
 	local dir = flat / dist
-	local newPos = pos + dir * math.min(dist, self.Speed * dt)
+	-- Cartel de piso mojado: mas lento dentro de su radio
+	local speed = self.Speed * DefenseService.GetSpeedFactor(pos)
+	local newPos = pos + dir * math.min(dist, speed * dt)
 
 	local y
 	if self.Ghost then
@@ -485,7 +487,9 @@ function Awareness:Update(dt: number, position: Vector3, senses: (Player, BasePa
 				end
 			else
 				self.Watched[player] = nil
-				if senses(player, root) then
+				-- Nube del extintor: no ve desde dentro ni a quien esta dentro
+				local blinded = DefenseService.IsInSmoke(position) or DefenseService.IsInSmoke(root.Position)
+				if not blinded and senses(player, root) then
 					self.LastSensed[player] = now
 					local level = (self.Level[player] or 0) + dt / self:DetectTime(player)
 					self.Level[player] = math.min(level, 1)

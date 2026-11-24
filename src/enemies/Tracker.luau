@@ -114,6 +114,10 @@ local function updateScent()
 				end
 				scent[player] = now + def.MarkSeconds
 				player:SetAttribute("ScentUntil", Workspace:GetServerTimeNow() + def.MarkSeconds)
+			elseif scent[player] and DefenseService.IsInSmoke(root.Position) then
+				-- La espuma del extintor tapa el olor
+				scent[player] = now
+				Remotes.event("Notify"):FireClient(player, "La espuma del extintor tapó tu olor.", "good")
 			end
 			if scent[player] and not DefenseService.IsHidden(player) then
 				local last = lastPrint[player]
@@ -324,10 +328,12 @@ function Tracker:OnFlash(_player: Player)
 end
 
 -- Porrazo: sale despedido y queda aturdido.
-function Tracker:OnShove(_player: Player, direction: Vector3)
+-- strength: { StunSeconds, Distance } (Porrazo por defecto; el Trapeador es mas debil)
+function Tracker:OnShove(_player: Player, direction: Vector3, strength: { StunSeconds: number, Distance: number }?)
+	local s = strength or Config.Defense.Shove
 	self.Mover:Clear()
-	DefenseService.Stun(self.Model, Config.Defense.Shove.StunSeconds)
-	Common.knockback(self.Model, direction, Config.Defense.Shove.Distance)
+	DefenseService.Stun(self.Model, s.StunSeconds)
+	Common.knockback(self.Model, direction, s.Distance)
 end
 
 function Tracker:Destroy()

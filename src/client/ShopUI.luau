@@ -34,6 +34,26 @@ local function refresh()
 	moneyLabel.Text = "Billetes: " .. Util.formatMoney(money)
 	for itemId, row in rows do
 		local item = Config.ShopItems[itemId]
+		-- Armas: un solo hueco [R]; la misma se recarga, otra la reemplaza
+		if item.Weapon then
+			local def = Config.Weapons[itemId]
+			local equipped = player:GetAttribute("Weapon") == itemId
+			local uses = player:GetAttribute("WeaponUses") or 0
+			local full = equipped and (def.Uses == nil or uses >= def.Uses)
+			if equipped then
+				row.Owned.Text = if def.Uses then string.format("Equipada [R] · %d/%d usos", uses, def.Uses) else "Equipada [R]"
+			else
+				row.Owned.Text = "Arma [R] · reemplaza a la que llevas"
+			end
+			if full then
+				row.Button.Text = "EQUIPADA"
+				row.Button.BackgroundColor3 = C.ButtonOff
+			else
+				row.Button.Text = Util.formatMoney(item.Price)
+				row.Button.BackgroundColor3 = if money >= item.Price then C.Button else C.ButtonOff
+			end
+			continue
+		end
 		local owned = player:GetAttribute("Item_" .. itemId) or 0
 		local byPass = itemId == "FlashlightPro" and player:GetAttribute("Pass_PremiumFlashlight") == true
 		if byPass then
@@ -97,8 +117,9 @@ local function build()
 		Parent = player:WaitForChild("PlayerGui"),
 	})
 	local content
-	-- Alto segun el numero de objetos (70 px por fila)
-	window, content = UIKit.window(gui, "TIENDA DEL MALL", Vector2.new(480, 130 + #Config.ShopOrder * 70), ShopUI.Close)
+	-- Alto segun el numero de objetos (70 px por fila), con tope: el resto con scroll
+	local height = math.min(130 + #Config.ShopOrder * 70, 560)
+	window, content = UIKit.window(gui, "TIENDA DEL MALL", Vector2.new(480, height), ShopUI.Close)
 
 	moneyLabel = UIKit.text({
 		Size = UDim2.new(1, 0, 0, 24),
@@ -108,14 +129,27 @@ local function build()
 		Parent = content,
 	})
 
+	-- Lista con scroll entre el dinero y la linea de estado
+	local list = UIKit.make("ScrollingFrame", {
+		Position = UDim2.fromOffset(0, 32),
+		Size = UDim2.new(1, 0, 1, -60),
+		BackgroundTransparency = 1,
+		BorderSizePixel = 0,
+		ScrollBarThickness = 6,
+		ScrollingDirection = Enum.ScrollingDirection.Y,
+		CanvasSize = UDim2.fromOffset(0, #Config.ShopOrder * 70),
+		ZIndex = 22,
+		Parent = content,
+	})
+
 	for i, itemId in Config.ShopOrder do
 		local item = Config.ShopItems[itemId]
 		local row = UIKit.make("Frame", {
-			Position = UDim2.fromOffset(0, 32 + (i - 1) * 70),
-			Size = UDim2.new(1, 0, 0, 62),
+			Position = UDim2.fromOffset(0, (i - 1) * 70),
+			Size = UDim2.new(1, -10, 0, 62),
 			BackgroundColor3 = C.Row,
 			ZIndex = 22,
-			Parent = content,
+			Parent = list,
 		}, { UIKit.corner(8) })
 		local name = item.DisplayName
 		if item.Hotkey then
@@ -181,6 +215,8 @@ function ShopUI.Start()
 	for itemId in Config.ShopItems do
 		player:GetAttributeChangedSignal("Item_" .. itemId):Connect(refresh)
 	end
+	player:GetAttributeChangedSignal("Weapon"):Connect(refresh)
+	player:GetAttributeChangedSignal("WeaponUses"):Connect(refresh)
 
 	-- Cerrar si te alejas del mostrador o mueres
 	RunService.Heartbeat:Connect(function()

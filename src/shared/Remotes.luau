@@ -33,6 +33,7 @@ local EVENTS = {
 	"PadPrompt", -- servidor -> cliente (lobby): (padId) elegir sala publica / solo amigos, o (nil) cerrar
 	"SpinResult", -- servidor -> cliente (lobby): (clase, mensaje) resultado de un tiro afortunado (Robux)
 	"RequestLeavePad", -- cliente -> servidor (lobby): salto dentro de un cuadro = salir de la sala y del cuadro
+	"UseWeapon", -- cliente -> servidor (mall): usar el arma equipada [R]
 }
 
 local FUNCTIONS = {

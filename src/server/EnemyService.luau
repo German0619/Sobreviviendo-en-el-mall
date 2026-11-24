@@ -160,6 +160,10 @@ local function spawnEnemy(enemyType: string, ctx, floor: number?)
 		warn("[EnemyService] Error creando", enemyType, enemy)
 		return
 	end
+	enemy.EnemyType = enemyType -- lo usan las armas (nivel del enemigo)
+	if enemy.Model then
+		enemy.Model:SetAttribute("EnemyType", enemyType)
+	end
 	table.insert(activeEnemies, enemy)
 
 	-- El Vigilante ve por las camaras: se encienden cuando aparece el primero

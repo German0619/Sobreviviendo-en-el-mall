@@ -285,8 +285,29 @@ local function bindClassAbility()
 	end
 end
 
+-- [R] Arma equipada (WeaponService). El boton tactil solo aparece si llevas una.
+local function bindWeapon()
+	local weaponId = player:GetAttribute("Weapon")
+	local item = if type(weaponId) == "string" then Config.ShopItems[weaponId] else nil
+	if item then
+		ContextActionService:BindAction("Weapon", function(_, state)
+			if state == Enum.UserInputState.Begin then
+				Remotes.event("UseWeapon"):FireServer()
+			end
+			return Enum.ContextActionResult.Pass
+		end, true, Enum.KeyCode.R, Enum.KeyCode.ButtonL1)
+		ContextActionService:SetTitle("Weapon", item.DisplayName)
+		ContextActionService:SetPosition("Weapon", UDim2.new(1, -170, 1, -195))
+	else
+		ContextActionService:UnbindAction("Weapon")
+	end
+end
+
 function Defense.Start()
 	build()
+
+	bindWeapon()
+	player:GetAttributeChangedSignal("Weapon"):Connect(bindWeapon)
 
 	ContextActionService:BindAction("Flash", function(_, state)
 		if state == Enum.UserInputState.Begin then

@@ -20,6 +20,14 @@ local COS_DETECT_PRO = math.cos(math.rad(Config.Flashlight.DetectHalfAngle + Con
 
 local NORMAL_COLOR = Color3.fromRGB(255, 244, 214)
 local PREMIUM_COLOR = Color3.fromRGB(255, 205, 110) -- haz dorado del pase Linterna Premium
+local UV_COLOR = Color3.fromRGB(150, 80, 255) -- arma Linterna UV encendida (atributo UVOn)
+
+local function beamColor(player: Player): Color3
+	if player:GetAttribute("UVOn") == true then
+		return UV_COLOR
+	end
+	return if player:GetAttribute("Pass_PremiumFlashlight") == true then PREMIUM_COLOR else NORMAL_COLOR
+end
 
 -- Pase Linterna Premium (lo publica PassService)
 local function hasPremiumPass(player: Player): boolean
@@ -76,7 +84,7 @@ function FlashlightService.Refresh(player: Player)
 	local light = getSpotLight(player)
 	if light then
 		light.Angle = Config.Flashlight.Angle + (if hasPro(player) then Config.FlashlightPro.ExtraAngle else 0)
-		light.Color = if hasPremiumPass(player) then PREMIUM_COLOR else NORMAL_COLOR
+		light.Color = beamColor(player)
 	end
 end
 
@@ -196,7 +204,7 @@ local function onCharacterAdded(player: Player, character: Model)
 	light.Range = Config.Flashlight.Range
 	light.Angle = Config.Flashlight.Angle + (if hasPro(player) then Config.FlashlightPro.ExtraAngle else 0)
 	light.Brightness = Config.Flashlight.Brightness
-	light.Color = if hasPremiumPass(player) then PREMIUM_COLOR else NORMAL_COLOR
+	light.Color = beamColor(player)
 	light.Shadows = true
 	light.Face = Enum.NormalId.Front
 	light.Enabled = false
@@ -255,6 +263,7 @@ function FlashlightService.Start()
 				if FlashlightService.IsOn(player) then
 					local drain = Config.Flashlight.DrainPerSecond
 						* (if hasPro(player) then Config.FlashlightPro.DrainMultiplier else 1)
+						* (if player:GetAttribute("UVOn") == true then Config.Weapons.UVFlashlight.DrainMultiplier else 1)
 					local battery = (player:GetAttribute("Battery") or 0) - drain * dt
 					player:SetAttribute("Battery", math.max(battery, 0))
 					if battery <= 0 then

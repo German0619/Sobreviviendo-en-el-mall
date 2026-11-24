@@ -541,9 +541,92 @@ Config.ShopItems = {
 		Description = "Haz más amplio y 25% menos consumo.",
 		Unique = true,
 	},
+
+	-- Armas (Weapon = true): una equipada a la vez, se usa con [R]. Comprar otra
+	-- reemplaza a la que llevas. Se pierden al morir. Datos en Config.Weapons.
+	Taser = {
+		DisplayName = "Taser",
+		Price = 250,
+		Description = "Aturde 10 s al enemigo de enfrente (nivel 3: 1 s). 10 usos.",
+		Weapon = true,
+	},
+	Extinguisher = {
+		DisplayName = "Extintor",
+		Price = 200,
+		Description = "Nube que ciega a los enemigos 5 s. Útil contra el Rastro. 6 usos.",
+		Weapon = true,
+	},
+	WetFloorSign = {
+		DisplayName = "Cartel de piso mojado",
+		Price = 150,
+		Description = "Trampa: los enemigos que pasan van a mitad de velocidad. 3 usos.",
+		Weapon = true,
+	},
+	UVFlashlight = {
+		DisplayName = "Linterna UV",
+		Price = 300,
+		Description = "[R] activa la luz UV: revela al Eco de lejos. Gasta más batería.",
+		Weapon = true,
+	},
+	Mop = {
+		DisplayName = "Trapeador",
+		Price = 100,
+		Description = "Empujón corto que aturde 1.5 s. Sin límite de usos.",
+		Weapon = true,
+	},
 }
 
-Config.ShopOrder = { "Battery", "Medkit", "Flare", "Firecracker", "FlashlightPro" }
+Config.ShopOrder = {
+	"Battery",
+	"Medkit",
+	"Flare",
+	"Firecracker",
+	"FlashlightPro",
+	"Taser",
+	"Extinguisher",
+	"WetFloorSign",
+	"UVFlashlight",
+	"Mop",
+}
+
+-- Armas (WeaponService). Uses = usos (nil = infinitos). Cooldown en segundos.
+-- Son defensas temporales: aturden o apartan, no matan (sigue siendo un juego de terror).
+Config.Weapons = {
+	Taser = {
+		Uses = 10,
+		Cooldown = 8,
+		Range = 14, -- alcance del disparo (el enemigo mas cercano delante de ti)
+		HalfAngle = 25, -- grados del cono de apuntado
+		StunSeconds = 10,
+		Tier3StunSeconds = 1, -- contra enemigos de nivel 3 apenas sirve
+	},
+	Extinguisher = {
+		Uses = 6,
+		Cooldown = 6,
+		Range = 10, -- a que distancia delante de ti se forma la nube
+		Radius = 9,
+		Duration = 5, -- los enemigos no ven a quien este dentro ni ven desde dentro
+	},
+	WetFloorSign = {
+		Uses = 3,
+		Cooldown = 4,
+		Radius = 7,
+		SpeedMultiplier = 0.5, -- los enemigos dentro van a mitad de velocidad
+		Duration = 45,
+	},
+	UVFlashlight = {
+		Cooldown = 0.5, -- [R] enciende / apaga la luz UV
+		Range = 60, -- revela a esta distancia (la linterna normal llega a Config.Flashlight.Range)
+		RevealSeconds = 3, -- cuanto dura marcado el enemigo revelado
+		DrainMultiplier = 1.8, -- la bateria baja mas rapido con la UV encendida
+	},
+	Mop = {
+		Cooldown = 10,
+		Range = 7,
+		StunSeconds = 1.5, -- menos que el Porrazo del Guardia
+		Distance = 7, -- studs que retroceden
+	},
+}
 
 Config.FlashlightPro = {
 	ExtraAngle = 15, -- grados extra del haz visible

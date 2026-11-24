@@ -95,7 +95,7 @@
 - Defensas: destello, bengala, petardo, escondites y porrazo.
 - Mapa de 2 pisos.
 
-**Fase 3: director de aparición por presupuesto.** Base de todo lo demás. — [HECHO, falta probar una noche real en el mall]
+**Fase 3: director de aparición por presupuesto.** Base de todo lo demás. — [HECHO] (probado en una noche real del mall: plan impreso una sola vez, aparición escalonada)
 - Implementado en `src/server/SpawnDirector.luau` (plan puro, probado con 200 planes por caso) y `EnemyService.StartNight`. Valores en `Config.SpawnDirector`, `Config.Enemies[x].Tier/MaxPerFloor` y `Config.Floors`.
 - Curva inicial: noche 1 → 3 enemigos; noche 5 con 2 jugadores → ~9; noche 7 con 4 → ~16; desde ~noche 10 con 5 jugadores se llenan los topes (17–18).
 - El aviso de contramedida sale la primera vez que aparece cada tipo en la partida (ya no depende de `UnlockNight`).
@@ -108,7 +108,10 @@
   - el aviso de la primera aparición se mantiene.
 - Primero con los 5 enemigos actuales.
 
-**Fase 4: armas gratuitas.**
+**Fase 4: armas gratuitas.** — [HECHO] (`src/server/WeaponService.luau`, `Config.Weapons`; tecla [R] / botón táctil)
+- Probado en el mall: taser (aturde 10 s, gasta usos y enfriamiento), trapeador (empuja 7 studs), extintor (nube), cartel (trampa) y linterna UV (haz morado, más consumo). Al morir se pierde el arma.
+- Falta comprobar jugando: que la nube ciegue y que el cartel frene (las zonas se probaron solas), la UV contra el Eco y el taser contra el Vigilante (nivel 3).
+- Para la Fase 7: la Estatua usará `Config.Enemies.<x>.TaserImmune = true`; los enemigos nuevos pueden definir `OnTaser` y `OnUV` (el Reflejo y el Mímico, revelables con UV).
 - Van antes que los enemigos nuevos porque son sus contramedidas.
 - Un hueco de arma con su tecla, compra con billetes en la tienda del mall, se pierde al morir, con enfriamientos.
 - Taser (10 usos), extintor, cartel de piso mojado (trampa), linterna UV (revela al Reflejo, al Mímico y al Eco) y trapeador.
