@@ -941,7 +941,33 @@ Config.DefaultData = {
 		MoneyEarned = 0,
 		DiamondsEarned = 0,
 		RunsPlayed = 0,
+		BossesDefeated = 0, -- lo suma el sistema de jefes (tabla "Jefes vencidos")
 	},
 } :: Types.PlayerData
+
+----------------------------------------------------------------------
+-- Tablas de clasificacion (pantallas del fondo de la plaza; LeaderboardService)
+----------------------------------------------------------------------
+-- Cada tabla es un OrderedDataStore global. Stat = atributo del Player que se sube.
+Config.Leaderboards = {
+	Top = 5, -- jugadores por pantalla (mas filas no se leen bien desde la plaza)
+	RefreshSeconds = 60, -- cada cuanto se releen en el lobby
+	Boards = {
+		BestNight = {
+			Title = "NOCHE RÉCORD",
+			Store = "Leaderboard_BestNight_v1",
+			Stat = "BestNight",
+			Format = "Noche %d",
+			Empty = "¡Sé el primero en sobrevivir una noche!",
+		},
+		BossesDefeated = {
+			Title = "JEFES VENCIDOS",
+			Store = "Leaderboard_BossesDefeated_v1",
+			Stat = "BossesDefeated",
+			Format = "%d jefes",
+			Empty = "Aún nadie ha vencido a un jefe.",
+		},
+	},
+}
 
 return Config

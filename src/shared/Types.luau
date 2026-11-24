@@ -36,6 +36,7 @@ export type LifetimeStats = {
 	MoneyEarned: number,
 	DiamondsEarned: number,
 	RunsPlayed: number,
+	BossesDefeated: number,
 }
 
 -- Datos PERMANENTES del jugador (DataStore).

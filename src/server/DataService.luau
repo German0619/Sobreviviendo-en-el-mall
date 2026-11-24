@@ -90,6 +90,7 @@ local function pushAttributes(player: Player, data: PlayerData)
 		player:SetAttribute("AchProg_" .. achievementId, Config.getAchievementProgress(data, achievement))
 	end
 	player:SetAttribute("VipDailyDay", data.VipDailyDay)
+	player:SetAttribute("BossesDefeated", data.Lifetime.BossesDefeated or 0) -- tabla "Jefes vencidos"
 end
 
 local function sanitize(data: PlayerData)

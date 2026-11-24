@@ -28,6 +28,7 @@ if Place.IsLobby then
 		require(script.LobbyService),
 		require(script.PadService), -- cuadros de sala (usa LobbyService)
 		require(script.AchievementService), -- reclamar logros y bono diario VIP
+		require(script.LeaderboardService), -- pantallas de clasificacion
 		require(script.DataService),
 	}
 else
@@ -48,6 +49,7 @@ else
 		require(script.EnemyService),
 		require(script.NightManager),
 		require(script.RoomService),
+		require(script.LeaderboardService), -- sube los records (noche, jefes)
 		require(script.DataService),
 	}
 end
