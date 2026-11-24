@@ -7,7 +7,8 @@
 --   Cada enemigo tiene un nivel (Config.Enemies[x].Tier) con su coste (TierCost).
 --   Se sortea el nivel con los % de la noche (Config.getTierOdds); entre los niveles
 --   que aun se pueden pagar y tienen algun tipo disponible, se reparte el %.
---   Topes: Config.getTier3Max(noche) de nivel 3 y MaxPerFloor de cada tipo por planta.
+--   Topes: Config.getTier3Max(noche) de nivel 3, MaxPerFloor de cada tipo por planta
+--   y MaxTotal (opcional) de cada tipo en todo el mall.
 --   Planta: con peso = jugadores en esa planta (o EmptyFloorWeight si no hay nadie).
 
 local ReplicatedStorage = game:GetService("ReplicatedStorage")
@@ -95,8 +96,22 @@ function SpawnDirector.Plan(night: number, playersPerFloor: { number }, opts: Pl
 	local picks: { { Type: string, Tier: number, Floor: number } } = {}
 
 	local function hasRoom(enemyType: string, floor: number): boolean
-		local max = Config.Enemies[enemyType].MaxPerFloor or math.huge
-		return ((count[enemyType] or {})[floor] or 0) < max
+		local def = Config.Enemies[enemyType]
+		local perFloor = count[enemyType] or {}
+		if (perFloor[floor] or 0) >= (def.MaxPerFloor or math.huge) then
+			return false
+		end
+		-- MaxTotal: tope entre las dos plantas (p. ej. solo hay una Estatua)
+		if def.MaxTotal then
+			local total = 0
+			for _, n in perFloor do
+				total += n
+			end
+			if total >= def.MaxTotal then
+				return false
+			end
+		end
+		return true
 	end
 
 	local function floorsWithRoom(enemyType: string): { number }

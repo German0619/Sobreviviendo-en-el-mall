@@ -40,6 +40,12 @@ return {
 	ReflectiveSurface = "ReflectiveSurface",
 	-- Rejilla de ventilacion del techo (la usa el Ducto). Parte plana pegada al techo.
 	CeilingVent = "CeilingVent",
+	-- Estatua de la fuente (Model de shared/EntityModels.statue). Cuando sale la entidad
+	-- Estatua es ESTE modelo el que se mueve; al terminar la noche vuelve (atributo HomeCFrame).
+	FountainStatue = "FountainStatue",
+	-- Maniqui de escaparate (Model de EntityModels.mannequin). El enemigo Maniqui es uno
+	-- de ellos que cobra vida y vuelve a su sitio al terminar la noche (HomeCFrame).
+	DisplayMannequin = "DisplayMannequin",
 
 	-- Misiones de varios puntos / de llevar objetos (ademas del MissionSpot de la mision):
 	-- Control de la persiana de una tienda (mision LockDoors). Atributo Wing = zona de la galeria

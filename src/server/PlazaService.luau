@@ -18,6 +18,7 @@ local ReplicatedStorage = game:GetService("ReplicatedStorage")
 local Shared = ReplicatedStorage:WaitForChild("Shared")
 local Config = require(Shared.Config)
 local Tags = require(Shared.Tags)
+local EntityModels = require(Shared.EntityModels)
 
 local PlazaService = {}
 
@@ -137,7 +138,46 @@ local function setupCharacter(player: Player, character: Model)
 	buildOverhead(player, character, humanoid)
 end
 
+-- La Estatua de la fuente (la misma que despierta en el mall) sobre el plato de la
+-- fuente de la plaza, sosteniendo la luna con los brazos en alto.
+local function placeFountainStatue()
+	local lobby = workspace:FindFirstChild("Lobby")
+	local fountain = lobby and lobby:FindFirstChild("Fountain", true)
+	local bowl = fountain and fountain:FindFirstChild("Bowl")
+	if not fountain or not bowl or not bowl:IsA("BasePart") or fountain:FindFirstChild("FountainStatue") then
+		return
+	end
+	-- Cara superior del plato (cilindro tumbado: su grosor es el eje X)
+	local thickness = if bowl.Shape == Enum.PartType.Cylinder then bowl.Size.X else bowl.Size.Y
+	local feet = Vector3.new(bowl.Position.X, bowl.Position.Y + thickness / 2, bowl.Position.Z)
+	local statue = EntityModels.statue()
+	statue.Name = "FountainStatue"
+	-- Mirando hacia el centro de la plaza (o hacia +Z si no hay referencia)
+	local spawnPart = lobby:FindFirstChildWhichIsA("SpawnLocation", true)
+	local lookAt = if spawnPart then Vector3.new(spawnPart.Position.X, feet.Y, spawnPart.Position.Z) else feet + Vector3.new(0, 0, 1)
+	if (lookAt - feet).Magnitude < 0.5 then
+		lookAt = feet + Vector3.new(0, 0, 1)
+	end
+	-- El frente del modelo es -Z: CFrame.lookAt ya mira hacia -Z
+	EntityModels.placeAt(statue, CFrame.lookAt(feet, lookAt), fountain)
+	CollectionService:AddTag(statue, Tags.FountainStatue)
+
+	-- La luna (y su sombra) sube hasta las manos de la estatua
+	local moon = fountain:FindFirstChild("Moon")
+	if moon and moon:IsA("BasePart") then
+		local target = feet + Vector3.new(0, EntityModels.STATUE_HANDS_Y + moon.Size.Y * 0.45, 0)
+		local delta = target - moon.Position
+		for _, name in { "Moon", "MoonShade" } do
+			local p = fountain:FindFirstChild(name)
+			if p and p:IsA("BasePart") then
+				p.CFrame += delta
+			end
+		end
+	end
+end
+
 function PlazaService.Start()
+	placeFountainStatue()
 	for _, stand in CollectionService:GetTagged(Tags.LobbyStand) do
 		setupStand(stand)
 	end

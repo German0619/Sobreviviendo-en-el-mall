@@ -20,6 +20,7 @@ Config.Debug = {
 	AutoStart = false,
 	StartNight = 1, -- pon 2 (Apagon), 3 (Eco), 5 (Rastro) o 7 (Vigilante) para probarlos desde el inicio
 	OnlyEnemies = nil :: { string }?, -- ej. { "Echo" }: solo salen esos tipos (para probar uno)
+	Tier3MaxOverride = nil :: number?, -- ej. 3: permite varios de nivel 3 a la vez (para probarlos)
 	MissionGoalOverride = nil :: number?, -- ej. 2: tareas necesarias para pasar la noche (para probar)
 	PreparationSecondsOverride = nil :: number?,
 	-- SOLO en Studio:
@@ -1026,6 +1027,65 @@ Config.Enemies = {
 		SpeedPerDirtySpill = 0.08, -- +8% por cada derrame fallado esta noche
 		Hint = "Nuevo: el Rastro huele los derrames. Si pisas uno, te seguirá a donde vayas. ¡Límpialos!",
 	},
+	-- Estatua de la fuente: la estatua de la fuente central (tag FountainStatue) despierta y
+	-- te sigue sin descanso; te siente a traves de las paredes. No le afectan el destello,
+	-- el porrazo, el taser ni los petardos: SOLO la frena la luz de una bengala.
+	Statue = {
+		DisplayName = "Estatua",
+		UnlockNight = 6,
+		Tier = 3,
+		MaxPerFloor = 1,
+		MaxTotal = 1, -- solo hay una estatua
+		TaserImmune = true,
+		Speed = 9.5, -- mas lenta que caminar: se la deja atras, pero no para nunca
+		SenseRange = 110, -- te siente (pasos) a esta distancia aunque haya paredes
+		Damage = 50,
+		AttackRange = 4.5,
+		AttackCooldown = 2,
+		WakeSeconds = 2.5, -- tiembla en la fuente antes de bajar
+		FlareMargin = 3, -- se detiene a esta distancia del borde de la luz de una bengala
+		Hint = "Nuevo: la Estatua de la fuente ha despertado. Nada la detiene, salvo la luz de una bengala.",
+	},
+	-- Mimico: una de las maquinas expendedoras del mall (tag VendingMachine) esta viva.
+	-- No se mueve. Muerde a quien intenta comprar en ella o se queda delante. Pistas: sus
+	-- luces parpadean y gotea; la linterna UV la delata y el destello la hace enseñar los dientes.
+	Mimic = {
+		DisplayName = "Mímico",
+		UnlockNight = 8,
+		Tier = 3,
+		MaxPerFloor = 1,
+		MaxTotal = 2,
+		Damage = 60,
+		BiteRange = 5, -- delante de la maquina
+		LingerSeconds = 2.5, -- quedarse delante tanto tiempo tambien lo hace morder
+		RelocateSeconds = 40, -- tras morder cambia de maquina (lejos de los jugadores)
+		TellInterval = { 5, 10 }, -- segundos entre pistas (parpadeo / goteo) si hay alguien cerca
+		TellRange = 30,
+		RevealSeconds = 4, -- UV o destello: se le ven los dientes
+		Hint = "Nuevo: una máquina expendedora es un Mímico. Si sus luces parpadean o gotea, no compres en ella.",
+	},
+	-- Cazador: marca al jugador mas solo y lo persigue sabiendo siempre donde esta.
+	-- Ignora a los demas. Reunirte con otro jugador (o esconderte lejos de el) rompe la marca.
+	Hunter = {
+		DisplayName = "Cazador",
+		UnlockNight = 9,
+		Tier = 3,
+		MaxPerFloor = 1,
+		MaxTotal = 1,
+		Speed = 9, -- buscando presa
+		ChaseSpeed = 15.5, -- algo mas rapido que caminar: hay que correr
+		Damage = 45,
+		AttackRange = 4,
+		AttackCooldown = 2,
+		LonelyDistance = 35, -- marca al que este a mas de esto del resto (o jugando solo)
+		GroupDistance = 15, -- a esta distancia de otro jugador...
+		GroupSeconds = 3, -- ...durante este tiempo, la marca se rompe
+		HideEscapeDistance = 25, -- esconderse con el Cazador mas lejos que esto rompe la marca
+		MarkSeconds = 35, -- la marca dura como mucho esto
+		MarkCooldown = 15, -- pausa antes de marcar a otro
+		RetreatSeconds = 20, -- tras golpear desaparece y vuelve lejos
+		Hint = "Nuevo: el Cazador marca al que está más solo. Si te marca, ¡reúnete con tu equipo o escóndete lejos de él!",
+	},
 	-- Vigilante: patrulla y ve a traves de las camaras de seguridad (tag SecurityCamera).
 	-- Esquiva sus haces rojos o ciega las camaras con el destello.
 	Watcher = {
@@ -1096,6 +1156,9 @@ Config.SpawnDirector = {
 
 -- Maximo de enemigos de nivel 3 a la vez.
 function Config.getTier3Max(night: number): number
+	if Config.Debug.Tier3MaxOverride then
+		return Config.Debug.Tier3MaxOverride
+	end
 	return if night >= 11 then 2 else 1
 end
 

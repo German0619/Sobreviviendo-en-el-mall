@@ -160,10 +160,28 @@
   - No sale en la lista de tareas del HUD; el destello borra la marca y la UV la marca como "FALSA".
 - Probado jugando: los cuatro funcionan.
 
-**Fase 7: enemigos nuevos de nivel 3.**
-- Estatua de la fuente: solo la frenan las bengalas.
-- Mímico: máquina expendedora viva que reutiliza `vendingMachine`.
-- Cazador: marca al jugador más solo.
+**Fase 7: enemigos nuevos de nivel 3.** — [HECHO] (`src/enemies/Statue.luau`, `Mimic.luau`, `Hunter.luau`; `src/shared/EntityModels.luau`; `Config.Enemies.Statue/Mimic/Hunter`)
+- Modelos del mapa que cobran vida: la Estatua y los Maniquíes.
+  - Son modelos del mapa (`EntityModels`: la Estatua, y el Maniquí con la plantilla `EnemyTemplates.Mannequin` si existe), con los tags `FountainStatue` y `DisplayMannequin`.
+  - El enemigo toma el modelo del mapa (`Common.claimMapModel`) y, al terminar la noche, lo devuelve a su sitio (`HomeCFrame`).
+  - En el lobby, `PlazaService` pone la misma estatua en la fuente de la plaza y sube la luna hasta sus manos.
+- `SpawnDirector` admite `MaxTotal` (tope de un tipo en todo el mall).
+- `Config.Debug.Tier3MaxOverride` sirve para probar varios de nivel 3 a la vez.
+- Estatua de la fuente (desde la noche 6, `MaxTotal` 1): solo la frenan las bengalas.
+  - Despierta en la fuente central (ojos rojos, tiembla) y salta al suelo.
+  - Te siente a través de las paredes (110 studs). Va a 9,5, más lenta que caminar, pero no para; 50 de daño.
+  - Solo la frena la luz de una bengala: no entra en ella y se queda de piedra.
+  - Es inmune al destello, a los empujones, al taser y a los petardos.
+- Mímico (desde la noche 8, `MaxTotal` 2): una máquina expendedora viva.
+  - Se esconde en una de las máquinas que ya existen, sin crear una nueva, y no se mueve.
+  - Muerde (60) al intentar comprar (`VendingService.MimicTriggered`) o al quedarse delante 2,5 s; después cambia de máquina, lejos de los jugadores.
+  - Pistas: con alguien cerca, sus luces parpadean y gotea por la bandeja.
+  - La UV, el destello, el taser y los empujones le hacen enseñar los dientes; el destello lo deja 3 s sin morder.
+- Cazador (desde la noche 9, `MaxTotal` 1): marca al jugador más solo.
+  - Es alto, lleva sombrero y un farol rojo.
+  - Marca al jugador más solo (contorno rojo y aviso) y lo persigue sabiendo dónde está (a 15,5); 45 de daño, y luego desaparece y vuelve lejos.
+  - La marca se rompe si te juntas 3 s con otro jugador, si te escondes con él a más de 25 studs, o a los 35 s.
+- Probado jugando: el Maniquí del escaparate, la Estatua, el Mímico y el Cazador.
 
 **Fase 8: director de eventos.**
 - Lanza un evento cada 2–3 minutos, con máximo 1 activo, enfriamientos y un piso asignado.

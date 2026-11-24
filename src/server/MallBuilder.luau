@@ -34,6 +34,7 @@ local Workspace = game:GetService("Workspace")
 local Shared = ReplicatedStorage:WaitForChild("Shared")
 local Config = require(Shared.Config)
 local Tags = require(Shared.Tags)
+local EntityModels = require(Shared.EntityModels)
 
 local MallBuilder = {}
 
@@ -881,25 +882,20 @@ local function foldedTable(base: CFrame, x: number, d: number, colors: { Color3 
 	end
 end
 
--- Maniqui de escaparate: el mismo modelo que el enemigo (si existe)... o de piezas.
+-- Maniqui de escaparate: EL MISMO modelo que el enemigo (EntityModels.mannequin). Uno de
+-- ellos cobra vida cuando sale el Maniqui y vuelve a su peana al terminar la noche.
 local function displayMannequin(cframe: CFrame)
-	local enemyFolder = ServerStorage:FindFirstChild("EnemyTemplates")
-	local template = enemyFolder and enemyFolder:FindFirstChild("Mannequin")
-	local body = template and template:FindFirstChild("Body")
-	if body and body:IsA("BasePart") then
-		local clone = body:Clone()
-		clone.Name = "DisplayMannequin"
-		clone.Anchored = true
-		clone.CanCollide = true
-		clone.CanTouch = false
-		clone.CFrame = cframe * CFrame.new(0, clone.Size.Y / 2, 0)
-		clone.Parent = currentParent
-	else
-		local skin = Color3.fromRGB(226, 216, 200)
-		box("DisplayMannequin", Vector3.new(1.6, 2.2, 0.8), cframe * CFrame.new(0, 4, 0), M.SmoothPlastic, skin)
-		box("DisplayMannequin", Vector3.new(1.4, 2.8, 0.7), cframe * CFrame.new(0, 1.6, 0), M.SmoothPlastic, skin)
-		box("DisplayMannequin", Vector3.new(1.1, 1.1, 1.1), cframe * CFrame.new(0, 5.7, 0), M.SmoothPlastic, skin, { Shape = Enum.PartType.Ball })
+	local model = EntityModels.mannequin()
+	model.Name = "DisplayMannequin"
+	for _, d in model:GetDescendants() do
+		if d:IsA("BasePart") then
+			d.Anchored = true
+			d.CanTouch = false
+			d.CanCollide = d ~= model.PrimaryPart
+		end
 	end
+	EntityModels.placeAt(model, cframe * CFrame.new(0, 0.2, 0), currentParent)
+	tag(model, Tags.DisplayMannequin)
 	deco("Stand", Vector3.new(2, 0.2, 2), cframe * CFrame.new(0, 0.1, 0), M.Metal, DARK)
 end
 
@@ -1943,7 +1939,7 @@ end
 
 -- cx, cz en el suelo de la planta actual. radius = radio exterior del vaso.
 -- tiers = platos escalonados en el centro (1 o 2).
-local function fountain(cx: number, cz: number, radius: number, tiers: number, zoneName: string)
+local function fountain(cx: number, cz: number, radius: number, tiers: number, zoneName: string, withStatue: boolean?)
 	local stone = Color3.fromRGB(236, 233, 226)
 	local granite = Color3.fromRGB(85, 80, 78)
 	local R = radius
@@ -1995,10 +1991,21 @@ local function fountain(cx: number, cz: number, radius: number, tiers: number, z
 		waterCurtain(at(cx, y + 0.3, cz), d / 2 + 0.05, 140 - t * 40)
 		top = y
 	end
-	deco("FountainFinial", Vector3.new(0.7, 0.7, 0.7), at(cx, top + 0.7, cz), M.Marble, stone, { Shape = Enum.PartType.Ball })
+	-- Remate: la Estatua (la entidad es este mismo modelo) o una bola de marmol.
+	-- Con estatua, el chorro sale de entre sus manos.
+	local jetY = top + 1
+	if withStatue then
+		local statue = EntityModels.statue()
+		statue.Name = "FountainStatue"
+		EntityModels.placeAt(statue, at(cx, top + 0.35, cz) * CFrame.Angles(0, math.rad(90), 0), currentParent)
+		tag(statue, Tags.FountainStatue)
+		jetY = top + 0.35 + EntityModels.STATUE_HANDS_Y + 0.3
+	else
+		deco("FountainFinial", Vector3.new(0.7, 0.7, 0.7), at(cx, top + 0.7, cz), M.Marble, stone, { Shape = Enum.PartType.Ball })
+	end
 
 	-- Chorro central
-	local jet = deco("FountainJet", Vector3.new(0.4, 0.4, 0.4), at(cx, top + 1, cz), M.SmoothPlastic, Color3.new(1, 1, 1), { Transparency = 1 })
+	local jet = deco("FountainJet", Vector3.new(0.4, 0.4, 0.4), at(cx, jetY, cz), M.SmoothPlastic, Color3.new(1, 1, 1), { Transparency = 1 })
 	local water = Instance.new("ParticleEmitter")
 	water.Name = "Water"
 	water.Texture = WATER_TEXTURE
@@ -2097,7 +2104,7 @@ local function buildGallery()
 	end
 
 	-- Fuente central con agua real y dos platos
-	fountain(0, 0, 7.5, 2, "Galería Este")
+	fountain(0, 0, 7.5, 2, "Galería Este", true)
 
 	-- Escaleras mecanicas: un par en cada ala (sube por el sur del par, baja por el norte)
 	escalator(-92, -61, -2.3, true)

@@ -192,11 +192,65 @@ function Common.prepareModel(model: Model)
 		if d:IsA("BasePart") then
 			d.Anchored = true
 			d.CanTouch = false
-			local modifier = Instance.new("PathfindingModifier")
-			modifier.PassThrough = true
-			modifier.Parent = d
+			if not d:FindFirstChildOfClass("PathfindingModifier") then
+				local modifier = Instance.new("PathfindingModifier")
+				modifier.PassThrough = true
+				modifier.Parent = d
+			end
 		end
 	end
+end
+
+-- Modelos del mapa que cobran vida (la Estatua de la fuente, los maniquies de escaparate):
+-- el enemigo "toma" el modelo del mapa y, al terminar la noche, vuelve a su sitio
+-- (atributo HomeCFrame) con su padre y colisiones originales.
+export type MapHome = { Parent: Instance?, CFrame: CFrame, Collide: { [BasePart]: boolean } }
+
+-- Modelo libre (no tomado por otro enemigo) con ese tag; si hay `score`, el de mayor puntuacion.
+function Common.findMapModel(tagName: string, score: ((Model) -> number)?): Model?
+	local CollectionService = game:GetService("CollectionService")
+	local best, bestScore = nil, -math.huge
+	for _, inst in CollectionService:GetTagged(tagName) do
+		if inst:IsA("Model") and inst.PrimaryPart and inst:GetAttribute("Claimed") ~= true and inst:IsDescendantOf(Workspace) then
+			local s = if score then score(inst) else 0
+			if s > bestScore then
+				best, bestScore = inst, s
+			end
+		end
+	end
+	return best
+end
+
+function Common.claimMapModel(model: Model, container: Instance): MapHome
+	local homeCFrame = model:GetAttribute("HomeCFrame")
+	local home: MapHome = {
+		Parent = model.Parent,
+		CFrame = if typeof(homeCFrame) == "CFrame" then homeCFrame else model:GetPivot(),
+		Collide = {},
+	}
+	for _, d in model:GetDescendants() do
+		if d:IsA("BasePart") then
+			home.Collide[d] = d.CanCollide
+		end
+	end
+	model:SetAttribute("Claimed", true)
+	model.Parent = container
+	return home
+end
+
+function Common.releaseMapModel(model: Model, home: MapHome)
+	local parent = home.Parent
+	if not parent or not parent:IsDescendantOf(game) then
+		model:Destroy()
+		return
+	end
+	model:PivotTo(home.CFrame)
+	for part, collide in home.Collide do
+		part.CanCollide = collide
+	end
+	model:SetAttribute("Claimed", nil)
+	model:SetAttribute("EnemyType", nil)
+	model.Parent = parent
 end
 
 function Common.getTemplate(name: string): Model?
@@ -252,7 +306,8 @@ function Common.newMover(model: Model, opts)
 	if not self.Ghost then
 		self.Path = PathfindingService:CreatePath({
 			AgentRadius = 1.5, -- cabe por las escaleras mecanicas (4.2 de ancho)
-			AgentHeight = math.max(self.Height, 5),
+			-- AgentHeight: los altos (la Estatua, brazos en alto) pasan agachados por las puertas
+			AgentHeight = opts.AgentHeight or math.max(self.Height, 5),
 			AgentCanJump = false,
 			AgentCanClimb = false,
 		})

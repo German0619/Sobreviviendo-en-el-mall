@@ -31,7 +31,17 @@ local DataService = require(script.Parent.DataService)
 local RunState = require(script.Parent.RunState)
 local PlayerStats = require(script.Parent.PlayerStats)
 
+local Signal = require(Shared.Signal)
+
 local VendingService = {}
+
+-- (player, machinePart) alguien uso una maquina que es un Mimico (atributo Mimic en la
+-- parte con el tag). No se cobra ni se da soda: el Mimico (src/enemies/Mimic) muerde.
+VendingService.MimicTriggered = Signal.new()
+
+local function isMimic(inst: Instance): boolean
+	return inst:GetAttribute("Mimic") == true
+end
 
 local POSITIVE_KEY = "SodaPos" -- clave del efecto positivo (uno solo)
 local NEGATIVE_PREFIX = "Soda_" -- clave de cada negativa: Soda_<efecto>
@@ -302,6 +312,10 @@ local function setupMachine(inst: Instance)
 	prompt.KeyboardKeyCode = Enum.KeyCode.E
 	prompt.Parent = inst
 	prompt.Triggered:Connect(function(player)
+		if isMimic(inst) then
+			VendingService.MimicTriggered:Fire(player, inst)
+			return
+		end
 		buyFrom(player, machineType)
 	end)
 
@@ -318,6 +332,10 @@ local function setupMachine(inst: Instance)
 		choice.UIOffset = Vector2.new(0, 80)
 		choice.Parent = inst
 		choice.Triggered:Connect(function(player)
+			if isMimic(inst) then
+				VendingService.MimicTriggered:Fire(player, inst)
+				return
+			end
 			if isAlive(player) then
 				Remotes.event("OpenSodaPicker"):FireClient(player, inst.Position)
 			end

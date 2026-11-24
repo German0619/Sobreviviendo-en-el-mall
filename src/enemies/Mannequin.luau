@@ -18,51 +18,53 @@ local PlayerStats = require(Server:WaitForChild("PlayerStats"))
 local DefenseService = require(Server:WaitForChild("DefenseService"))
 
 local Common = require(script.Parent.Common)
-
-local HEIGHT = 6
+local EntityModels = require(Shared.EntityModels)
+local Tags = require(Shared.Tags)
 
 local Mannequin = {}
 Mannequin.__index = Mannequin
 
-local function buildModel(): Model
-	local model, _root = Common.newModel("Mannequin", HEIGHT)
-	local skin = Color3.fromRGB(226, 216, 200)
-	local function add(name, size, offset, shape)
-		local p = Common.part({
-			Name = name,
-			Size = size,
-			CFrame = CFrame.new(offset),
-			Color = skin,
-			Material = Enum.Material.SmoothPlastic,
-			CanCollide = true,
-		})
-		if shape then
-			p.Shape = shape
+-- Maniqui de escaparate libre en la planta del spawn; mejor lejos de los jugadores
+-- (que no lo vean "despertar") y cerca del punto que eligio el director.
+local function pickDisplayMannequin(spawnPosition: Vector3): Model?
+	local floor = Config.getFloor(spawnPosition.Y)
+	return Common.findMapModel(Tags.DisplayMannequin, function(model)
+		local pos = model:GetPivot().Position
+		if Config.getFloor(pos.Y) ~= floor then
+			return -math.huge + 1
 		end
-		p.Parent = model
-		return p
-	end
-	add("LeftLeg", Vector3.new(0.9, 2.6, 0.9), Vector3.new(-0.5, -1.7, 0))
-	add("RightLeg", Vector3.new(0.9, 2.6, 0.9), Vector3.new(0.5, -1.7, 0))
-	add("Torso", Vector3.new(2, 2.4, 1), Vector3.new(0, 0.8, 0))
-	add("LeftArm", Vector3.new(0.7, 2.5, 0.7), Vector3.new(-1.4, 0.75, 0))
-	add("RightArm", Vector3.new(0.7, 2.5, 0.7), Vector3.new(1.4, 0.75, 0))
-	add("Head", Vector3.new(1.3, 1.3, 1.3), Vector3.new(0, 2.4, 0), Enum.PartType.Ball)
-	return model
+		local _, _, nearestPlayer = Common.nearestAlive(pos)
+		local score = -(pos - spawnPosition).Magnitude * 0.2 + math.random() * 20
+		if nearestPlayer < 40 then
+			score -= 1000
+		end
+		return score
+	end)
 end
 
 function Mannequin.new(spawnPosition: Vector3, ctx)
 	local def = Config.Enemies.Mannequin
-	local model = Common.getTemplate("Mannequin") or buildModel()
-	local height = Common.getHeight(model)
+	-- Es uno de los maniquies de escaparate que cobra vida (vuelve a su peana al amanecer).
+	-- Si el mapa no tiene, uno nuevo en el spawn.
+	local model = pickDisplayMannequin(spawnPosition)
+	local home = nil
+	if model then
+		home = Common.claimMapModel(model, ctx.Container)
+	else
+		model = EntityModels.mannequin()
+	end
+	local height = (model.PrimaryPart :: BasePart).Size.Y
 	Common.prepareModel(model)
-	model:PivotTo(CFrame.new(spawnPosition + Vector3.new(0, height / 2, 0)))
-	model.Parent = ctx.Container
+	if not home then
+		model:PivotTo(CFrame.new(spawnPosition + Vector3.new(0, height / 2, 0)))
+		model.Parent = ctx.Container
+	end
 
 	local self = setmetatable({}, Mannequin)
 	self.Def = def
 	self.Ctx = ctx
 	self.Model = model
+	self.Home = home
 	self.Height = height
 	self.Mover = Common.newMover(model, { Speed = def.Speed, Height = height })
 	self.Awareness = Common.newAwareness(ctx)
@@ -206,7 +208,11 @@ end
 
 function Mannequin:Destroy()
 	self.Mover:Destroy()
-	self.Model:Destroy()
+	if self.Home then
+		Common.releaseMapModel(self.Model, self.Home) -- vuelve al escaparate
+	else
+		self.Model:Destroy()
+	end
 end
 
 return Mannequin

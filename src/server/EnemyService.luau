@@ -41,6 +41,9 @@ local enemyModules = {
 	Echo = require(EnemiesFolder.Echo),
 	Tracker = require(EnemiesFolder.Tracker),
 	Watcher = require(EnemiesFolder.Watcher),
+	Statue = require(EnemiesFolder.Statue),
+	Mimic = require(EnemiesFolder.Mimic),
+	Hunter = require(EnemiesFolder.Hunter),
 }
 
 local EnemyService = {}
