@@ -178,6 +178,7 @@ Config.Rarities = {
 	Rare = { DisplayName = "Rara", Order = 2, Color = Color3.fromRGB(70, 140, 255) },
 	Epic = { DisplayName = "Épica", Order = 3, Color = Color3.fromRGB(170, 80, 255) },
 	Legendary = { DisplayName = "Legendaria", Order = 4, Color = Color3.fromRGB(255, 180, 40) },
+	Mythic = { DisplayName = "Mítica", Order = 5, Color = Color3.fromRGB(255, 70, 120) },
 }
 
 Config.DefaultClass = "Conserje"
@@ -239,22 +240,15 @@ Config.Classes = {
 		Modifiers = {},
 		Perks = { NightVision = true },
 	},
-	Medico = {
-		DisplayName = "Médico",
-		Rarity = "Epic",
-		Description = "Revive GRATIS a sus compañeros (los demás necesitan Robux).",
-		Modifiers = {},
-		Perks = { FreeRevive = true, ReviveSpeed = 2.0 },
-	},
-
-	-- Legendaria
 	Medium = {
 		DisplayName = "Médium",
-		Rarity = "Legendary",
+		Rarity = "Epic",
 		Description = "Ve a los fantasmas a través de las paredes.",
 		Modifiers = {},
 		Perks = { SeeGhostsThroughWalls = true },
 	},
+
+	-- Legendaria
 	Sombra = {
 		DisplayName = "Sombra",
 		Rarity = "Legendary",
@@ -262,7 +256,60 @@ Config.Classes = {
 		Modifiers = {},
 		Perks = { DetectionDelay = 2.0 },
 	},
+	Medico = {
+		DisplayName = "Médico",
+		Rarity = "Legendary",
+		Description = "Revive GRATIS a sus compañeros (los demás necesitan Robux).",
+		Modifiers = {},
+		Perks = { FreeRevive = true, ReviveSpeed = 2.0 },
+	},
+
+	-- Mitica
+	GuardianLunar = {
+		DisplayName = "Guardián lunar",
+		Rarity = "Mythic",
+		Description = "Protector de Plaza Luna: más resistente, ve en la oscuridad y a los fantasmas.",
+		Modifiers = { Health = 1.5, Stamina = 1.5, WalkSpeed = 1.15 },
+		Perks = { NightVision = true, SeeGhostsThroughWalls = true },
+	},
+	ConserjeExperimentado = {
+		DisplayName = "Conserje experimentado",
+		Rarity = "Mythic",
+		Description = "Lo ha visto todo: tiene las habilidades de todas las demás clases.",
+		Modifiers = {}, -- se rellenan abajo con lo mejor de cada clase
+		Perks = {},
+	},
 } :: { [string]: Types.ClassDef }
+
+-- El Conserje experimentado reune lo mejor de TODAS las clases no miticas
+-- (se calcula, asi hereda tambien las clases que se agreguen despues):
+--   Modifiers: el mayor de cada estadistica.
+--   Perks: true si alguna lo tiene; numeros: el menor si es un "...Multiplier"
+--   (menos coste/espera es mejor), si no el mayor.
+do
+	local veteran = Config.Classes.ConserjeExperimentado
+	for _, class in Config.Classes do
+		if class.Rarity ~= "Mythic" then
+			for stat, mult in class.Modifiers do
+				veteran.Modifiers[stat] = math.max(veteran.Modifiers[stat] or 1, mult)
+			end
+			for perk, value in class.Perks do
+				local current = veteran.Perks[perk]
+				if type(value) == "number" then
+					if current == nil then
+						veteran.Perks[perk] = value
+					elseif string.sub(perk, -10) == "Multiplier" then
+						veteran.Perks[perk] = math.min(current, value)
+					else
+						veteran.Perks[perk] = math.max(current, value)
+					end
+				elseif value then
+					veteran.Perks[perk] = value
+				end
+			end
+		end
+	end
+end
 
 -- Orden en la ventana de clases / probabilidades
 Config.ClassOrder = {
@@ -273,9 +320,11 @@ Config.ClassOrder = {
 	"Guardia",
 	"Ahorrador",
 	"VisionNocturna",
-	"Medico",
 	"Medium",
 	"Sombra",
+	"Medico",
+	"GuardianLunar",
+	"ConserjeExperimentado",
 }
 
 -- Ruleta de clases (en el lobby, antes de crear partida). Cada giro cuesta diamantes.
@@ -286,20 +335,23 @@ Config.Roulette = {
 	DefaultSlots = 1, -- slots gratis
 	MaxSlots = 5, -- maximo comprando slots con Robux
 	Weights = {
-		Conserje = 22.5,
+		-- Los pesos suman 100, asi que cada uno es su % (el Conserje cede lo de las miticas)
+		Conserje = 22.4499,
 		Corredor = 20,
 		Atleta = 20,
 		Electricista = 9,
 		Guardia = 9,
 		Ahorrador = 9,
-		VisionNocturna = 4.5,
-		Medium = 2.5,
-		Sombra = 2.5,
-		Medico = 1,
+		VisionNocturna = 4.5, -- Epica
+		Medium = 2.5, -- Epica
+		Sombra = 2.5, -- Legendaria
+		Medico = 1, -- Legendaria
+		GuardianLunar = 0.05, -- Mitica
+		ConserjeExperimentado = 0.0001, -- Mitica: 1 entre un millon
 	},
 	-- Tiro afortunado (Robux, Config.DevProducts.LuckySpin): solo sale una clase de
 	-- estas rarezas, con los mismos pesos relativos. Sus % tambien se muestran siempre.
-	LuckyRarities = { Epic = true, Legendary = true },
+	LuckyRarities = { Epic = true, Legendary = true, Mythic = true },
 	-- Segundos que dura la animacion del giro (la placa sobre la cabeza espera a que termine)
 	RevealSeconds = 3,
 }
@@ -775,7 +827,7 @@ Config.DevProducts = {
 	Revive = 0, -- revivir (a ti mismo o a un companero)
 	ClassSlot = 0, -- +1 slot de clase (hasta Config.Roulette.MaxSlots)
 	PremiumSoda = 0, -- soda a eleccion (Config.ChoiceSoda)
-	LuckySpin = 0, -- tiro afortunado: garantiza clase Epica o Legendaria (lobby)
+	LuckySpin = 0, -- tiro afortunado: garantiza clase Epica o superior (lobby)
 	DiamondPacks = {
 		{ Id = 0, Amount = 100 },
 		{ Id = 0, Amount = 550 },

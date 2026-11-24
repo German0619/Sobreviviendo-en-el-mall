@@ -90,7 +90,7 @@ local function applySpinResult(player: Player, className: string): string
 	)
 end
 
--- Tiro afortunado (compra con Robux): garantiza una clase Epica o Legendaria.
+-- Tiro afortunado (compra con Robux): garantiza una clase Epica o superior.
 -- Lo llama MonetizationService al procesar el recibo. false = Roblox lo reintenta
 -- (p. ej. si el jugador no esta en el lobby).
 function ClassService.LuckySpin(player: Player): boolean

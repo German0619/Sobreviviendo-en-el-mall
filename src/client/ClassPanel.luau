@@ -4,10 +4,10 @@
 --   Izquierda  las clases con su rareza y su probabilidad (siempre visibles).
 --   Centro     la ruleta: GIRAR (diamantes), "Girar hasta: <clase>" (giros
 --              automaticos hasta que salga la clase elegida) y el tiro
---              afortunado (Robux, garantiza Epica o Legendaria; con sus %).
+--              afortunado (Robux, garantiza Epica o superior; con sus %).
 --   Derecha    detalle de la clase seleccionada y sus bonificaciones.
 --
--- La clase que sale REEMPLAZA a la del slot equipado (si es Epica o Legendaria
+-- La clase que sale REEMPLAZA a la del slot equipado (si es Epica o superior
 -- se pide confirmar). El servidor (ClassService) valida y sortea; aqui solo se
 -- anima el resultado. Tamanos en Scale con limites: se ve igual en todo dispositivo.
 
@@ -66,9 +66,15 @@ local function upper(s: string): string
 	return out
 end
 
+-- 22.45% · 4.5% · 0.05% · 0.0001% (los muy bajos con 2 cifras significativas)
 local function formatPercent(p: number): string
-	local s = string.format("%.1f", p)
-	s = string.gsub(s, "%.0$", "")
+	local decimals = 2
+	if p > 0 and p < 1 then
+		decimals = math.max(2, -math.floor(math.log10(p)) + 1)
+	end
+	local s = string.format("%." .. decimals .. "f", p)
+	s = string.gsub(s, "0+$", "")
+	s = string.gsub(s, "%.$", "")
 	return s .. "%"
 end
 
@@ -80,11 +86,12 @@ local function rarityOf(className: string?)
 	return Config.Rarities[classDef(className).Rarity]
 end
 
+-- Textos cortos: con muchas bonificaciones (Conserje experimentado) van en dos columnas.
 local MODIFIER_NAMES = {
 	{ "Health", "vida" },
 	{ "Stamina", "estamina" },
-	{ "WalkSpeed", "velocidad al caminar" },
-	{ "Battery", "batería de linterna" },
+	{ "WalkSpeed", "velocidad" },
+	{ "Battery", "batería" },
 }
 
 local function pct(x: number): number
@@ -93,34 +100,34 @@ end
 
 local PERK_TEXT = {
 	RepairSpeed = function(v)
-		return string.format("Repara %d%% más rápido", pct(v - 1))
+		return string.format("Repara +%d%% rápido", pct(v - 1))
 	end,
 	FlashCostMultiplier = function(v)
-		return string.format("Destello: %d%% menos batería", pct(1 - v))
+		return string.format("Destello -%d%% batería", pct(1 - v))
 	end,
 	FlashCooldownMultiplier = function(v)
-		return string.format("Destello: %d%% menos de espera", pct(1 - v))
+		return string.format("Destello -%d%% espera", pct(1 - v))
 	end,
 	Shove = function()
-		return "[Q] Porrazo: empuja y aturde a los enemigos"
+		return "[Q] Porrazo que aturde"
 	end,
 	PayBonus = function(v)
-		return string.format("+%d%% de pago por noche", pct(v))
+		return string.format("+%d%% de pago", pct(v))
 	end,
 	NightVision = function()
-		return "Ve en la oscuridad sin linterna"
+		return "Ve en la oscuridad"
 	end,
 	FreeRevive = function()
-		return "Revive GRATIS a sus compañeros"
+		return "Revive GRATIS"
 	end,
 	ReviveSpeed = function(v)
 		return string.format("Revive %gx más rápido", v)
 	end,
 	SeeGhostsThroughWalls = function()
-		return "Ve a los fantasmas a través de las paredes"
+		return "Ve fantasmas tras paredes"
 	end,
 	DetectionDelay = function(v)
-		return string.format("Los enemigos tardan %gx en detectarte", v)
+		return string.format("Te detectan %gx más lento", v)
 	end,
 }
 
@@ -267,6 +274,7 @@ local luckyButton: TextButton
 local luckyOdds: TextLabel
 local statusLabel: TextLabel
 local detail: { [string]: TextLabel } = {}
+local bonusGrid: Frame
 
 local selectedClass = Config.DefaultClass
 local animating = false
@@ -343,7 +351,23 @@ local function refreshDetail()
 	end
 	detail.Odds.Text = odds
 	detail.Description.Text = def.Description
-	detail.Bonuses.Text = "• " .. table.concat(bonusesOf(selectedClass), "\n• ")
+	-- Bonificaciones: una columna (hasta 5) o dos columnas (mas de 5)
+	for _, child in bonusGrid:GetChildren() do
+		child:Destroy()
+	end
+	local bonuses = bonusesOf(selectedClass)
+	local columns = if #bonuses > 5 then 2 else 1
+	local rowsCount = math.ceil(#bonuses / columns)
+	local cellHeight = 1 / math.max(rowsCount, 5)
+	for i, text in bonuses do
+		local col = (i - 1) % columns
+		local row = math.floor((i - 1) / columns)
+		label(bonusGrid, "Bonus" .. i, UDim2.fromScale(1 / columns - 0.02, cellHeight * 0.9), UDim2.fromScale(col / columns, row * cellHeight), 16, {
+			Text = "• " .. text,
+			TextColor3 = COLORS.Good,
+			TextXAlignment = Enum.TextXAlignment.Left,
+		})
+	end
 
 	local owned = {}
 	for i = 1, player:GetAttribute("MaxSlots") or 1 do
@@ -677,7 +701,7 @@ local function build(gui: ScreenGui)
 		table.insert(luckyParts, classDef(entry.Class).DisplayName .. " " .. formatPercent(entry.Percent))
 	end
 	luckyOdds = label(center, "LuckyOdds", UDim2.fromScale(1, 0.075), UDim2.fromScale(0, 0.83), 13, {
-		Text = "Solo Épica o Legendaria: " .. table.concat(luckyParts, " · "),
+		Text = "Épica o superior: " .. table.concat(luckyParts, " · "),
 		TextColor3 = COLORS.Dim,
 		TextWrapped = true,
 	})
@@ -707,12 +731,7 @@ local function build(gui: ScreenGui)
 		Text = "BONIFICACIONES",
 		TextColor3 = COLORS.Gold,
 	})
-	detail.Bonuses = label(right, "Bonuses", UDim2.fromScale(1, 0.26), UDim2.fromScale(0, 0.6), 16, {
-		TextColor3 = COLORS.Good,
-		TextWrapped = true,
-		TextXAlignment = Enum.TextXAlignment.Left,
-		TextYAlignment = Enum.TextYAlignment.Top,
-	})
+	bonusGrid = frame(right, "Bonuses", UDim2.fromScale(1, 0.3), UDim2.fromScale(0, 0.59))
 	detail.Owned = label(right, "Owned", UDim2.fromScale(1, 0.07), UDim2.fromScale(0, 0.91), 13, { TextColor3 = COLORS.Dim })
 end
 

@@ -3,7 +3,7 @@
 
 export type StatName = "Health" | "Stamina" | "Battery" | "WalkSpeed"
 
-export type Rarity = "Common" | "Rare" | "Epic" | "Legendary"
+export type Rarity = "Common" | "Rare" | "Epic" | "Legendary" | "Mythic"
 
 export type StatConfig = {
 	DisplayName: string,
