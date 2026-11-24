@@ -1,8 +1,12 @@
 -- EnemyService: aparece los enemigos de cada noche y los actualiza.
 --
--- Cantidad = BaseCount + extra por noche (Config.getDifficulty).
--- Solo salen los tipos cuya UnlockNight ya se alcanzo.
--- Cada mision fallada suma "amenaza", que potencia a los enemigos.
+-- * Cantidad por tipo: Config.getEnemyCount (crece con las noches hasta MaxCount).
+--   Solo salen los tipos cuya UnlockNight ya se alcanzo.
+-- * El primero de cada tipo aparece al empezar la noche; los demas, escalonados
+--   cada Config.EnemySpawn.StaggerSeconds.
+-- * La noche en que un tipo aparece por primera vez se avisa con su Hint.
+-- * Las noches con Vigilante se activan las camaras de seguridad (tag SecurityCamera).
+-- * Cada mision fallada suma "amenaza", que potencia a los enemigos.
 
 local CollectionService = game:GetService("CollectionService")
 local ReplicatedStorage = game:GetService("ReplicatedStorage")
@@ -12,17 +16,24 @@ local ServerScriptService = game:GetService("ServerScriptService")
 local Shared = ReplicatedStorage:WaitForChild("Shared")
 local Config = require(Shared.Config)
 local Tags = require(Shared.Tags)
+local Remotes = require(Shared.Remotes)
 
 local LightService = require(script.Parent.LightService)
 local MissionService = require(script.Parent.MissionService)
+local DefenseService = require(script.Parent.DefenseService)
 
 local EnemiesFolder = ServerScriptService:WaitForChild("Enemies")
 local Common = require(EnemiesFolder.Common)
+local SecurityCamera = require(EnemiesFolder.SecurityCamera)
 
--- Tipos implementados (el resto se agrega en la Fase 6)
+-- Tipos de enemigo (cada uno con su modulo en src/enemies). Orden = orden de los avisos.
+local ENEMY_ORDER = { "Mannequin", "Blackout", "Echo", "Tracker", "Watcher" }
 local enemyModules = {
 	Mannequin = require(EnemiesFolder.Mannequin),
 	Blackout = require(EnemiesFolder.Blackout),
+	Echo = require(EnemiesFolder.Echo),
+	Tracker = require(EnemiesFolder.Tracker),
+	Watcher = require(EnemiesFolder.Watcher),
 }
 
 local EnemyService = {}
@@ -30,6 +41,9 @@ local EnemyService = {}
 local activeEnemies = {}
 local threat = {} -- [missionType] = misiones falladas esta noche
 local heartbeatConn: RBXScriptConnection? = nil
+local nightToken = 0 -- invalida las apariciones escalonadas de una noche anterior
+local currentDifficulty = nil -- tabla compartida con los enemigos (ctx.Difficulty)
+local baseSpeedMultiplier = 1
 local rng = Random.new()
 
 local function getTotalThreat(): number
@@ -38,6 +52,11 @@ local function getTotalThreat(): number
 		total += n
 	end
 	return total
+end
+
+local function isAllowed(enemyType: string): boolean
+	local only = Config.Debug.OnlyEnemies
+	return only == nil or table.find(only, enemyType) ~= nil
 end
 
 -- Punto del suelo donde aparecer, lejos de los jugadores si se puede.
@@ -74,16 +93,67 @@ local function pickSpawnPosition(enemyType: string): Vector3?
 		end
 	end
 	local pool = if #far > 0 then far else candidates
+	-- Repartir por el mapa (2 plantas): de unos cuantos al azar, el mas lejano a los
+	-- enemigos que ya estan vivos, para que no se amontonen en una zona.
+	local function distanceToEnemies(part: BasePart): number
+		local best = math.huge
+		for _, enemy in activeEnemies do
+			local model = enemy.Model
+			if model and model.Parent and model:IsA("Model") then
+				best = math.min(best, (model:GetPivot().Position - part.Position).Magnitude)
+			end
+		end
+		return best
+	end
 	local chosen = pool[rng:NextInteger(1, #pool)]
+	local chosenScore = distanceToEnemies(chosen)
+	for _ = 1, 3 do
+		local other = pool[rng:NextInteger(1, #pool)]
+		local score = distanceToEnemies(other)
+		if score > chosenScore then
+			chosen, chosenScore = other, score
+		end
+	end
 	local offset = Vector3.new(rng:NextNumber(-2, 2), 0, rng:NextNumber(-2, 2))
 	return chosen.Position - Vector3.new(0, chosen.Size.Y / 2, 0) + offset
+end
+
+local function spawnEnemy(enemyType: string, ctx)
+	local position = pickSpawnPosition(enemyType)
+	if not position then
+		warn("[EnemyService] No hay donde aparecer", enemyType, "(faltan EnemySpawn o MallZone)")
+		return
+	end
+	local ok, enemy = pcall(enemyModules[enemyType].new, position, ctx)
+	if ok then
+		table.insert(activeEnemies, enemy)
+	else
+		warn("[EnemyService] Error creando", enemyType, enemy)
+	end
+end
+
+local function startCameras(ctx)
+	for _, part in CollectionService:GetTagged(Tags.SecurityCamera) do
+		if part:IsA("BasePart") then
+			local ok, camera = pcall(SecurityCamera.new, part, ctx)
+			if ok then
+				table.insert(activeEnemies, camera)
+			else
+				warn("[EnemyService] Error creando camara", camera)
+			end
+		end
+	end
 end
 
 function EnemyService.StartNight(night: number)
 	EnemyService.StopNight()
 	threat = {}
+	nightToken += 1
+	local token = nightToken
 
 	local difficulty = Config.getDifficulty(night)
+	currentDifficulty = difficulty
+	baseSpeedMultiplier = difficulty.SpeedMultiplier
 	local ctx = {
 		Night = night,
 		Difficulty = difficulty,
@@ -94,22 +164,34 @@ function EnemyService.StartNight(night: number)
 		GetTotalThreat = getTotalThreat,
 	}
 
-	for enemyType, module in enemyModules do
+	local hintDelay = 3
+	for _, enemyType in ENEMY_ORDER do
 		local def = Config.Enemies[enemyType]
-		if def and night >= def.UnlockNight then
-			local count = def.BaseCount + difficulty.ExtraCount
-			for _ = 1, count do
-				local position = pickSpawnPosition(enemyType)
-				if position then
-					local ok, enemy = pcall(module.new, position, ctx)
-					if ok then
-						table.insert(activeEnemies, enemy)
-					else
-						warn("[EnemyService] Error creando", enemyType, enemy)
+		local count = if isAllowed(enemyType) then Config.getEnemyCount(enemyType, night) else 0
+		for i = 1, count do
+			if i == 1 then
+				spawnEnemy(enemyType, ctx)
+			else
+				task.delay((i - 1) * Config.EnemySpawn.StaggerSeconds, function()
+					if token == nightToken then
+						spawnEnemy(enemyType, ctx)
 					end
-				else
-					warn("[EnemyService] No hay donde aparecer", enemyType, "(faltan EnemySpawn o MallZone)")
-				end
+				end)
+			end
+		end
+
+		if count > 0 then
+			if enemyType == "Watcher" then
+				startCameras(ctx)
+			end
+			-- Aviso la primera noche en que aparece (con su contramedida)
+			if night == def.UnlockNight and def.Hint then
+				task.delay(hintDelay, function()
+					if token == nightToken then
+						Remotes.event("Notify"):FireAllClients(def.Hint, "bad")
+					end
+				end)
+				hintDelay += 5
 			end
 		end
 	end
@@ -126,7 +208,15 @@ function EnemyService.StartNight(night: number)
 	end)
 end
 
+-- Horas extra (NightManager): bonus = 0.1 -> enemigos un 10% mas rapidos.
+function EnemyService.SetOvertime(bonus: number)
+	if currentDifficulty then
+		currentDifficulty.SpeedMultiplier = baseSpeedMultiplier * (1 + bonus)
+	end
+end
+
 function EnemyService.StopNight()
+	nightToken += 1
 	if heartbeatConn then
 		heartbeatConn:Disconnect()
 		heartbeatConn = nil
@@ -135,9 +225,14 @@ function EnemyService.StopNight()
 		pcall(enemy.Destroy, enemy)
 	end
 	activeEnemies = {}
+	DefenseService.ClearAll() -- bengalas y petardos
 end
 
 function EnemyService.Start()
+	-- El destello y el porrazo necesitan saber que enemigos hay
+	DefenseService.SetEnemyProvider(function()
+		return activeEnemies
+	end)
 	MissionService.Failed:Connect(function(mission)
 		threat[mission.Type] = (threat[mission.Type] or 0) + 1
 	end)

@@ -1,7 +1,13 @@
 -- NightManager: ciclo de la partida.
 --
 --   Waiting -> Preparation -> Night (12 AM -> 6 AM) -> Results -> Upgrades -> (siguiente noche)
---                                  \-> si todos mueren -> GameOver -> nueva partida en la noche 1
+--                                  \-> si todos mueren -> GameOver -> todos al lobby
+--
+-- La sala se arma en el LOBBY (LobbyService): al mall solo se llega con la
+-- partida ya iniciada. Waiting aqui es solo esperar a que terminen de llegar
+-- todos los miembros (como mucho Config.Rooms.ArrivalTimeout segundos).
+-- En Studio / servidor no reservado (para probar) el anfitrion inicia con [P]
+-- (RequestStartGame), o sola con Config.Debug.AutoStart = true.
 --
 -- Los personajes NO aparecen solos (CharacterAutoLoads = false): se crean en
 -- la preparacion. Quien muere durante la noche espera a la siguiente.
@@ -27,10 +33,13 @@ local EnemyService = require(script.Parent.EnemyService)
 local ReviveService = require(script.Parent.ReviveService)
 local ClassService = require(script.Parent.ClassService)
 local RunState = require(script.Parent.RunState)
+local RoomService = require(script.Parent.RoomService)
+local PassService = require(script.Parent.PassService)
 
 local NightManager = {}
 
 local phase = "Waiting"
+local startRequested = false
 local participants = {} -- [Player] = true (jugadores que empezaron la noche)
 local rng = Random.new()
 
@@ -148,41 +157,52 @@ end
 -- Pago
 ----------------------------------------------------------------------
 
+-- Al ganar la noche: el fondo de tareas del equipo se reparte a partes iguales
+-- entre todos los que empezaron la noche (vivos o caidos). Si cae todo el equipo
+-- no hay pago (la partida termina).
 local function payout(night: number, wiped: boolean)
+	local team = {}
 	for player in participants do
 		if player.Parent and DataService.GetData(player) then
-			local survived = not wiped and isAliveNow(player)
-			local base = Config.Pay.Base + Config.Pay.PerNight * (night - 1)
-			local missions = MissionService.TakeEarnings(player)
-			local survival = if survived then Config.Pay.SurvivalBonus else 0
-			local subtotal = base + missions + survival
-			local bonusPct = PlayerStats.GetPerk(player, "PayBonus") or 0
-			local bonus = math.floor(subtotal * bonusPct)
-			local total = subtotal + bonus
+			table.insert(team, player)
+		end
+	end
+	local pool = MissionService.TakeTeamEarnings()
+	local share = if #team > 0 then math.floor(pool / #team) else 0
+
+	for _, player in team do
+		local base, teamBonus, bonus, passBonus, total = 0, 0, 0, 0, 0
+		if not wiped then
+			base = Config.Pay.Base + Config.Pay.PerNight * (night - 1)
+			teamBonus = Config.Pay.NightCompleteBonus
+			local subtotal = base + share + teamBonus
+			bonus = math.floor(subtotal * (PlayerStats.GetPerk(player, "PayBonus") or 0)) -- Ahorrador
+			-- Pase x2 Billetes: duplica todo el pago
+			passBonus = if PassService.Owns(player, "DoubleMoney") then subtotal + bonus else 0
+			total = subtotal + bonus + passBonus
 
 			RunState.AddCash(player, total)
 			DataService.Update(player, function(d)
 				d.Lifetime.MoneyEarned += total
-				if survived then
-					d.Lifetime.NightsSurvived += 1
-					d.BestNight = math.max(d.BestNight, night)
-				end
+				d.Lifetime.NightsSurvived += 1
+				d.BestNight = math.max(d.BestNight, night)
 			end)
-			if survived then
-				ClassService.OnNightSurvived(player) -- diamantes cada N noches y logros
-			end
-
-			Remotes.event("NightResults"):FireClient(player, {
-				Night = night,
-				Base = base,
-				Missions = missions,
-				Survival = survival,
-				Bonus = bonus,
-				Total = total,
-				Survived = survived,
-				GameOver = wiped,
-			})
+			ClassService.OnNightSurvived(player) -- diamantes cada N noches y logros
 		end
+
+		Remotes.event("NightResults"):FireClient(player, {
+			Night = night,
+			Base = base,
+			Missions = if wiped then 0 else share,
+			MissionsPool = pool,
+			TeamSize = #team,
+			Survival = teamBonus,
+			Bonus = bonus,
+			PassBonus = passBonus,
+			Total = total,
+			Survived = not wiped,
+			GameOver = wiped,
+		})
 	end
 end
 
@@ -222,11 +242,15 @@ local function runNight(night: number): boolean -- devuelve true si todos murier
 		return false -- nadie listo (cargando datos); repetir la preparacion
 	end
 
-	local nightSeconds = Config.Debug.NightSecondsOverride or Config.Night.RealSeconds
-	setPhase("Night", nightSeconds)
-	notifyAll(string.format("Noche %d: sobrevive hasta las 6 AM.", night), "bad")
+	local teamSize = 0
+	for _ in participants do
+		teamSize += 1
+	end
+	setPhase("Night")
 	EnemyService.StartNight(night)
-	MissionService.StartNight(night)
+	MissionService.StartNight(night, teamSize)
+	local _, goal = MissionService.GetProgress()
+	notifyAll(string.format("Noche %d: completen %d tareas en equipo para llegar a las 6 AM.", night, goal), "bad")
 
 	-- Si caen todos, hay unos segundos para revivir con Robux (solo si el producto existe)
 	local graceSeconds = if Config.DevProducts.Revive ~= 0 then Config.Revive.WipeGraceSeconds else 0
@@ -234,17 +258,35 @@ local function runNight(night: number): boolean -- devuelve true si todos murier
 
 	local startedAt = os.clock()
 	local wiped = false
+	local overtimeLevel = 0
 	while true do
 		local elapsed = os.clock() - startedAt
+
+		-- El reloj avanza con las tareas completadas: la cuota completa = 6 AM
+		local done, total = MissionService.GetProgress()
 		local hour = Config.Night.StartHour
-			+ (Config.Night.EndHour - Config.Night.StartHour) * math.min(elapsed / nightSeconds, 1)
+			+ (Config.Night.EndHour - Config.Night.StartHour) * math.min(done / math.max(total, 1), 1)
 		GameState.Folder:SetAttribute("GameHour", hour)
 
 		local alive = aliveParticipants()
-		if elapsed >= nightSeconds then
-			wiped = alive == 0
-			break
+		if done >= total and alive > 0 then
+			break -- noche ganada
 		end
+
+		-- Horas extra: cada minuto pasado OvertimeSeconds, los enemigos son mas rapidos
+		if elapsed > Config.Night.OvertimeSeconds then
+			local level = math.floor((elapsed - Config.Night.OvertimeSeconds) / 60) + 1
+			if level ~= overtimeLevel then
+				overtimeLevel = level
+				EnemyService.SetOvertime(
+					math.min(level * Config.Night.OvertimeSpeedPerMinute, Config.Night.MaxOvertimeBonus)
+				)
+				if level == 1 then
+					notifyAll("Se hace tarde... las cosas del mall se impacientan.", "bad")
+				end
+			end
+		end
+
 		if alive == 0 then
 			if not wipeDeadline then
 				wipeDeadline = os.clock() + graceSeconds
@@ -278,6 +320,41 @@ local function runNight(night: number): boolean -- devuelve true si todos murier
 	return wiped
 end
 
+-- Antes de empezar: todos de pie y sin enemigos.
+local function waitForStart()
+	startRequested = false
+	setPhase("Waiting")
+	EnemyService.StopNight()
+	MissionService.StopNight()
+	LightService.ResetAll()
+	-- Quien cayo en la partida anterior (o entro a mitad) vuelve a aparecer
+	for _, player in Players:GetPlayers() do
+		if DataService.GetData(player) and not isAliveNow(player) then
+			task.spawn(spawnPlayer, player)
+		end
+	end
+	if RoomService.IsReserved() then
+		-- Partida iniciada en el lobby: esperar a que lleguen todos los miembros
+		while #Players:GetPlayers() == 0 do
+			task.wait(0.25)
+		end
+		local timeout = Config.Rooms.ArrivalTimeout
+		setPhase("Waiting", timeout)
+		local deadline = os.clock() + timeout
+		while os.clock() < deadline and not RoomService.AllMembersArrived() do
+			task.wait(0.25)
+		end
+		return
+	end
+
+	if #Players:GetPlayers() > 0 and not Config.Debug.AutoStart then
+		notifyAll("Modo prueba: el anfitrión inicia la partida con [P].")
+	end
+	while #Players:GetPlayers() == 0 or not (startRequested or Config.Debug.AutoStart) do
+		task.wait(0.25)
+	end
+end
+
 local function runGame()
 	local night = Config.Debug.StartNight
 	-- Partida nueva: billetes y mejoras a 0
@@ -297,9 +374,16 @@ local function runGame()
 			notifyAll(string.format("Todo el equipo ha caido en la noche %d.", night), "bad")
 			waitSeconds(12)
 			participants = {}
+			-- Partida de una sala del lobby: todos vuelven al lobby a armar otra
+			if RoomService.IsReserved() and RoomService.SendAllToLobby("Fin del turno. Volviendo al lobby...") then
+				local deadline = os.clock() + 30
+				while #Players:GetPlayers() > 0 and os.clock() < deadline do
+					task.wait(0.5)
+				end
+			end
 			return
 		else
-			notifyAll(string.format("Son las 6 AM. Sobreviviste la noche %d.", night), "good")
+			notifyAll(string.format("Son las 6 AM. ¡El equipo completó la noche %d!", night), "good")
 			setPhase("Results", Config.Night.ResultsSeconds)
 			waitSeconds(Config.Night.ResultsSeconds)
 			setPhase("Upgrades", Config.Night.UpgradeSeconds)
@@ -344,12 +428,28 @@ function NightManager.Start()
 		participants[player] = nil
 	end)
 
+	-- El anfitrion inicia la partida desde la sala de espera
+	Remotes.event("RequestStartGame").OnServerEvent:Connect(function(player: Player)
+		-- En las salas del lobby la partida ya viene iniciada
+		if RoomService.IsReserved() or phase ~= "Waiting" or startRequested or not DataService.GetData(player) then
+			return
+		end
+		local host = RoomService.GetHost()
+		if host and host ~= player then
+			Remotes.event("Notify"):FireClient(
+				player,
+				string.format("Solo el anfitrión (%s) puede iniciar la partida.", host.DisplayName),
+				"bad"
+			)
+			return
+		end
+		startRequested = true
+		notifyAll(player.DisplayName .. " inició la partida.", "good")
+	end)
+
 	task.spawn(function()
 		while true do
-			setPhase("Waiting")
-			while #Players:GetPlayers() == 0 do
-				task.wait(1)
-			end
+			waitForStart()
 			local ok, err = pcall(runGame)
 			if not ok then
 				warn("[NightManager] Error en la partida:", err)

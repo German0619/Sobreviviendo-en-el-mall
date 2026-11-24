@@ -8,6 +8,7 @@
 
 local PathfindingService = game:GetService("PathfindingService")
 local Players = game:GetService("Players")
+local RunService = game:GetService("RunService")
 local ServerScriptService = game:GetService("ServerScriptService")
 local ServerStorage = game:GetService("ServerStorage")
 local Workspace = game:GetService("Workspace")
@@ -15,6 +16,7 @@ local Workspace = game:GetService("Workspace")
 local Config = require(game:GetService("ReplicatedStorage"):WaitForChild("Shared").Config)
 local PlayerStats = require(ServerScriptService:WaitForChild("Server"):WaitForChild("PlayerStats"))
 local LightService = require(ServerScriptService:WaitForChild("Server"):WaitForChild("LightService"))
+local DefenseService = require(ServerScriptService:WaitForChild("Server"):WaitForChild("DefenseService"))
 
 local Common = {}
 
@@ -65,8 +67,52 @@ function Common.damage(player: Player, amount: number)
 	local character = player.Character
 	local humanoid = character and character:FindFirstChildOfClass("Humanoid")
 	if humanoid and humanoid.Health > 0 then
+		-- Si estaba escondido (y el enemigo lo vio entrar), lo saca a la fuerza
+		if DefenseService.IsHidden(player) then
+			DefenseService.ForceOut(player)
+		end
 		humanoid:TakeDamage(amount)
 	end
+end
+
+-- Hacia donde ir para alcanzar a un jugador (si esta escondido: a la puerta del escondite).
+function Common.targetPosition(player: Player, root: BasePart): Vector3
+	return DefenseService.GetTargetPosition(player, root)
+end
+
+----------------------------------------------------------------------
+-- Defensas de los jugadores (DefenseService)
+----------------------------------------------------------------------
+
+function Common.isStunned(model: Model): boolean
+	return DefenseService.IsStunned(model)
+end
+
+-- Empuja al enemigo `distance` studs en horizontal sin atravesar paredes
+-- (deslizamiento corto). Lo usa el Porrazo del Guardia.
+function Common.knockback(model: Model, direction: Vector3, distance: number)
+	local flat = Vector3.new(direction.X, 0, direction.Z)
+	if flat.Magnitude < 0.01 then
+		return
+	end
+	flat = flat.Unit
+	local from = model:GetPivot().Position
+	local hit = Workspace:Raycast(from, flat * distance, Common.raycastParams())
+	local travel = if hit then math.max(0, (hit.Position - from).Magnitude - 1.5) else distance
+	local to = from + flat * travel
+	task.spawn(function()
+		local duration = 0.2
+		local start = os.clock()
+		while model.Parent do
+			local t = math.min((os.clock() - start) / duration, 1)
+			local pos = from:Lerp(to, 1 - (1 - t) ^ 2)
+			model:PivotTo(CFrame.lookAt(pos, pos - flat)) -- mirando hacia quien lo empujo
+			if t >= 1 then
+				break
+			end
+			RunService.Heartbeat:Wait()
+		end
+	end)
 end
 
 ----------------------------------------------------------------------
@@ -98,6 +144,7 @@ function Common.raycastParams(): RaycastParams
 	local params = RaycastParams.new()
 	params.FilterType = Enum.RaycastFilterType.Exclude
 	params.FilterDescendantsInstances = exclude
+	params.IgnoreWater = true -- el agua de las fuentes no tapa la vision ni es "suelo"
 	return params
 end
 
@@ -173,7 +220,21 @@ end
 local Mover = {}
 Mover.__index = Mover
 
--- opts: { Speed, Height, Ghost (atraviesa paredes, flota a HoverY), HoverY }
+-- Diferencia de altura (studs) a partir de la cual el objetivo esta en otro piso.
+local OTHER_FLOOR = 8
+-- Caida maxima que un caminante acepta al avanzar (evita tirarse por el atrio).
+local MAX_DROP = 4
+-- Velocidad vertical de los fantasmas al cambiar de piso (studs/s).
+local GHOST_CLIMB_SPEED = 7
+
+-- Altura del suelo bajo un punto (o nil).
+function Common.floorBelow(position: Vector3, maxDistance: number?): number?
+	local hit = Workspace:Raycast(position + Vector3.new(0, 1, 0), Vector3.new(0, -(maxDistance or 40), 0), Common.raycastParams())
+	return hit and hit.Position.Y
+end
+
+-- opts: { Speed, Height, Ghost (atraviesa paredes, flota a HoverY), HoverY,
+--         HoverOffset (fantasmas: altura sobre el suelo del destino; asi cambian de piso) }
 function Common.newMover(model: Model, opts)
 	local self = setmetatable({}, Mover)
 	self.Model = model
@@ -181,6 +242,8 @@ function Common.newMover(model: Model, opts)
 	self.Height = opts.Height
 	self.Ghost = opts.Ghost == true
 	self.HoverY = opts.HoverY
+	self.HoverOffset = opts.HoverOffset
+	self.ForcePath = false
 	self.Waypoints = {}
 	self.Index = 1
 	self.Computing = false
@@ -188,7 +251,7 @@ function Common.newMover(model: Model, opts)
 	self.Destroyed = false
 	if not self.Ghost then
 		self.Path = PathfindingService:CreatePath({
-			AgentRadius = 2,
+			AgentRadius = 1.5, -- cabe por las escaleras mecanicas (4.2 de ancho)
 			AgentHeight = math.max(self.Height, 5),
 			AgentCanJump = false,
 			AgentCanClimb = false,
@@ -215,11 +278,21 @@ function Mover:MoveTowards(target: Vector3)
 	if self.Ghost then
 		self.Waypoints = { target }
 		self.Index = 1
+		-- Atraviesa suelos: se coloca a su altura sobre el piso del destino
+		if self.HoverOffset then
+			local floorY = Common.floorBelow(target + Vector3.new(0, 2, 0))
+			if floorY then
+				self.HoverY = floorY + self.HoverOffset
+			end
+		end
 		return
 	end
 
 	local from = self:GetPosition()
-	if Common.lineOfSight(from, Vector3.new(target.X, from.Y, target.Z)) then
+	local feetY = from.Y - self.Height / 2
+	-- Mismo piso y a la vista: recto. Otro piso (o venia de un borde): ruta con escaleras.
+	local sameFloor = math.abs(target.Y - feetY) < OTHER_FLOOR
+	if sameFloor and not self.ForcePath and Common.lineOfSight(from, Vector3.new(target.X, from.Y, target.Z)) then
 		self.Waypoints = { target }
 		self.Index = 1
 		return
@@ -248,6 +321,18 @@ function Mover:MoveTowards(target: Vector3)
 			end
 			self.Waypoints = list
 			self.Index = 1
+			self.ForcePath = false
+			self.FailCount = 0
+		else
+			-- Sin ruta (p. ej. aparecio dentro de un mueble): tras 2 fallos da unos pasos
+			-- en una direccion al azar para salir y vuelve a intentarlo
+			self.FailCount = (self.FailCount or 0) + 1
+			if self.FailCount >= 2 then
+				self.FailCount = 0
+				local angle = math.random() * math.pi * 2
+				self.Waypoints = { from + Vector3.new(math.cos(angle), 0, math.sin(angle)) * 5 }
+				self.Index = 1
+			end
 		end
 	end)
 end
@@ -256,6 +341,16 @@ end
 function Mover:Step(dt: number): boolean
 	local wp = self.Waypoints[self.Index]
 	if not wp then
+		-- Fantasma ya en su X/Z pero aun no a la altura de su piso: termina de subir/bajar
+		if self.Ghost and self.HoverY then
+			local pos = self:GetPosition()
+			local diff = self.HoverY - pos.Y
+			if math.abs(diff) > 0.05 then
+				local maxStep = GHOST_CLIMB_SPEED * dt
+				self.Model:PivotTo(self.Model:GetPivot() + Vector3.new(0, math.clamp(diff, -maxStep, maxStep), 0))
+				return true
+			end
+		end
 		return false
 	end
 
@@ -272,14 +367,52 @@ function Mover:Step(dt: number): boolean
 
 	local y
 	if self.Ghost then
-		y = self.HoverY or pos.Y
+		-- Sube o baja suavemente hasta su altura (cambia de piso atravesando el suelo)
+		local goal = self.HoverY or pos.Y
+		local maxStep = GHOST_CLIMB_SPEED * dt
+		y = pos.Y + math.clamp(goal - pos.Y, -maxStep, maxStep)
 	else
-		local hit = Workspace:Raycast(
-			newPos + Vector3.new(0, 1, 0),
-			Vector3.new(0, -(self.Height + 6), 0),
-			Common.raycastParams()
-		)
-		y = if hit then hit.Position.Y + self.Height / 2 else pos.Y
+		local params = Common.raycastParams()
+		local feetY = pos.Y - self.Height / 2
+		local function ground(p: Vector3): RaycastResult?
+			return Workspace:Raycast(p + Vector3.new(0, 1, 0), Vector3.new(0, -(self.Height + 6), 0), params)
+		end
+		local function safe(h: RaycastResult?): boolean
+			return h ~= nil and feetY - h.Position.Y <= MAX_DROP
+		end
+		local hit = ground(newPos)
+		if not safe(hit) then
+			-- Delante hay un vacio (el atrio, el borde de una escalera): probar a deslizarse
+			-- por un solo eje (las rutas rozan los extremos de los barandales)
+			local slid = false
+			for _, alt in { Vector3.new(newPos.X, pos.Y, pos.Z), Vector3.new(pos.X, pos.Y, newPos.Z) } do
+				if (alt - pos).Magnitude > 0.01 then
+					local h2 = ground(alt)
+					if safe(h2) then
+						newPos, hit, slid = alt, h2, true
+						break
+					end
+				end
+			end
+			if not slid then
+				-- Retrocede a un punto seguro reciente y recalcula la ruta desde alli
+				self:Clear()
+				self.ForcePath = true
+				local back = self.SafePrev or self.SafePos
+				if back and (back - pos).Magnitude > 0.5 then
+					self.Waypoints = { back }
+				end
+				return false
+			end
+		end
+		y = (hit :: RaycastResult).Position.Y + self.Height / 2
+		-- Historial de posiciones seguras (para poder retroceder)
+		local now = os.clock()
+		if now - (self.SafeAt or 0) > 0.4 then
+			self.SafePrev = self.SafePos
+			self.SafePos = pos
+			self.SafeAt = now
+		end
 	end
 
 	newPos = Vector3.new(newPos.X, y, newPos.Z)
@@ -298,12 +431,35 @@ end
 -- perseguirlo, y lo recuerda unos segundos tras perderlo de vista.
 -- La clase Sombra (Perk DetectionDelay) tarda mas en ser detectada.
 
+-- Escondites: si un enemigo te estaba persiguiendo y te percibia justo al entrar,
+-- sabe donde estas (Watched) e ira a sacarte. Si no, te pierde por completo.
+
 local Awareness = {}
 Awareness.__index = Awareness
 
+local awarenessRegistry = setmetatable({}, { __mode = "k" })
+
 function Common.newAwareness(ctx)
-	return setmetatable({ Ctx = ctx, Level = {}, KnownAt = {} }, Awareness)
+	local self = setmetatable({ Ctx = ctx, Level = {}, KnownAt = {}, LastSensed = {}, Watched = {} }, Awareness)
+	awarenessRegistry[self] = true
+	return self
 end
+
+DefenseService.PlayerHid:Connect(function(player: Player)
+	local now = os.clock()
+	for awareness in awarenessRegistry do
+		local sensed = awareness.LastSensed[player]
+		local known = awareness.KnownAt[player]
+		if sensed and known and now - sensed <= Config.Defense.Hiding.SeenEnteringWindow
+			and now - known <= Config.Detection.Memory then
+			awareness.Watched[player] = true
+		else
+			awareness.Watched[player] = nil
+			awareness.Level[player] = 0
+			awareness.KnownAt[player] = nil
+		end
+	end
+end)
 
 function Awareness:DetectTime(player: Player): number
 	local delay = PlayerStats.GetPerk(player, "DetectionDelay") or 1
@@ -311,32 +467,46 @@ function Awareness:DetectTime(player: Player): number
 end
 
 -- senses(player, root) -> boolean: si el enemigo percibe al jugador ahora mismo.
--- Devuelve (player, root, distancia) del objetivo detectado mas cercano, o nil.
+-- Devuelve (player, root, distancia, posicion objetivo) del objetivo detectado mas
+-- cercano, o nil. Hay que moverse hacia la posicion objetivo (no hacia root):
+-- si el jugador esta escondido es la puerta del escondite.
 function Awareness:Update(dt: number, position: Vector3, senses: (Player, BasePart) -> boolean)
 	local now = os.clock()
-	local best, bestRoot, bestDist = nil, nil, math.huge
+	local best, bestRoot, bestDist, bestPos = nil, nil, math.huge, nil
 	for _, player in Common.getAlivePlayers() do
 		local root = Common.getRoot(player)
 		if root then
-			if senses(player, root) then
-				local level = (self.Level[player] or 0) + dt / self:DetectTime(player)
-				self.Level[player] = math.min(level, 1)
-				if level >= 1 then
-					self.KnownAt[player] = now
+			if DefenseService.IsHidden(player) then
+				if self.Watched[player] then
+					self.KnownAt[player] = now -- te vio entrar: sabe donde estas
+				else
+					self.Level[player] = 0
+					self.KnownAt[player] = nil
 				end
 			else
-				self.Level[player] = math.max(0, (self.Level[player] or 0) - dt * 0.5)
+				self.Watched[player] = nil
+				if senses(player, root) then
+					self.LastSensed[player] = now
+					local level = (self.Level[player] or 0) + dt / self:DetectTime(player)
+					self.Level[player] = math.min(level, 1)
+					if level >= 1 then
+						self.KnownAt[player] = now
+					end
+				else
+					self.Level[player] = math.max(0, (self.Level[player] or 0) - dt * 0.5)
+				end
 			end
 			local knownAt = self.KnownAt[player]
 			if knownAt and now - knownAt <= Config.Detection.Memory then
-				local d = (root.Position - position).Magnitude
+				local targetPos = Common.targetPosition(player, root)
+				local d = (targetPos - position).Magnitude
 				if d < bestDist then
-					best, bestRoot, bestDist = player, root, d
+					best, bestRoot, bestDist, bestPos = player, root, d, targetPos
 				end
 			end
 		end
 	end
-	return best, bestRoot, bestDist
+	return best, bestRoot, bestDist, bestPos
 end
 
 -- Sentido estandar: te ve si hay linea de vision a menos de SenseRange,
@@ -349,17 +519,33 @@ function Common.canSee(eye: Vector3, root: BasePart): boolean
 	return d <= Config.Detection.SenseRange and Common.lineOfSight(eye, root.Position)
 end
 
--- Punto al azar para patrullar (centro de una zona).
+-- Punto al azar para patrullar: un punto libre del suelo de una zona al azar.
+-- (El centro exacto puede caer sobre un mueble y entonces no hay ruta; con 2 plantas
+-- tambien hay que bajar hasta el suelo de esa zona, no hasta el de otra planta.)
 function Common.randomPatrolPoint(): Vector3?
 	local zones = LightService.GetZones()
 	if #zones == 0 then
 		return nil
 	end
-	local center = LightService.GetZoneCenter(zones[math.random(1, #zones)])
+	local zoneName = zones[math.random(1, #zones)]
+	local part = LightService.GetZonePart(zoneName)
+	if part then
+		local params = Common.raycastParams()
+		local floorY = part.Position.Y - part.Size.Y / 2
+		for _ = 1, 6 do
+			local rel = Vector3.new((math.random() - 0.5) * part.Size.X * 0.8, 0, (math.random() - 0.5) * part.Size.Z * 0.8)
+			local top = (part.CFrame * CFrame.new(rel)).Position + Vector3.new(0, part.Size.Y / 2 - 1, 0)
+			local hit = Workspace:Raycast(top, Vector3.new(0, -(part.Size.Y + 2), 0), params)
+			-- Vale si cae en el suelo de la zona (no encima de una mesa, estanteria...)
+			if hit and math.abs(hit.Position.Y - floorY) < 1.5 then
+				return hit.Position
+			end
+		end
+	end
+	local center = LightService.GetZoneCenter(zoneName)
 	if not center then
 		return nil
 	end
-	-- Bajar al suelo (el centro de la zona puede estar en el aire)
 	local hit = Workspace:Raycast(center, Vector3.new(0, -100, 0), Common.raycastParams())
 	return if hit then hit.Position else center
 end

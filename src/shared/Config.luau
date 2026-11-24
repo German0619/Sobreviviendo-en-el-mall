@@ -9,36 +9,99 @@ local Config = {}
 -- Pruebas (cambiar para probar mas rapido; dejar en los valores por defecto al publicar)
 ----------------------------------------------------------------------
 Config.Debug = {
-	BuildTestMap = true, -- construye un mall de prueba si no hay un mapa con tags
-	StartNight = 1, -- pon 2 para que aparezca el Apagon desde el inicio
-	NightSecondsOverride = nil :: number?, -- ej. 120 para noches de 2 minutos
+	-- Que place simular en Studio cuando el place no esta publicado ni tiene el
+	-- atributo PlaceRole en Workspace: "Mall" (la partida) o "Lobby".
+	PlaceRole = "Mall",
+	-- En Studio se puede abrir la ruleta/slots (C) tambien en el mall, para probar rapido.
+	-- En un servidor real solo se usan en el lobby.
+	ClassesInMallInStudio = true,
+	BuildTestMap = true, -- construye el mall (MallBuilder) o el lobby si el place no tiene uno propio
+	-- true = la partida empieza sola en cuanto hay alguien (sin esperar a que el anfitrion pulse Iniciar)
+	AutoStart = false,
+	StartNight = 1, -- pon 2 (Apagon), 3 (Eco), 5 (Rastro) o 7 (Vigilante) para probarlos desde el inicio
+	OnlyEnemies = nil :: { string }?, -- ej. { "Echo" }: solo salen esos tipos (para probar uno)
+	MissionGoalOverride = nil :: number?, -- ej. 2: tareas necesarias para pasar la noche (para probar)
 	PreparationSecondsOverride = nil :: number?,
 	-- SOLO en Studio:
 	StudioStartCash = 0, -- billetes al empezar cada partida (ej. 5000 para probar la tienda)
 	-- Diamantes que se suman al entrar (ej. 1000 para probar la ruleta).
 	-- Ojo: con API Services activado se guardan en tus datos de verdad.
 	StudioBonusDiamonds = 0,
+	-- Pases que se simulan como comprados en Studio (ej. { "DoubleMoney", "VIP" })
+	StudioOwnedPasses = {} :: { string },
+}
+
+----------------------------------------------------------------------
+-- Places y salas (Fase 6)
+----------------------------------------------------------------------
+-- IDs de los dos places de la experiencia (create.roblox.com -> tu experiencia -> Places).
+-- 0 = aun no publicado. El mismo codigo de Rojo se sincroniza en ambos places;
+-- cada uno sabe quien es por estos IDs o por el atributo PlaceRole de Workspace.
+Config.Places = {
+	LobbyPlaceId = 94961138619437, -- place de inicio
+	MallPlaceId = 94971350910183, -- la partida (servidores reservados)
+}
+
+Config.MaxPlayersPerRoom = 5 -- poner tambien "Max Players" = 5 en la configuracion del place del mall
+
+-- Salas (grupos) en MemoryStoreService. Se arman EN EL LOBBY: nadie viaja al mall
+-- hasta que el anfitrion pulsa INICIAR PARTIDA o la sala se llena.
+Config.Rooms = {
+	NameMaxLength = 24,
+	CodeLength = 6, -- codigo para salas privadas (y publicas)
+	CodeAlphabet = "ABCDEFGHJKLMNPQRSTUVWXYZ23456789", -- sin 0/O ni 1/I
+	InitialExpiration = 600, -- caducidad al crear/modificar la sala
+	RefreshExpiration = 120, -- los servidores con miembros la renuevan cada RefreshSeconds con esta caducidad
+	RefreshSeconds = 20,
+	PollSeconds = 2, -- cada cuanto cada lobby revisa las salas de sus jugadores (inicio, miembros)
+	ListRefreshSeconds = 5, -- cache de la lista de salas publicas en el lobby
+	ListMax = 100,
+	MaxTeleportAttempts = 3, -- reintentos de viaje al mall antes de sacar al jugador de la sala
+	ArrivalTimeout = 25, -- en el mall: segundos maximos esperando a que lleguen todos los miembros
 }
 
 ----------------------------------------------------------------------
 -- Partida
 ----------------------------------------------------------------------
-Config.MaxPlayersPerRoom = 5
 
+-- La noche se gana completando la cuota de tareas del equipo (Config.getMissionGoal):
+-- el reloj avanza con cada tarea y marca las 6 AM al completarla. Se pierde si
+-- cae todo el equipo. Pasado OvertimeSeconds, los enemigos se aceleran cada minuto.
 Config.Night = {
 	StartHour = 0, -- 12 AM
 	EndHour = 6, -- 6 AM
-	RealSeconds = 540, -- duracion real de una noche (9 min)
+	OvertimeSeconds = 480, -- a partir de aqui los enemigos se impacientan
+	OvertimeSpeedPerMinute = 0.05, -- +5% de velocidad por minuto extra
+	MaxOvertimeBonus = 0.5,
 	PreparationSeconds = 30,
 	ResultsSeconds = 10,
 	UpgradeSeconds = 30,
 }
 
--- Pago al final de cada noche = Base + PerNight * (noche - 1) + misiones + supervivencia
+-- Cuota de tareas por noche: Base + PerNight * (noche - 1) + PerExtraPlayer * (jugadores - 1)
+Config.NightGoal = {
+	Base = 4,
+	PerNight = 1,
+	PerExtraPlayer = 1.5,
+	Max = 20,
+}
+
+function Config.getMissionGoal(night: number, players: number): number
+	if Config.Debug.MissionGoalOverride then
+		return Config.Debug.MissionGoalOverride
+	end
+	local g = Config.NightGoal
+	local goal = g.Base + g.PerNight * (night - 1) + g.PerExtraPlayer * (math.max(players, 1) - 1)
+	return math.clamp(math.floor(goal + 0.5), 1, g.Max)
+end
+
+-- Pago al completar cada noche (por jugador del equipo, vivo o caido):
+--   Base + PerNight * (noche - 1) + (tareas del equipo / jugadores) + NightCompleteBonus
+-- Lo de las tareas va a un fondo comun que se reparte a partes iguales.
 Config.Pay = {
 	Base = 100,
 	PerNight = 25,
-	SurvivalBonus = 75, -- solo si el jugador sigue vivo a las 6 AM
+	NightCompleteBonus = 75,
 }
 
 ----------------------------------------------------------------------
@@ -91,7 +154,7 @@ Config.Movement = {
 Config.Flashlight = {
 	DrainPerSecond = 1, -- segundos de bateria por segundo encendida
 	Range = 45,
-	Angle = 55, -- angulo del SpotLight (visual)
+	Angle = 38, -- angulo del SpotLight (visual): cono estrecho, haz recto de linterna
 	Brightness = 3,
 	DetectHalfAngle = 22, -- cono (grados) en el que la linterna "alumbra" a un enemigo
 }
@@ -146,16 +209,16 @@ Config.Classes = {
 	Electricista = {
 		DisplayName = "Electricista",
 		Rarity = "Rare",
-		Description = "Repara luces y generadores un 50% más rápido.",
+		Description = "Repara un 50% más rápido. Sus destellos gastan la mitad de batería.",
 		Modifiers = {},
-		Perks = { RepairSpeed = 1.5 },
+		Perks = { RepairSpeed = 1.5, FlashCostMultiplier = 0.5, FlashCooldownMultiplier = 0.7 },
 	},
 	Guardia = {
 		DisplayName = "Guardia",
 		Rarity = "Rare",
-		Description = "+30% de vida.",
+		Description = "+30% de vida. [Q] Porrazo: empuja y aturde a los enemigos cercanos.",
 		Modifiers = { Health = 1.30 },
-		Perks = {},
+		Perks = { Shove = true },
 	},
 	Ahorrador = {
 		DisplayName = "Ahorrador",
@@ -293,6 +356,22 @@ Config.ShopItems = {
 		Amount = 50,
 		Hotkey = 2,
 	},
+	Flare = {
+		DisplayName = "Bengala",
+		Price = 120,
+		Description = "Ilumina una zona 20 s. El Apagón no puede entrar.",
+		MaxStack = 3,
+		Use = "ThrowFlare",
+		Hotkey = 3,
+	},
+	Firecracker = {
+		DisplayName = "Petardo",
+		Price = 90,
+		Description = "Lánzalo: atrae a los enemigos cercanos unos segundos.",
+		MaxStack = 3,
+		Use = "ThrowFirecracker",
+		Hotkey = 4,
+	},
 	FlashlightPro = {
 		DisplayName = "Linterna Pro",
 		Price = 1200,
@@ -301,7 +380,7 @@ Config.ShopItems = {
 	},
 }
 
-Config.ShopOrder = { "Battery", "Medkit", "FlashlightPro" }
+Config.ShopOrder = { "Battery", "Medkit", "Flare", "Firecracker", "FlashlightPro" }
 
 Config.FlashlightPro = {
 	ExtraAngle = 15, -- grados extra del haz visible
@@ -312,16 +391,80 @@ Config.FlashlightPro = {
 Config.ShopRange = 14 -- distancia maxima al mostrador para comprar
 
 ----------------------------------------------------------------------
+-- Defensa contra las entidades (DefenseService)
+----------------------------------------------------------------------
+-- Defenderse cuesta recursos y es temporal: el juego sigue siendo de terror.
+Config.Defense = {
+	-- [G] Destello de linterna: gasta bateria de golpe y aturde a los enemigos del cono.
+	-- El Apagon huye al instante; el Maniqui queda congelado aunque nadie lo mire.
+	Flash = {
+		BatteryCost = 25, -- segundos de bateria (x FlashCostMultiplier del Electricista)
+		Cooldown = 10, -- (x FlashCooldownMultiplier)
+		StunSeconds = 4,
+		RangeMultiplier = 1.15, -- alcance respecto a Config.Flashlight.Range
+		ExtraHalfAngle = 10, -- grados extra sobre el cono normal de la linterna
+	},
+	-- [Q] Porrazo del Guardia (Perk Shove): empuja y aturde a los enemigos de enfrente.
+	Shove = {
+		Range = 9,
+		Distance = 12, -- studs que retroceden
+		StunSeconds = 2.5,
+		Cooldown = 25,
+	},
+	-- Bengala: zona iluminada. El Apagon no entra y no siente a quien este dentro;
+	-- el Maniqui se ve dentro aunque la zona este a oscuras.
+	Flare = {
+		Duration = 20,
+		Radius = 18,
+		ThrowRange = 18,
+	},
+	-- Petardo: tras la mecha, atrae a los enemigos cercanos que no esten encima de alguien.
+	Firecracker = {
+		Fuse = 1.5,
+		Duration = 7,
+		Radius = 70,
+		ThrowRange = 30,
+		IgnoreIfTargetWithin = 12, -- si el enemigo ya esta a esta distancia de su presa, no se distrae
+	},
+	-- Escondites (tag HidingSpot): rompen la persecucion si el enemigo no te vio entrar.
+	Hiding = {
+		MaxSeconds = 30, -- luego sales solo (te falta el aire)
+		Cooldown = 4,
+		PromptDistance = 6,
+		SeenEnteringWindow = 0.5, -- si un enemigo que te perseguia te vio en este margen, sabe donde estas
+	},
+}
+
+----------------------------------------------------------------------
 -- Maquinas expendedoras
 ----------------------------------------------------------------------
 -- Effects: { Stat = multiplicador } o banderas especiales; Duration en segundos.
 Config.SodaEffects = {
 	-- Positivos
-	Speed = { DisplayName = "Turbo", Positive = true, Duration = 30, Modifiers = { WalkSpeed = 1.25 } },
-	Vision = { DisplayName = "Ojos de gato", Positive = true, Duration = 45, Flags = { NightVision = true } },
-	Regen = { DisplayName = "Regeneracion", Positive = true, Duration = 20, Flags = { RegenPerSecond = 4 } },
+	Speed = {
+		DisplayName = "Turbo",
+		Description = "+25% de velocidad.",
+		Positive = true,
+		Duration = 30,
+		Modifiers = { WalkSpeed = 1.25 },
+	},
+	Vision = {
+		DisplayName = "Ojos de gato",
+		Description = "Ves en la oscuridad.",
+		Positive = true,
+		Duration = 45,
+		Flags = { NightVision = true },
+	},
+	Regen = {
+		DisplayName = "Regeneracion",
+		Description = "+4 de vida por segundo.",
+		Positive = true,
+		Duration = 20,
+		Flags = { RegenPerSecond = 4 },
+	},
 	InfiniteStamina = {
 		DisplayName = "Estamina infinita",
+		Description = "Corres sin cansarte.",
 		Positive = true,
 		Duration = 20,
 		Flags = { InfiniteStamina = true },
@@ -332,8 +475,17 @@ Config.SodaEffects = {
 	Tired = { DisplayName = "Cansancio", Positive = false, Duration = 25, Modifiers = { Stamina = 0.6 } },
 }
 
+-- Soda a eleccion (Robux, producto Config.DevProducts.PremiumSoda) en las maquinas "Premium":
+-- el jugador ELIGE el efecto antes de pagar, asi que no es un objeto aleatorio de pago.
+Config.ChoiceSoda = {
+	DisplayName = "Soda a elección",
+	Effects = { "Speed", "Vision", "Regen", "InfiniteStamina" },
+	DurationMultiplier = 1.5,
+}
+
 -- Las probabilidades se muestran en la maquina (politica de Roblox para objetos aleatorios).
--- Solo hay una soda activa a la vez: tomar otra reemplaza el efecto anterior.
+-- Positivas: una a la vez (otra positiva reemplaza a la anterior).
+-- Negativas: se acumulan, cada una con su tiempo; repetir la misma SUMA su duracion.
 Config.VendingMachines = {
 	Cheap = {
 		DisplayName = "Soda misteriosa",
@@ -350,25 +502,74 @@ Config.VendingMachines = {
 ----------------------------------------------------------------------
 -- Misiones
 ----------------------------------------------------------------------
+-- Reward va al fondo del equipo. Duration = segundos manteniendo E (por paso en las de varios pasos).
+-- Count = pasos en las misiones de varios puntos. Las que caducan (TimeLimit) fallan y potencian enemigos.
 Config.Missions = {
-	FixLights = { DisplayName = "Reparar luces", Weight = 30, TimeLimit = 90, Reward = 40, Duration = 4 },
-	CleanSpill = { DisplayName = "Limpiar derrame", Weight = 30, TimeLimit = 75, Reward = 30, Duration = 3 },
-	RestartGenerator = { DisplayName = "Reiniciar generador", Weight = 15, TimeLimit = 120, Reward = 70, Duration = 6 },
-	TakeOutTrash = { DisplayName = "Sacar la basura", Weight = 20, TimeLimit = 90, Reward = 35, Duration = 3 },
-	LockDoors = { DisplayName = "Cerrar puertas", Weight = 15, TimeLimit = 60, Reward = 45, Duration = 2 },
-	RestockStore = { DisplayName = "Reponer tienda", Weight = 15, TimeLimit = 100, Reward = 50, Duration = 5 },
+	FixLights = { DisplayName = "Reparar luces", Weight = 25, TimeLimit = 120, Reward = 40, Duration = 4 },
+	CleanSpill = { DisplayName = "Limpiar derrame", Weight = 25, TimeLimit = 110, Reward = 30, Duration = 3 },
+	TakeOutTrash = { DisplayName = "Sacar la basura", Weight = 18, TimeLimit = 150, Reward = 40, Duration = 2 },
+	RestartGenerator = {
+		DisplayName = "Reiniciar generador",
+		Weight = 8,
+		TimeLimit = 150,
+		Reward = 70,
+		Duration = 6,
+	},
+	LockDoors = { DisplayName = "Bajar persianas", Weight = 12, TimeLimit = 150, Reward = 55, Duration = 2, Count = 3 },
+	RestockStore = { DisplayName = "Reponer tienda", Weight = 14, TimeLimit = 160, Reward = 50, Duration = 2 },
+	CheckCameras = { DisplayName = "Revisar cámaras", Weight = 8, TimeLimit = 120, Reward = 45, Duration = 4 },
+	UnclogToilet = { DisplayName = "Desatascar baño", Weight = 10, TimeLimit = 120, Reward = 40, Duration = 5 },
+	SilenceAlarm = { DisplayName = "Apagar alarma", Weight = 10, TimeLimit = 75, Reward = 45, Duration = 3 },
+	LostItem = { DisplayName = "Objeto perdido", Weight = 10, TimeLimit = 160, Reward = 45, Duration = 1 },
+	WaterPlants = { DisplayName = "Regar plantas", Weight = 10, TimeLimit = 150, Reward = 40, Duration = 2, Count = 3 },
 }
 
--- Misiones simultaneas maximas segun la noche
-function Config.getMaxConcurrentMissions(night: number): number
-	return math.min(2 + math.floor(night / 2), 6)
+-- Detalles de algunas misiones
+Config.MissionDetails = {
+	SilenceAlarm = { LureRadius = 75 }, -- la alarma atrae a los enemigos mientras suena
+	CheckCameras = { RevealSeconds = 6 }, -- al completarla, el equipo ve a todos los enemigos
+	UnclogToilet = { PuddleSize = 6 }, -- el agua del baño es un derrame (la huele el Rastro)
+}
+
+-- Brillo de todas las luces del mall (multiplica el Brightness de cada luz al construir
+-- el mapa). 1 = como estaba diseñado; 0.4 = penumbra de mall cerrado (mas miedo).
+Config.MallLightScale = 0.4
+
+-- Zonas sin luz de ambiente (bodega, servicio, almacen y oficinas): siempre a oscuras,
+-- solo luces de emergencia. Ahi se juega con la linterna. LightService las marca como
+-- oscuras al empezar (no tienen misiones de "Reparar luces").
+Config.DarkZones = {
+	"Bodega",
+	"Servicio",
+	"Almacén alto",
+	"Oficinas",
+	"Escalera de servicio",
+	"Administración",
+	"Sala de descanso",
+	"Baños P2",
+	"Archivo",
+	"Sala de máquinas",
+}
+
+-- Tamano del mapa: el mall tiene 2 plantas (~1.8x de superficie). Multiplica (redondeando
+-- hacia abajo) las misiones simultaneas y la cantidad de enemigos para que la densidad
+-- sea parecida a la del mapa de una planta. 1 = sin escalar.
+Config.MapScale = 1.5
+
+-- Misiones simultaneas maximas segun la noche y el tamano del equipo
+function Config.getMaxConcurrentMissions(night: number, players: number?): number
+	local base = 2 + math.floor(night / 2) + math.floor((players or 1) / 2)
+	return math.min(math.floor(base * Config.MapScale), 12)
 end
 
 Config.MissionSpawn = {
 	FirstDelay = 8, -- segundos tras empezar la noche
 	BaseInterval = 30, -- segundos entre misiones nuevas en la noche 1
 	IntervalPerNight = -2, -- cada noche salen antes
-	MinInterval = 12,
+	MinInterval = 10,
+	PerExtraPlayer = 0.2, -- cada jugador extra acorta el intervalo un 20%
+	MinActive = 2, -- si hay menos tareas activas que esto, sale otra a los RefillInterval segundos
+	RefillInterval = 4,
 	RewardPerNight = 0.10, -- +10% de recompensa por noche
 }
 
@@ -381,11 +582,15 @@ Config.Threat = {
 ----------------------------------------------------------------------
 -- Enemigos
 ----------------------------------------------------------------------
+-- Cantidad por noche: BaseCount + 1 cada CountEveryNights noches desde UnlockNight, hasta MaxCount.
+-- Hint: aviso (con su contramedida) la noche en que aparece por primera vez.
 Config.Enemies = {
 	Mannequin = {
 		DisplayName = "Maniqui",
 		UnlockNight = 1,
 		BaseCount = 2,
+		CountEveryNights = 2,
+		MaxCount = 5,
 		Speed = 20,
 		Damage = 35,
 		AttackRange = 3.5,
@@ -397,6 +602,9 @@ Config.Enemies = {
 		DisplayName = "Apagon",
 		UnlockNight = 2,
 		BaseCount = 1,
+		CountEveryNights = 3,
+		MaxCount = 3,
+		Hint = "Nuevo: el Apagón deja zonas a oscuras. Alúmbralo con la linterna o usa el destello [G] para que huya.",
 		Speed = 11,
 		Damage = 25,
 		AttackRange = 4,
@@ -407,18 +615,94 @@ Config.Enemies = {
 		FleeCooldown = 12,
 		ZoneLinger = 15, -- segundos sin victimas antes de cambiar de zona
 	},
-	Echo = { DisplayName = "Eco", UnlockNight = 3, BaseCount = 1, Speed = 14, Damage = 30 },
-	Tracker = { DisplayName = "Rastro", UnlockNight = 5, BaseCount = 1, Speed = 16, Damage = 30 },
-	Watcher = { DisplayName = "Vigilante", UnlockNight = 7, BaseCount = 1, Speed = 13, Damage = 40 },
+	-- Eco: se hace pasar por un companero (nombre, linterna y pasos). Alumbrarlo lo revela y lo hace
+	-- desaparecer; el destello lo hace al instante. Si te alcanza, golpea y se esfuma.
+	Echo = {
+		DisplayName = "Eco",
+		UnlockNight = 3,
+		BaseCount = 1,
+		CountEveryNights = 3,
+		MaxCount = 2,
+		Speed = 8, -- acechando
+		LungeSpeed = 17, -- al acercarse sin que lo alumbren
+		LungeDistance = 14,
+		Damage = 30,
+		AttackRange = 4,
+		AttackCooldown = 2,
+		SenseRange = 80, -- te "oye" a esta distancia, aunque haya paredes
+		ExposureToVanish = 1, -- segundos alumbrado para desaparecer
+		VanishSeconds = 10, -- tiempo desaparecido antes de volver
+		ReappearMinDistance = 35, -- vuelve lejos de los jugadores
+		Hint = "Nuevo: el Eco imita a tus compañeros. Si un \"compañero\" se te acerca, alúmbralo con la linterna.",
+	},
+	-- Rastro: si pisas un derrame te marca y te sigue a donde vayas (incluso a un escondite).
+	-- Limpiar los derrames lo mantiene a raya. Cada derrame sin limpiar lo hace mas rapido.
+	Tracker = {
+		DisplayName = "Rastro",
+		UnlockNight = 5,
+		BaseCount = 1,
+		CountEveryNights = 4,
+		MaxCount = 2,
+		Speed = 10, -- patrullando
+		ChaseSpeed = 15, -- si te ve sin olor
+		TrackSpeed = 18, -- siguiendo tu olor
+		Damage = 30,
+		AttackRange = 3.5,
+		AttackCooldown = 1.5,
+		MarkSeconds = 20, -- lo que dura el olor tras pisar un derrame
+		SpeedPerDirtySpill = 0.08, -- +8% por cada derrame fallado esta noche
+		Hint = "Nuevo: el Rastro huele los derrames. Si pisas uno, te seguirá a donde vayas. ¡Límpialos!",
+	},
+	-- Vigilante: patrulla y ve a traves de las camaras de seguridad (tag SecurityCamera).
+	-- Esquiva sus haces rojos o ciega las camaras con el destello.
+	Watcher = {
+		DisplayName = "Vigilante",
+		UnlockNight = 7,
+		BaseCount = 1,
+		CountEveryNights = 4,
+		MaxCount = 2,
+		Speed = 11,
+		ChaseSpeed = 17,
+		Damage = 40,
+		AttackRange = 4,
+		AttackCooldown = 1.8,
+		AlertMemory = 10, -- segundos que va hacia donde una camara te vio
+		Hint = "Nuevo: el Vigilante ve por las cámaras. Evita sus haces rojos o ciégalas con el destello [G].",
+	},
 }
 
--- Multiplicador de dificultad por noche (velocidad, deteccion, cantidad)
+-- Camaras de seguridad (las usa el Vigilante; solo funcionan las noches en que hay Vigilante)
+Config.SecurityCameras = {
+	Range = 50,
+	HalfAngle = 20, -- grados del cono de vision
+	SweepDegrees = 80, -- barrido total de lado a lado
+	SweepSeconds = 7,
+	DetectSeconds = 0.8, -- tiempo viendote para avisar al Vigilante (x DetectionDelay de la Sombra)
+	DisabledSeconds = 20, -- cegada por un destello
+}
+
+-- Los enemigos que se suman en una noche aparecen escalonados, no todos al empezar.
+Config.EnemySpawn = {
+	StaggerSeconds = 25,
+}
+
+function Config.getEnemyCount(enemyType: string, night: number): number
+	local def = Config.Enemies[enemyType]
+	if not def or night < def.UnlockNight then
+		return 0
+	end
+	local extra = math.floor((night - def.UnlockNight) / math.max(def.CountEveryNights or 99, 1))
+	local count = math.min(def.BaseCount + extra, def.MaxCount or def.BaseCount)
+	-- Escala con el mapa (floor: la noche en que debuta un tipo sigue saliendo 1)
+	return math.max(1, math.floor(count * Config.MapScale))
+end
+
+-- Multiplicador de dificultad por noche (velocidad y deteccion; la cantidad va en getEnemyCount)
 function Config.getDifficulty(night: number)
 	local n = math.max(night - 1, 0)
 	return {
-		SpeedMultiplier = 1 + 0.06 * n,
-		DetectionMultiplier = 1 + 0.10 * n,
-		ExtraCount = math.floor(n / 2),
+		SpeedMultiplier = math.min(1 + 0.05 * n, 1.6),
+		DetectionMultiplier = math.min(1 + 0.10 * n, 2.5),
 	}
 end
 
@@ -431,12 +715,29 @@ Config.GamePasses = {
 	VIP = 0,
 }
 
+-- Lo que se muestra en la tienda del lobby para cada pase (orden = Config.GamePassOrder)
+Config.GamePassInfo = {
+	DoubleMoney = {
+		DisplayName = "x2 Billetes",
+		Description = "Cobras el doble cada noche, en todas tus partidas.",
+	},
+	PremiumFlashlight = {
+		DisplayName = "Linterna Premium",
+		Description = "Empiezas cada vida con la Linterna Pro, con un haz dorado.",
+	},
+	VIP = {
+		DisplayName = "VIP",
+		Description = "Etiqueta VIP sobre tu cabeza y nombre dorado en las salas.",
+	},
+}
+Config.GamePassOrder = { "DoubleMoney", "PremiumFlashlight", "VIP" }
+
 -- Developer Products (se crean en create.roblox.com -> tu experiencia -> Monetization).
 -- El precio en Robux se define alli; aqui solo va el ID.
 Config.DevProducts = {
 	Revive = 0, -- revivir (a ti mismo o a un companero)
 	ClassSlot = 0, -- +1 slot de clase (hasta Config.Roulette.MaxSlots)
-	PremiumSoda = 0, -- (Fase 8)
+	PremiumSoda = 0, -- soda a eleccion (Config.ChoiceSoda)
 	DiamondPacks = {
 		{ Id = 0, Amount = 100 },
 		{ Id = 0, Amount = 550 },
@@ -461,6 +762,7 @@ Config.DefaultData = {
 	MaxSlots = Config.Roulette.DefaultSlots,
 	EquippedSlot = 1,
 	ReviveTokens = 0, -- revivires comprados que no se pudieron usar
+	SodaTokens = 0, -- sodas a eleccion compradas que no se pudieron usar
 	ProcessedReceipts = {}, -- compras de Robux ya entregadas (evita entregarlas dos veces)
 	BestNight = 0,
 	Achievements = {},

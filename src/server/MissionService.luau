@@ -1,5 +1,9 @@
 -- MissionService: genera misiones emergentes durante la noche.
 --
+-- * Cada noche el equipo tiene una CUOTA de tareas (Config.getMissionGoal).
+--   Al completarla, la noche se gana (NightManager lo comprueba con GetProgress).
+-- * Lo que dan las tareas va a un FONDO COMUN del equipo (TakeTeamEarnings),
+--   que NightManager reparte a partes iguales.
 -- * Elige un tipo al azar (con pesos de Config.Missions) entre los que tengan
 --   un punto libre (parte con tag MissionSpot y atributo MissionType).
 -- * Cada mision tiene zona, tiempo limite y recompensa.
@@ -8,7 +12,6 @@
 -- * Se replican al cliente en ReplicatedStorage.GameState.Missions.
 
 local CollectionService = game:GetService("CollectionService")
-local Players = game:GetService("Players")
 local ReplicatedStorage = game:GetService("ReplicatedStorage")
 local Workspace = game:GetService("Workspace")
 
@@ -31,6 +34,14 @@ local handlers = {
 	FixLights = require(MissionsFolder.FixLights),
 	CleanSpill = require(MissionsFolder.CleanSpill),
 	TakeOutTrash = require(MissionsFolder.TakeOutTrash),
+	RestartGenerator = require(MissionsFolder.RestartGenerator),
+	LockDoors = require(MissionsFolder.LockDoors),
+	RestockStore = require(MissionsFolder.RestockStore),
+	CheckCameras = require(MissionsFolder.CheckCameras),
+	UnclogToilet = require(MissionsFolder.UnclogToilet),
+	SilenceAlarm = require(MissionsFolder.SilenceAlarm),
+	LostItem = require(MissionsFolder.LostItem),
+	WaterPlants = require(MissionsFolder.WaterPlants),
 }
 
 local MissionService = {}
@@ -40,7 +51,10 @@ MissionService.Failed = Signal.new() -- (mission)
 local rng = Random.new()
 local active = {} -- [id] = mission
 local spotBusy = {} -- [BasePart] = true
-local earnings = {} -- [Player] = numero ganado en la noche actual
+local teamEarnings = 0 -- fondo comun del equipo esta noche
+local doneCount = 0 -- tareas completadas esta noche
+local goal = 1 -- cuota de la noche
+local teamSize = 1
 local running = false
 local currentNight = 1
 local idCounter = 0
@@ -113,12 +127,21 @@ local function endMission(mission, player: Player?, silent: boolean?)
 	end
 
 	if player then
-		earnings[player] = (earnings[player] or 0) + mission.Reward
+		teamEarnings += mission.Reward
+		doneCount += 1
+		GameState.Folder:SetAttribute("MissionsDone", doneCount)
 		DataService.Update(player, function(d)
 			d.Lifetime.MissionsCompleted += 1
 		end)
 		notifyAll(
-			string.format("%s completo: %s (+%s)", player.DisplayName, mission.DisplayName, Util.formatMoney(mission.Reward)),
+			string.format(
+				"%s completó: %s (+%s para el equipo)  ·  %d/%d",
+				player.DisplayName,
+				mission.DisplayName,
+				Util.formatMoney(mission.Reward),
+				math.min(doneCount, goal),
+				goal
+			),
 			"good"
 		)
 		MissionService.Completed:Fire(mission, player)
@@ -205,17 +228,29 @@ local function trySpawn(): boolean
 	return true
 end
 
+-- Con pocas tareas activas salen enseguida; con equipos grandes, mas seguido.
 local function spawnInterval(): number
 	local s = Config.MissionSpawn
-	return math.max(s.MinInterval, s.BaseInterval + s.IntervalPerNight * (currentNight - 1))
+	if countActive() < s.MinActive then
+		return s.RefillInterval
+	end
+	local interval = s.BaseInterval + s.IntervalPerNight * (currentNight - 1)
+	interval /= 1 + s.PerExtraPlayer * (teamSize - 1)
+	return math.max(s.MinInterval, interval)
 end
 
 ----------------------------------------------------------------------
 -- API
 ----------------------------------------------------------------------
 
-function MissionService.StartNight(night: number)
+-- players = tamano del equipo esta noche (para la cuota y las misiones simultaneas)
+function MissionService.StartNight(night: number, players: number?)
 	currentNight = night
+	teamSize = math.max(players or 1, 1)
+	goal = Config.getMissionGoal(night, teamSize)
+	doneCount = 0
+	GameState.Folder:SetAttribute("MissionGoal", goal)
+	GameState.Folder:SetAttribute("MissionsDone", 0)
 	running = true
 	runToken += 1
 	local token = runToken
@@ -229,8 +264,12 @@ function MissionService.StartNight(night: number)
 					endMission(mission, nil)
 				end
 			end
+			-- Si se quedan pocas tareas activas, no esperar al intervalo completo
+			if countActive() < Config.MissionSpawn.MinActive then
+				nextSpawn = math.min(nextSpawn, os.clock() + Config.MissionSpawn.RefillInterval)
+			end
 			if os.clock() >= nextSpawn then
-				if countActive() < Config.getMaxConcurrentMissions(currentNight) then
+				if doneCount < goal and countActive() < Config.getMaxConcurrentMissions(currentNight, teamSize) then
 					trySpawn()
 				end
 				nextSpawn = os.clock() + spawnInterval()
@@ -255,20 +294,25 @@ function MissionService.ResetNight()
 			handler.ResetNight()
 		end
 	end
-	earnings = {}
+	teamEarnings = 0
+	doneCount = 0
 end
 
--- Devuelve lo ganado en misiones esta noche y lo pone a 0.
-function MissionService.TakeEarnings(player: Player): number
-	local amount = earnings[player] or 0
-	earnings[player] = nil
+-- (completadas, cuota) de la noche actual.
+function MissionService.GetProgress(): (number, number)
+	return doneCount, goal
+end
+
+-- Devuelve el fondo comun de la noche y lo pone a 0.
+function MissionService.TakeTeamEarnings(): number
+	local amount = teamEarnings
+	teamEarnings = 0
 	return amount
 end
 
 function MissionService.Start()
-	Players.PlayerRemoving:Connect(function(player)
-		earnings[player] = nil
-	end)
+	GameState.Folder:SetAttribute("MissionGoal", 0)
+	GameState.Folder:SetAttribute("MissionsDone", 0)
 end
 
 return MissionService

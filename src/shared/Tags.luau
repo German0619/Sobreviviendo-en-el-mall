@@ -9,7 +9,12 @@ return {
 	-- Parte con una luz (PointLight/SpotLight/SurfaceLight) dentro. Atributo: Zone
 	Light = "MallLight",
 	-- Lugar donde puede aparecer una mision.
-	-- Atributos: MissionType ("FixLights" | "CleanSpill" | "TakeOutTrash"), Zone (opcional)
+	-- Atributos: MissionType (una clave de Config.Missions), Zone (opcional).
+	-- FixLights: tablero electrico · CleanSpill / TakeOutTrash / LostItem: punto del suelo
+	-- RestockStore: estante de la tienda · SilenceAlarm: panel de alarma
+	-- RestartGenerator: panel del generador (atributo PowersZones = "Servicio,Bodega")
+	-- CheckCameras: monitores · UnclogToilet: inodoro (su cara Front mira a la puerta)
+	-- WaterPlants / LockDoors: solo marcan la zona (los puntos son Planter / ShutterControl)
 	MissionSpot = "MissionSpot",
 	-- Contenedor de basura donde se entregan las bolsas
 	TrashDropoff = "TrashDropoff",
@@ -24,4 +29,31 @@ return {
 	-- Maquina expendedora. Atributo: MachineType ("Cheap" | "Premium").
 	-- Su cara frontal (Front) muestra las probabilidades.
 	VendingMachine = "VendingMachine",
+	-- Escondite (casillero, probador, armario). Parte solida del tamano del escondite;
+	-- su cara frontal (Front) mira hacia donde sale el jugador. Atributo opcional: DisplayName
+	HidingSpot = "HidingSpot",
+	-- Camara de seguridad (la usa el Vigilante). Parte pequena en lo alto de una pared;
+	-- su cara frontal (Front) apunta hacia donde mira.
+	SecurityCamera = "SecurityCamera",
+
+	-- Misiones de varios puntos / de llevar objetos (ademas del MissionSpot de la mision):
+	-- Control de la persiana de una tienda (mision LockDoors). Atributo Wing = zona de la galeria
+	-- donde esta. La persiana es una parte hija llamada "Shutter".
+	ShutterControl = "ShutterControl",
+	-- Macetero (mision WaterPlants). Atributo Zone.
+	Planter = "Planter",
+	-- Donde se recogen las cajas para reponer (mision RestockStore), en la bodega.
+	StockPickup = "StockPickup",
+	-- Mostrador de objetos perdidos (mision LostItem), en informacion.
+	LostAndFound = "LostAndFound",
+
+	-- Escalera mecanica (Model). La rampa transporta a los jugadores (AssemblyLinearVelocity);
+	-- el cliente anima los escalones de su carpeta "Steps".
+	-- Atributos: Surface (CFrame del centro de la rampa, LookVector = hacia arriba),
+	-- Length (studs a lo largo de la rampa), Spacing (entre escalones), Speed (+ sube, - baja).
+	Escalator = "Escalator",
+
+	-- Agua de las fuentes (solo visual, la anima el cliente): laminas de agua que giran
+	-- despacio (atributo Spin, rad/s) y focos sumergidos que titilan (atributo Shimmer).
+	FountainWater = "FountainWater",
 }

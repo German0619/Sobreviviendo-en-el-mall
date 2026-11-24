@@ -21,6 +21,15 @@ local EVENTS = {
 	"UseItem", -- cliente -> servidor: (itemId)
 	"RequestSelfRevive", -- cliente -> servidor: revivirse (ficha o Robux)
 	"RequestBuyProduct", -- cliente -> servidor: ("ClassSlot" | "Diamonds", indice del paquete)
+	"UseFlash", -- cliente -> servidor: destello de linterna [G]
+	"UseClassAbility", -- cliente -> servidor: habilidad activa de la clase [Q] (Porrazo del Guardia)
+	"RequestUnhide", -- cliente -> servidor: salir del escondite
+	"RequestReturnToLobby", -- cliente -> servidor (mall): volver al lobby
+	"RequestStartGame", -- cliente -> servidor (mall, solo Studio/servidor no reservado): iniciar con [P]
+	"PartyState", -- servidor -> cliente (lobby): estado de tu sala, o nil si no estas en ninguna
+	"RequestBuyPass", -- cliente -> servidor: (nombre del pase en Config.GamePasses)
+	"OpenSodaPicker", -- servidor -> cliente (mall): abrir el selector de soda a eleccion
+	"RequestChoiceSoda", -- cliente -> servidor (mall): (efecto) usar ficha o comprar con Robux
 }
 
 local FUNCTIONS = {
@@ -28,6 +37,13 @@ local FUNCTIONS = {
 	"RequestPurchase", -- cliente -> servidor: (itemId) -> (ok, mensaje)
 	"RequestSpin", -- cliente -> servidor: () -> (ok, mensaje, className). Reemplaza la clase equipada.
 	"RequestEquipSlot", -- cliente -> servidor: (slot) -> (ok, mensaje)
+	-- Lobby (Fase 6)
+	"RequestRoomList", -- () -> { salas publicas }
+	"RequestCreateRoom", -- (esPublica, nombre) -> (ok, mensaje). Crea la sala y te mete en ella
+	"RequestJoinRoom", -- (idSala) -> (ok, mensaje)
+	"RequestJoinByCode", -- (codigo) -> (ok, mensaje)
+	"RequestLeaveRoom", -- () -> (ok, mensaje)
+	"RequestStartRoom", -- () -> (ok, mensaje). Solo el anfitrion: todos viajan al mall
 }
 
 local IS_SERVER = RunService:IsServer()

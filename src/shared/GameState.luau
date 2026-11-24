@@ -6,6 +6,7 @@
 --   Night        numero de noche
 --   GameHour     0..6 (12 AM -> 6 AM)
 --   PhaseEndsAt  workspace:GetServerTimeNow() en que termina la fase (0 = sin limite)
+--   HostUserId   UserId del anfitrion de la sala (el que puede iniciar la partida)
 -- GameState.Missions (Folder): un Configuration por mision activa con atributos
 --   Type, DisplayName, Zone, ExpiresAt, Reward
 

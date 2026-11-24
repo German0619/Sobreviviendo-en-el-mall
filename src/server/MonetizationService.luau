@@ -6,6 +6,11 @@
 --     data.ProcessedReceipts y se guarda en DataStore ANTES de confirmar.
 --   * Si algo falla, se devuelve NotProcessedYet y Roblox lo reintenta luego.
 -- Los IDs van en Config.DevProducts (0 = aun no creado en la web de Roblox).
+-- Los Game Passes van aparte, en PassService.
+--
+-- Politica de objetos aleatorios: los diamantes solo sirven para la ruleta
+-- (aleatoria). Si el pais del jugador restringe objetos aleatorios pagados
+-- (atributo PaidRandomRestricted, lo pone ClassService), no se le venden.
 
 local MarketplaceService = game:GetService("MarketplaceService")
 local Players = game:GetService("Players")
@@ -17,6 +22,7 @@ local Remotes = require(Shared.Remotes)
 
 local DataService = require(script.Parent.DataService)
 local ReviveService = require(script.Parent.ReviveService)
+local VendingService = require(script.Parent.VendingService)
 
 local MonetizationService = {}
 
@@ -57,6 +63,10 @@ local function buildHandlers()
 		end)
 		notify(player, string.format("¡Nuevo slot de clase! Ahora tienes %d.", data.MaxSlots), "good")
 		return true
+	end)
+
+	register(Config.DevProducts.PremiumSoda, function(player)
+		return VendingService.OnChoiceSodaPurchased(player)
 	end)
 
 	for _, pack in Config.DevProducts.DiamondPacks do
@@ -125,6 +135,11 @@ local function promptProduct(player: Player, kind: any, index: any)
 		end
 		productId = Config.DevProducts.ClassSlot
 	elseif kind == "Diamonds" and type(index) == "number" then
+		-- nil = aun no se sabe: se trata como restringido
+		if player:GetAttribute("PaidRandomRestricted") ~= false then
+			notify(player, "En tu país los diamantes no están a la venta (solo se ganan jugando).", "info")
+			return
+		end
 		local pack = Config.DevProducts.DiamondPacks[index]
 		productId = if pack then pack.Id else 0
 	else

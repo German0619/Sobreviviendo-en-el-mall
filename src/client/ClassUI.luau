@@ -1,5 +1,6 @@
--- ClassUI: ruleta de clases y slots (tecla C fuera de la noche).
--- En la Fase 6 esta ventana pasa al lobby.
+-- ClassUI: ruleta de clases y slots (tecla C, o el boton CLASES del lobby).
+-- Se usa en el lobby; en el mall solo en Studio para probar
+-- (Config.Debug.ClassesInMallInStudio).
 --
 -- * Girar cuesta diamantes; el servidor decide el resultado y aqui solo se anima.
 -- * La clase que sale reemplaza automaticamente a la del slot equipado.
@@ -15,8 +16,10 @@ local Config = require(Shared.Config)
 local Util = require(Shared.Util)
 local Remotes = require(Shared.Remotes)
 local GameState = require(Shared.GameState)
+local Place = require(Shared.Place)
 local UIKit = require(script.Parent.UIKit)
 local HUD = require(script.Parent.HUD)
+local StoreUI = require(script.Parent.StoreUI)
 
 local player = Players.LocalPlayer
 local C = UIKit.COLORS
@@ -327,6 +330,10 @@ refresh = function()
 end
 
 function ClassUI.Open()
+	if not Place.ClassesEnabledHere() then
+		HUD.Toast("La ruleta y los slots están en el lobby. Pulsa [L] para volver.", "info")
+		return
+	end
 	if GameState.Folder:GetAttribute("Phase") == "Night" then
 		HUD.Toast("La ruleta y los slots no están disponibles durante la noche.", "bad")
 		return
@@ -376,20 +383,21 @@ local function build()
 		ZIndex = 22,
 		Parent = content,
 	})
-	for i, pack in Config.DevProducts.DiamondPacks do
-		UIKit.button({
-			AnchorPoint = Vector2.new(1, 0),
-			Position = UDim2.new(1, -(#Config.DevProducts.DiamondPacks - i) * 82, 0, 0),
-			Size = UDim2.fromOffset(76, 28),
-			BackgroundColor3 = Color3.fromRGB(0, 140, 70),
-			TextSize = 13,
-			Text = string.format("+%d %s", pack.Amount, DIAMOND),
-			ZIndex = 22,
-			Parent = content,
-		}, function()
-			Remotes.event("RequestBuyProduct"):FireServer("Diamonds", i)
-		end)
-	end
+	-- Comprar diamantes: en la tienda del lobby
+	UIKit.button({
+		AnchorPoint = Vector2.new(1, 0),
+		Position = UDim2.new(1, 0, 0, 0),
+		Size = UDim2.fromOffset(170, 28),
+		BackgroundColor3 = Color3.fromRGB(170, 120, 20),
+		TextSize = 13,
+		Text = "Tienda  (" .. DIAMOND .. ", slots, pases)",
+		Visible = Place.IsLobby,
+		ZIndex = 22,
+		Parent = content,
+	}, function()
+		ClassUI.Close()
+		StoreUI.Open()
+	end)
 
 	-- Slots
 	sectionTitle(content, 38, "TUS SLOTS  (la clase equipada es la que usas en la partida)")

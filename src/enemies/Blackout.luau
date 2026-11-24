@@ -4,6 +4,10 @@
 -- Cada mision "Reparar luces" fallada lo hace mas rapido y resistente.
 --
 -- Estados: Roam (va a una zona) -> Darken (parpadeo) -> Hunt -> (Flee) -> Roam
+--
+-- Contramedidas: linterna (retrocede y huye), destello y porrazo (huye al instante),
+-- bengalas (no entra en su radio y no siente a quien este dentro), petardos
+-- (lo distraen) y esconderse.
 
 local ServerScriptService = game:GetService("ServerScriptService")
 local Shared = game:GetService("ReplicatedStorage"):WaitForChild("Shared")
@@ -12,6 +16,7 @@ local Config = require(Shared.Config)
 local Server = ServerScriptService:WaitForChild("Server")
 local LightService = require(Server:WaitForChild("LightService"))
 local FlashlightService = require(Server:WaitForChild("FlashlightService"))
+local DefenseService = require(Server:WaitForChild("DefenseService"))
 
 local Common = require(script.Parent.Common)
 
@@ -95,7 +100,13 @@ function Blackout.new(spawnPosition: Vector3, ctx)
 	self.Ctx = ctx
 	self.Model = model
 	self.ReasonKey = "Blackout_" .. idCounter
-	self.Mover = Common.newMover(model, { Speed = def.Speed, Height = height, Ghost = true, HoverY = hoverY })
+	self.Mover = Common.newMover(model, {
+		Speed = def.Speed,
+		Height = height,
+		Ghost = true,
+		HoverY = hoverY,
+		HoverOffset = def.HoverHeight, -- sigue el piso de su destino (2 plantas)
+	})
 	self.State = "Roam"
 	self.Zone = nil
 	self.DarkZone = nil
@@ -103,6 +114,8 @@ function Blackout.new(spawnPosition: Vector3, ctx)
 	self.LastSeenVictim = os.clock()
 	self.Exposure = 0
 	self.LastAttack = 0
+	self.RepelUntil = 0
+	self.RepelFrom = nil :: Vector3?
 	self.Awareness = Common.newAwareness(ctx)
 	return self
 end
@@ -128,7 +141,8 @@ function Blackout:ChooseZone(exclude: string?): string?
 	local weights = {}
 	local total = 0
 	for _, zone in LightService.GetZones() do
-		if zone ~= exclude then
+		-- Las zonas oscuras por diseño (servicio, oficinas...) no tiene sentido apagarlas
+		if zone ~= exclude and not LightService.IsAmbientDark(zone) then
 			local w = 1
 			for _, player in Common.getAlivePlayers() do
 				local root = Common.getRoot(player)
@@ -169,10 +183,39 @@ function Blackout:Flee()
 	end
 end
 
+-- Se aleja de `from` en horizontal.
+function Blackout:MoveAway(dt: number, position: Vector3, from: Vector3, speedMultiplier: number)
+	local away = Vector3.new(position.X - from.X, 0, position.Z - from.Z)
+	if away.Magnitude < 0.01 then
+		away = Vector3.new(1, 0, 0)
+	end
+	self.Mover:MoveTowards(position + away.Unit * 8)
+	self.Mover.Speed = self:GetSpeed() * speedMultiplier
+	self.Mover:Step(dt)
+end
+
 function Blackout:Update(dt: number)
 	local now = os.clock()
 	local position = self.Model:GetPivot().Position
 	self.Mover.Speed = self:GetSpeed()
+
+	if Common.isStunned(self.Model) then
+		return
+	end
+
+	-- 0) Las bengalas lo repelen (sigue alejandose un momento para no temblar en el borde)
+	if self.State ~= "Flee" then
+		local flare = DefenseService.GetFlareNear(position, 3)
+		if flare then
+			self.RepelFrom = flare
+			self.RepelUntil = now + 1
+		end
+		if self.RepelFrom and now < self.RepelUntil then
+			self:MoveAway(dt, position, self.RepelFrom, 1.3)
+			return
+		end
+		self.RepelFrom = nil
+	end
 
 	-- 1) La linterna lo empuja hacia atras
 	if self.State ~= "Flee" then
@@ -181,12 +224,7 @@ function Blackout:Update(dt: number)
 			self.Exposure += dt
 			local root = Common.getRoot(lighters[1])
 			if root then
-				local away = Vector3.new(position.X - root.Position.X, 0, position.Z - root.Position.Z)
-				if away.Magnitude > 0.01 then
-					self.Mover:MoveTowards(position + away.Unit * 8)
-					self.Mover.Speed = self:GetSpeed() * 1.3
-					self.Mover:Step(dt)
-				end
+				self:MoveAway(dt, position, root.Position, 1.3)
 			end
 			if self.Exposure >= self.Def.ExposureToFlee * self:GetPower() then
 				self:Flee()
@@ -196,13 +234,28 @@ function Blackout:Update(dt: number)
 		self.Exposure = math.max(0, self.Exposure - dt * 0.5)
 	end
 
-	-- 2) Maquina de estados
+	-- 2) Un petardo lo distrae mientras busca o caza
+	if self.State == "Roam" or self.State == "Hunt" then
+		local lure = DefenseService.GetLure(position)
+		if lure then
+			self.Mover:MoveTowards(lure)
+			self.Mover:Step(dt)
+			return
+		end
+	end
+
+	-- 3) Maquina de estados
 	if self.State == "Roam" then
 		if not self.Zone then
 			self.Zone = self:ChooseZone(nil)
 		end
 		local center = self.Zone and LightService.GetZoneCenter(self.Zone)
 		if not center then
+			return
+		end
+		-- No apaga una zona con una bengala en el centro: busca otra
+		if DefenseService.IsInFlare(center) then
+			self.Zone = self:ChooseZone(self.Zone)
 			return
 		end
 		self.Mover:MoveTowards(center)
@@ -220,13 +273,14 @@ function Blackout:Update(dt: number)
 			self:SetState("Hunt")
 		end
 	elseif self.State == "Hunt" then
-		-- Siente a quien este en su zona oscura (tras el tiempo de deteccion)
-		local target, root, dist = self.Awareness:Update(dt, position, function(_player, r)
-			return LightService.GetZoneAt(r.Position) == self.Zone
+		-- Siente a quien este en su zona oscura (tras el tiempo de deteccion),
+		-- salvo que este dentro de la luz de una bengala
+		local target, root, dist, targetPos = self.Awareness:Update(dt, position, function(_player, r)
+			return LightService.GetZoneAt(r.Position) == self.Zone and not DefenseService.IsInFlare(r.Position)
 		end)
-		if target and root then
+		if target and root and targetPos then
 			self.LastSeenVictim = now
-			self.Mover:MoveTowards(root.Position)
+			self.Mover:MoveTowards(targetPos)
 			self.Mover:Step(dt)
 			if dist <= self.Def.AttackRange + 2 and now - self.LastAttack >= self.Def.AttackCooldown then
 				self.LastAttack = now
@@ -244,6 +298,17 @@ function Blackout:Update(dt: number)
 			self:SetState("Roam")
 		end
 	end
+end
+
+-- Destello o porrazo: huye al instante a otra zona.
+function Blackout:OnFlash(_player: Player)
+	if self.State ~= "Flee" then
+		self:Flee()
+	end
+end
+
+function Blackout:OnShove(player: Player, _direction: Vector3)
+	self:OnFlash(player)
 end
 
 function Blackout:Destroy()

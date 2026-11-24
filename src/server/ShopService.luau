@@ -19,6 +19,7 @@ local Remotes = require(Shared.Remotes)
 local DataService = require(script.Parent.DataService)
 local RunState = require(script.Parent.RunState)
 local FlashlightService = require(script.Parent.FlashlightService)
+local DefenseService = require(script.Parent.DefenseService)
 
 local ShopService = {}
 
@@ -102,6 +103,9 @@ function ShopService.Purchase(player: Player, itemId: any): (boolean, string)
 	end
 
 	local owned = ShopService.GetCount(player, itemId)
+	if itemId == "FlashlightPro" and player:GetAttribute("Pass_PremiumFlashlight") == true then
+		return false, "Ya la tienes con el pase Linterna Premium"
+	end
 	if item.Unique and owned >= 1 then
 		return false, "Ya lo tienes"
 	end
@@ -151,6 +155,14 @@ function ShopService.UseItem(player: Player, itemId: any)
 		end
 		humanoid.Health = math.min(humanoid.MaxHealth, humanoid.Health + (item.Amount or 0))
 		notify(player, string.format("+%d de vida.", item.Amount or 0), "good")
+	elseif item.Use == "ThrowFlare" then
+		if not DefenseService.ThrowFlare(player) then
+			return
+		end
+	elseif item.Use == "ThrowFirecracker" then
+		if not DefenseService.ThrowFirecracker(player) then
+			return
+		end
 	else
 		return
 	end

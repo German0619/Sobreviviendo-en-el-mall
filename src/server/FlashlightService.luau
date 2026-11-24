@@ -18,9 +18,18 @@ local ATTACHMENT_NAME = "FlashlightAttachment"
 local COS_DETECT = math.cos(math.rad(Config.Flashlight.DetectHalfAngle))
 local COS_DETECT_PRO = math.cos(math.rad(Config.Flashlight.DetectHalfAngle + Config.FlashlightPro.ExtraDetectAngle))
 
+local NORMAL_COLOR = Color3.fromRGB(255, 244, 214)
+local PREMIUM_COLOR = Color3.fromRGB(255, 205, 110) -- haz dorado del pase Linterna Premium
+
+-- Pase Linterna Premium (lo publica PassService)
+local function hasPremiumPass(player: Player): boolean
+	return player:GetAttribute("Pass_PremiumFlashlight") == true
+end
+
 -- El inventario (por vida) lo lleva ShopService y lo publica en atributos del servidor.
+-- El pase Linterna Premium cuenta como tener siempre la Linterna Pro.
 local function hasPro(player: Player): boolean
-	return (player:GetAttribute("Item_FlashlightPro") or 0) > 0
+	return (player:GetAttribute("Item_FlashlightPro") or 0) > 0 or hasPremiumPass(player)
 end
 
 local function getMaxBattery(player: Player): number
@@ -45,7 +54,8 @@ function FlashlightService.IsOn(player: Player): boolean
 end
 
 function FlashlightService.SetOn(player: Player, on: boolean)
-	if on and ((player:GetAttribute("Battery") or 0) <= 0 or not isAlive(player)) then
+	-- Escondido (DefenseService) no se puede encender: la luz te delataria.
+	if on and ((player:GetAttribute("Battery") or 0) <= 0 or not isAlive(player) or player:GetAttribute("Hidden") == true) then
 		on = false
 	end
 	player:SetAttribute("FlashlightOn", on)
@@ -66,14 +76,46 @@ function FlashlightService.Refresh(player: Player)
 	local light = getSpotLight(player)
 	if light then
 		light.Angle = Config.Flashlight.Angle + (if hasPro(player) then Config.FlashlightPro.ExtraAngle else 0)
+		light.Color = if hasPremiumPass(player) then PREMIUM_COLOR else NORMAL_COLOR
 	end
 end
 
--- Devuelve true si la linterna de `player` alumbra `position` (cono + linea de vision).
-function FlashlightService.IsLighting(player: Player, position: Vector3): boolean
-	if not FlashlightService.IsOn(player) then
+-- Gasta bateria. Devuelve false (sin gastar) si no alcanza.
+function FlashlightService.TrySpendBattery(player: Player, amount: number): boolean
+	local current = player:GetAttribute("Battery") or 0
+	if current < amount then
 		return false
 	end
+	player:SetAttribute("Battery", current - amount)
+	if current - amount <= 0 then
+		FlashlightService.SetOn(player, false)
+	end
+	return true
+end
+
+-- Fogonazo visual del destello: la linterna brilla mucho un instante.
+function FlashlightService.Burst(player: Player, duration: number)
+	local light = getSpotLight(player)
+	if not light then
+		return
+	end
+	light.Enabled = true
+	light.Brightness = Config.Flashlight.Brightness * 5
+	light.Range = Config.Flashlight.Range * 1.4
+	light.Angle = Config.Flashlight.Angle + 25
+	task.delay(duration, function()
+		if light.Parent then
+			light.Brightness = Config.Flashlight.Brightness
+			light.Range = Config.Flashlight.Range
+			FlashlightService.Refresh(player)
+			light.Enabled = FlashlightService.IsOn(player)
+		end
+	end)
+end
+
+-- Cono de la linterna (este encendida o no): distancia, angulo y linea de vision.
+-- extraHalfAngle: grados extra sobre el cono normal (el destello es mas ancho).
+function FlashlightService.InCone(player: Player, position: Vector3, range: number?, extraHalfAngle: number?): boolean
 	local character = player.Character
 	local head = character and character:FindFirstChild("Head")
 	local root = character and character:FindFirstChild("HumanoidRootPart")
@@ -83,7 +125,7 @@ function FlashlightService.IsLighting(player: Player, position: Vector3): boolea
 
 	local toTarget = position - head.Position
 	local dist = toTarget.Magnitude
-	if dist > Config.Flashlight.Range or dist < 0.01 then
+	if dist > (range or Config.Flashlight.Range) or dist < 0.01 then
 		return false
 	end
 
@@ -94,7 +136,14 @@ function FlashlightService.IsLighting(player: Player, position: Vector3): boolea
 	if look.Magnitude < 0.01 or flat.Magnitude < 0.01 then
 		return dist < 4
 	end
-	if look.Unit:Dot(flat.Unit) < (if hasPro(player) then COS_DETECT_PRO else COS_DETECT) then
+	local cosLimit = if hasPro(player) then COS_DETECT_PRO else COS_DETECT
+	if extraHalfAngle then
+		local half = Config.Flashlight.DetectHalfAngle
+			+ (if hasPro(player) then Config.FlashlightPro.ExtraDetectAngle else 0)
+			+ extraHalfAngle
+		cosLimit = math.cos(math.rad(math.min(half, 89)))
+	end
+	if look.Unit:Dot(flat.Unit) < cosLimit then
 		return false
 	end
 
@@ -116,6 +165,11 @@ function FlashlightService.IsLighting(player: Player, position: Vector3): boolea
 	end
 	params.FilterDescendantsInstances = exclude
 	return Workspace:Raycast(head.Position, toTarget, params) == nil
+end
+
+-- Devuelve true si la linterna de `player` alumbra `position` (encendida + cono + linea de vision).
+function FlashlightService.IsLighting(player: Player, position: Vector3): boolean
+	return FlashlightService.IsOn(player) and FlashlightService.InCone(player, position)
 end
 
 function FlashlightService.GetLightingPlayers(position: Vector3): { Player }
@@ -142,7 +196,7 @@ local function onCharacterAdded(player: Player, character: Model)
 	light.Range = Config.Flashlight.Range
 	light.Angle = Config.Flashlight.Angle + (if hasPro(player) then Config.FlashlightPro.ExtraAngle else 0)
 	light.Brightness = Config.Flashlight.Brightness
-	light.Color = Color3.fromRGB(255, 244, 214)
+	light.Color = if hasPremiumPass(player) then PREMIUM_COLOR else NORMAL_COLOR
 	light.Shadows = true
 	light.Face = Enum.NormalId.Front
 	light.Enabled = false
@@ -172,6 +226,10 @@ function FlashlightService.Start()
 		if player.Character then
 			task.spawn(onCharacterAdded, player, player.Character)
 		end
+		-- Pase comprado durante la partida: actualizar el haz
+		player:GetAttributeChangedSignal("Pass_PremiumFlashlight"):Connect(function()
+			FlashlightService.Refresh(player)
+		end)
 		-- Si sube la bateria maxima (mejora), no dejar la actual por encima del limite.
 		player:GetAttributeChangedSignal("MaxBattery"):Connect(function()
 			local max = getMaxBattery(player)

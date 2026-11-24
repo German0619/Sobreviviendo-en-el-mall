@@ -47,6 +47,7 @@ export type PlayerData = {
 	MaxSlots: number,
 	EquippedSlot: number,
 	ReviveTokens: number,
+	SodaTokens: number,
 	ProcessedReceipts: { string },
 	BestNight: number,
 	Achievements: { [string]: boolean },

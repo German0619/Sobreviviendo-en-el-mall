@@ -9,6 +9,7 @@ local Lighting = game:GetService("Lighting")
 local ReplicatedStorage = game:GetService("ReplicatedStorage")
 
 local Shared = ReplicatedStorage:WaitForChild("Shared")
+local Config = require(Shared.Config)
 local Tags = require(Shared.Tags)
 local GameState = require(Shared.GameState)
 local Util = require(Shared.Util)
@@ -137,8 +138,24 @@ function LightService.Flicker(zone: string, duration: number)
 	end)
 end
 
+-- Zonas siempre oscuras (Config.DarkZones): razon permanente "Ambient".
+local AMBIENT = "Ambient"
+local function applyAmbientDark()
+	for _, zone in Config.DarkZones or {} do
+		reasons[zone] = reasons[zone] or {}
+		reasons[zone][AMBIENT] = true
+		GameState.Folder:SetAttribute("Ambient_" .. Util.attributeKey(zone), true)
+	end
+end
+
+-- true si la zona es oscura por diseño (no por un apagon o luces rotas).
+function LightService.IsAmbientDark(zone: string): boolean
+	return LightService.HasReason(zone, AMBIENT)
+end
+
 function LightService.ResetAll()
 	reasons = {}
+	applyAmbientDark()
 	for zone in lightsByZone do
 		applyZone(zone)
 	end
@@ -214,17 +231,47 @@ local function setupAmbience()
 	Lighting.ExposureCompensation = 0
 	local atmosphere = Lighting:FindFirstChildOfClass("Atmosphere")
 	if atmosphere then
-		atmosphere.Density = 0.35
+		-- Bruma ligera: oscurece lo lejano sin tapar el interior (con 0.35 se veia todo negro)
+		atmosphere.Density = 0.14
 		atmosphere.Offset = 0
 		atmosphere.Color = Color3.fromRGB(15, 15, 20)
 		atmosphere.Decay = Color3.fromRGB(5, 5, 8)
 		atmosphere.Glare = 0
-		atmosphere.Haze = 1
+		atmosphere.Haze = 0.7
+	end
+
+	-- Postprocesado "realista": un poco de contraste, tono frio de noche y un bloom
+	-- suave que solo afecta a las lamparas (Threshold alto) y no a las paredes.
+	local function effect(className: string, name: string): Instance
+		local e = Lighting:FindFirstChild(name)
+		if not e then
+			e = Instance.new(className)
+			e.Name = name
+			e.Parent = Lighting
+		end
+		return e
+	end
+	local grade = effect("ColorCorrectionEffect", "MallGrade") :: ColorCorrectionEffect
+	grade.Brightness = 0.02
+	grade.Contrast = 0.12
+	grade.Saturation = -0.12
+	grade.TintColor = Color3.fromRGB(238, 242, 255)
+	local bloom = Lighting:FindFirstChildOfClass("BloomEffect") or effect("BloomEffect", "Bloom")
+	local b = bloom :: BloomEffect
+	b.Intensity = 0.55
+	b.Size = 28
+	b.Threshold = 1.4
+	-- Los rayos de sol y la profundidad de campo no pintan nada dentro de un mall de noche
+	for _, e in Lighting:GetChildren() do
+		if e:IsA("SunRaysEffect") or e:IsA("DepthOfFieldEffect") then
+			e.Enabled = false
+		end
 	end
 end
 
 function LightService.Start()
 	setupAmbience()
+	applyAmbientDark()
 
 	for _, inst in CollectionService:GetTagged(Tags.Zone) do
 		registerZone(inst)
@@ -236,6 +283,9 @@ function LightService.Start()
 	end
 	CollectionService:GetInstanceAddedSignal(Tags.Light):Connect(registerLight)
 	CollectionService:GetInstanceRemovedSignal(Tags.Light):Connect(unregisterLight)
+	for _, zone in Config.DarkZones or {} do
+		applyZone(zone)
+	end
 end
 
 return LightService

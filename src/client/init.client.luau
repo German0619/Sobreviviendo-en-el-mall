@@ -1,9 +1,35 @@
 --!strict
--- Punto de entrada del cliente. Arranca cada ModuleScript hijo que tenga Start().
--- (Fase 2+: HUD, Flashlight, MissionUI, ShopUI, ClassUI, Sounds)
+-- Punto de entrada del cliente. Arranca cada ModuleScript hijo que tenga Start(),
+-- segun el place (ver shared/Place):
+--   * Lobby: solo los modulos de LOBBY_MODULES.
+--   * Mall:  todos menos los de LOBBY_ONLY.
+
+local ReplicatedStorage = game:GetService("ReplicatedStorage")
+
+local Place = require(ReplicatedStorage:WaitForChild("Shared"):WaitForChild("Place"))
+
+local LOBBY_MODULES = {
+	HUD = true, -- en modo lobby: avisos, diamantes y clase
+	ClassUI = true,
+	LobbyUI = true,
+	StoreUI = true,
+	Movement = true,
+}
+
+local LOBBY_ONLY = {
+	LobbyUI = true,
+	StoreUI = true,
+}
+
+local function shouldStart(name: string): boolean
+	if Place.IsLobby then
+		return LOBBY_MODULES[name] == true
+	end
+	return not LOBBY_ONLY[name]
+end
 
 for _, child in script:GetChildren() do
-	if child:IsA("ModuleScript") then
+	if child:IsA("ModuleScript") and shouldStart(child.Name) then
 		local ok, mod = pcall(require, child)
 		if ok and type(mod) == "table" and type(mod.Start) == "function" then
 			task.spawn(mod.Start)
@@ -13,4 +39,4 @@ for _, child in script:GetChildren() do
 	end
 end
 
-print("[Client] Sobreviviendo en el Mall: cliente iniciado")
+print(string.format("[Client] Sobreviviendo en el Mall: cliente iniciado (%s)", Place.Role))

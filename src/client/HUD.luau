@@ -1,5 +1,6 @@
 -- HUD: hora, noche, fase, dinero, barras (vida/estamina/bateria), tareas,
 -- avisos y pantalla de resultados. Todo construido por codigo.
+-- En el lobby solo muestra avisos, diamantes y la clase equipada.
 
 local CollectionService = game:GetService("CollectionService")
 local Players = game:GetService("Players")
@@ -14,6 +15,7 @@ local Tags = require(Shared.Tags)
 local Util = require(Shared.Util)
 local Remotes = require(Shared.Remotes)
 local GameState = require(Shared.GameState)
+local Place = require(Shared.Place)
 
 local player = Players.LocalPlayer
 
@@ -125,12 +127,13 @@ end
 ----------------------------------------------------------------------
 
 local gui, clockLabel, nightLabel, phaseLabel, moneyLabel, zoneLabel, itemsLabel, sodaLabel, classLabel
-local diamondsLabel, deadSubtitle, reviveButton
+local diamondsLabel, deadSubtitle, reviveButton, missionsTitle
 local bars = {}
 local missionList, missionEntries = nil, {}
 local toastList
 local resultsPanel, resultsTitle, resultsBody
 local deadOverlay
+local nightOnly = {} -- elementos que no se muestran en el lobby
 
 local function build()
 	gui = make("ScreenGui", {
@@ -149,6 +152,7 @@ local function build()
 		BackgroundTransparency = 1,
 		Parent = gui,
 	})
+	table.insert(nightOnly, top)
 	clockLabel = text({ Size = UDim2.new(1, 0, 0, 40), TextSize = 38, Text = "12:00 AM", Parent = top })
 	nightLabel = text({
 		Position = UDim2.fromOffset(0, 40),
@@ -179,6 +183,7 @@ local function build()
 		Text = "$0",
 		Parent = gui,
 	})
+	table.insert(nightOnly, moneyLabel)
 
 	-- Debajo de los billetes: diamantes y clase equipada
 	diamondsLabel = text({
@@ -215,6 +220,7 @@ local function build()
 			VerticalAlignment = Enum.VerticalAlignment.Bottom,
 		}),
 	})
+	table.insert(nightOnly, barsFrame)
 	zoneLabel = text({
 		Size = UDim2.new(1, 0, 0, 18),
 		TextXAlignment = Enum.TextXAlignment.Left,
@@ -233,7 +239,7 @@ local function build()
 	itemsLabel = text({
 		AnchorPoint = Vector2.new(0.5, 1),
 		Position = UDim2.new(0.5, 0, 1, -18),
-		Size = UDim2.fromOffset(520, 24),
+		Size = UDim2.fromOffset(720, 24),
 		TextSize = 16,
 		Text = "",
 		Parent = gui,
@@ -241,11 +247,14 @@ local function build()
 	sodaLabel = text({
 		AnchorPoint = Vector2.new(0.5, 1),
 		Position = UDim2.new(0.5, 0, 1, -46),
-		Size = UDim2.fromOffset(520, 22),
+		Size = UDim2.fromOffset(760, 22),
 		TextSize = 15,
 		Text = "",
+		RichText = true, -- cada soda con su color
 		Parent = gui,
 	})
+	table.insert(nightOnly, itemsLabel)
+	table.insert(nightOnly, sodaLabel)
 
 	-- Derecha: tareas
 	local missionsFrame = make("Frame", {
@@ -255,11 +264,13 @@ local function build()
 		BackgroundTransparency = 1,
 		Parent = gui,
 	})
-	text({
+	table.insert(nightOnly, missionsFrame)
+	missionsTitle = text({
 		Size = UDim2.new(1, 0, 0, 22),
 		TextXAlignment = Enum.TextXAlignment.Right,
 		TextSize = 16,
 		Text = "TAREAS",
+		RichText = true,
 		Parent = missionsFrame,
 	})
 	missionList = make("Frame", {
@@ -419,8 +430,10 @@ end
 local function updateMissions(now: number)
 	for value, entry in missionEntries do
 		local remaining = (value:GetAttribute("ExpiresAt") or now) - now
+		local progress = value:GetAttribute("Progress")
 		entry.Detail.Text = string.format(
-			"%s  ·  %s  ·  +%s",
+			"%s%s  ·  %s  ·  +%s",
+			if type(progress) == "string" then progress .. "  ·  " else "",
 			value:GetAttribute("Zone") or "?",
 			formatTime(remaining),
 			Util.formatMoney(value:GetAttribute("Reward") or 0)
@@ -498,20 +511,39 @@ local function showResults(data)
 	end
 	resultsTitle.Text = title
 
+	-- Cayo todo el equipo: sin pago
+	if data.GameOver then
+		local goal = GameState.Folder:GetAttribute("MissionGoal") or 0
+		local done = math.min(GameState.Folder:GetAttribute("MissionsDone") or 0, goal)
+		resultsBody.Text = table.concat({
+			string.format("Todo el equipo cayó en la noche %d.", data.Night),
+			string.format("Tareas completadas: <b>%d/%d</b>", done, goal),
+			"",
+			"Sin pago esta noche.",
+			"Volviendo al lobby en breve...",
+		}, "\n")
+		resultsPanel.Visible = true
+		return
+	end
+
 	local lines = {
 		string.format("Pago base: <b>%s</b>", Util.formatMoney(data.Base)),
-		string.format("Tareas: <b>%s</b>", Util.formatMoney(data.Missions)),
-		string.format("Supervivencia: <b>%s</b>", Util.formatMoney(data.Survival)),
+		string.format(
+			"Tareas: <b>%s</b>  <font color=\"#9696A0\">(tu parte de %s entre %d)</font>",
+			Util.formatMoney(data.Missions),
+			Util.formatMoney(data.MissionsPool or data.Missions),
+			data.TeamSize or 1
+		),
+		string.format("Noche completada: <b>%s</b>", Util.formatMoney(data.Survival)),
 	}
 	if data.Bonus > 0 then
 		table.insert(lines, string.format("Bonus de clase: <b>%s</b>", Util.formatMoney(data.Bonus)))
 	end
+	if (data.PassBonus or 0) > 0 then
+		table.insert(lines, string.format('<font color="#FFC850">Pase x2 Billetes: <b>%s</b></font>', Util.formatMoney(data.PassBonus)))
+	end
 	table.insert(lines, "")
 	table.insert(lines, string.format('<font size="24" color="#FFC850"><b>TOTAL: %s</b></font>', Util.formatMoney(data.Total)))
-	if data.GameOver then
-		table.insert(lines, "")
-		table.insert(lines, string.format("Llegaste a la noche %d. Nueva partida en breve.", data.Night))
-	end
 	resultsBody.Text = table.concat(lines, "\n")
 	resultsPanel.Visible = true
 end
@@ -520,7 +552,21 @@ end
 -- Actualizacion
 ----------------------------------------------------------------------
 
+-- Lobby: solo diamantes y clase equipada
+local function updateLobby()
+	local classDef = Config.Classes[player:GetAttribute("EquippedClass") or ""]
+	if classDef and not player:GetAttribute("SpinAnimating") then
+		classLabel.Text = classDef.DisplayName
+		classLabel.TextColor3 = Config.Rarities[classDef.Rarity].Color
+	end
+	diamondsLabel.Text = string.format("◆ %d", player:GetAttribute("Diamonds") or 0)
+end
+
 local function update()
+	if Place.IsLobby then
+		updateLobby()
+		return
+	end
 	local state = GameState.Folder
 	local now = Workspace:GetServerTimeNow()
 	local phase = state:GetAttribute("Phase") or "Waiting"
@@ -534,7 +580,10 @@ local function update()
 		phaseText ..= "  ·  " .. formatTime(endsAt - now)
 	end
 	if phase ~= "Night" then
-		phaseText ..= "   [U] Mejoras   [C] Clases"
+		phaseText ..= "   [U] Mejoras"
+		if Place.ClassesEnabledHere() then
+			phaseText ..= "   [C] Clases"
+		end
 	end
 	phaseLabel.Text = phaseText
 
@@ -554,15 +603,29 @@ local function update()
 	end
 	itemsLabel.Text = table.concat(slots, "     ")
 
-	-- Soda activa
-	local sodaName = player:GetAttribute("SodaName")
-	if sodaName then
-		local remaining = (player:GetAttribute("SodaEndsAt") or now) - now
-		sodaLabel.Text = string.format("Soda: %s  (%ds)", sodaName, math.max(0, math.ceil(remaining)))
-		sodaLabel.TextColor3 = if player:GetAttribute("SodaPositive") then COLORS.Good else COLORS.Bad
-	else
-		sodaLabel.Text = ""
+	-- Sodas activas (positiva en verde, negativas acumuladas en rojo, cada una con su tiempo)
+	local sodas = {}
+	for name, value in player:GetAttributes() do
+		if string.sub(name, 1, 9) == "SodaEnds_" and type(value) == "number" and value > now then
+			local id = string.sub(name, 10)
+			local effect = Config.SodaEffects[id]
+			if effect then
+				table.insert(sodas, { Effect = effect, Remaining = value - now })
+			end
+		end
 	end
+	table.sort(sodas, function(a, b)
+		if a.Effect.Positive ~= b.Effect.Positive then
+			return a.Effect.Positive
+		end
+		return a.Remaining > b.Remaining
+	end)
+	local parts = {}
+	for _, s in sodas do
+		local hex = if s.Effect.Positive then "#6EDC82" else "#EB6464"
+		table.insert(parts, string.format('<font color="%s">%s %ds</font>', hex, s.Effect.DisplayName, math.ceil(s.Remaining)))
+	end
+	sodaLabel.Text = if #parts > 0 then "Sodas: " .. table.concat(parts, "  ·  ") else ""
 
 	moneyLabel.Text = Util.formatMoney(player:GetAttribute("Money") or 0)
 	diamondsLabel.Text = string.format("◆ %d", player:GetAttribute("Diamonds") or 0)
@@ -604,15 +667,37 @@ local function update()
 			end
 		end
 	end
+	local zoneText, zoneBad = "", false
 	if zoneName then
-		local dark = state:GetAttribute("Dark_" .. Util.attributeKey(zoneName)) == true
-		zoneLabel.Text = if dark then zoneName .. "  ·  SIN LUZ" else zoneName
-		zoneLabel.TextColor3 = if dark then COLORS.Bad else COLORS.Dim
-	else
-		zoneLabel.Text = ""
+		local key = Util.attributeKey(zoneName)
+		local dark = state:GetAttribute("Dark_" .. key) == true
+		if state:GetAttribute("Ambient_" .. key) == true then
+			-- Zona de servicio: oscura siempre (no es un apagon)
+			zoneText = zoneName .. "  ·  SIN LUZ: usa la linterna [F]"
+		else
+			zoneText = if dark then zoneName .. "  ·  SIN LUZ" else zoneName
+		end
+		zoneBad = dark
 	end
+	-- Olor de derrame: el Rastro te sigue (Tracker)
+	local scentUntil = player:GetAttribute("ScentUntil")
+	if type(scentUntil) == "number" and scentUntil > now then
+		local scentText = string.format("OLOR A DERRAME %ds", math.ceil(scentUntil - now))
+		zoneText = if zoneText ~= "" then zoneText .. "  ·  " .. scentText else scentText
+		zoneBad = true
+	end
+	zoneLabel.Text = zoneText
+	zoneLabel.TextColor3 = if zoneBad then COLORS.Bad else COLORS.Dim
 
 	updateMissions(now)
+	-- Cuota del equipo
+	local goal = state:GetAttribute("MissionGoal") or 0
+	if phase == "Night" and goal > 0 then
+		local done = math.min(state:GetAttribute("MissionsDone") or 0, goal)
+		missionsTitle.Text = string.format('TAREAS DEL EQUIPO  <font color="#FFC850">%d/%d</font>', done, goal)
+	else
+		missionsTitle.Text = "TAREAS"
+	end
 
 	-- Overlays
 	deadOverlay.Visible = phase == "Night" and player:GetAttribute("Alive") == false and humanoid ~= nil
@@ -638,6 +723,16 @@ end
 
 function HUD.Start()
 	build()
+
+	if Place.IsLobby then
+		for _, element in nightOnly do
+			element.Visible = false
+		end
+		diamondsLabel.Position = UDim2.new(1, -18, 0, 14)
+		diamondsLabel.TextSize = 22
+		classLabel.Position = UDim2.new(1, -18, 0, 40)
+		classLabel.TextSize = 17
+	end
 
 	for _, value in GameState.Missions:GetChildren() do
 		addMissionEntry(value)

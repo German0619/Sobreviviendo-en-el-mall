@@ -2,7 +2,10 @@
 --
 -- "Mirar" = esta dentro del cono de vision del jugador, hay linea de vision
 -- y se le puede ver: si su zona esta a oscuras hace falta alumbrarlo con la
--- linterna (o tener vision nocturna).
+-- linterna, una bengala cerca o vision nocturna. Desde un escondite no se le mira.
+--
+-- Contramedidas: mirarlo, el destello (queda congelado aunque nadie lo mire),
+-- el porrazo del Guardia, los petardos (lo distraen) y esconderse.
 
 local ServerScriptService = game:GetService("ServerScriptService")
 local Shared = game:GetService("ReplicatedStorage"):WaitForChild("Shared")
@@ -12,6 +15,7 @@ local Server = ServerScriptService:WaitForChild("Server")
 local LightService = require(Server:WaitForChild("LightService"))
 local FlashlightService = require(Server:WaitForChild("FlashlightService"))
 local PlayerStats = require(Server:WaitForChild("PlayerStats"))
+local DefenseService = require(Server:WaitForChild("DefenseService"))
 
 local Common = require(script.Parent.Common)
 
@@ -103,8 +107,8 @@ function Mannequin:IsSeenBy(player: Player, points: { Vector3 }): boolean
 		local flat = Vector3.new(toPoint.X, 0, toPoint.Z)
 		if dist <= self.Def.ViewRange and flat.Magnitude > 0.01 and look:Dot(flat.Unit) >= self.CosView then
 			if Common.lineOfSight(head.Position, point) then
-				-- A oscuras solo se ve si lo alumbras o tienes vision nocturna.
-				if not LightService.IsDarkAt(point) then
+				-- A oscuras solo se ve si lo alumbras, hay una bengala o tienes vision nocturna.
+				if not LightService.IsDarkAt(point) or DefenseService.IsInFlare(point) then
 					return true
 				end
 				if FlashlightService.IsLighting(player, point) or PlayerStats.HasFlag(player, "NightVision") then
@@ -119,7 +123,7 @@ end
 function Mannequin:IsObserved(): boolean
 	local points = self:GetCheckPoints()
 	for _, player in Common.getAlivePlayers() do
-		if self:IsSeenBy(player, points) then
+		if not DefenseService.IsHidden(player) and self:IsSeenBy(player, points) then
 			return true
 		end
 	end
@@ -131,17 +135,31 @@ function Mannequin:Update(dt: number)
 	local eye = position + Vector3.new(0, self.Height * 0.35, 0)
 
 	-- Sigue "viendo" aunque este congelado
-	local target, root, dist = self.Awareness:Update(dt, position, function(_player, r)
+	local target, root, dist, targetPos = self.Awareness:Update(dt, position, function(_player, r)
 		return Common.canSee(eye, r)
 	end)
 
-	if self:IsObserved() then
+	if Common.isStunned(self.Model) or self:IsObserved() then
 		self.Mover:Clear()
 		return
 	end
 
 	local now = os.clock()
-	if not target or not root then
+
+	-- Un petardo lo distrae, salvo que ya este encima de su presa
+	local lure = DefenseService.GetLure(position)
+	if lure and (not target or dist > Config.Defense.Firecracker.IgnoreIfTargetWithin) then
+		self.PatrolPoint = nil
+		if now >= self.NextRetarget or not self.Mover:HasPath() then
+			self.Mover:MoveTowards(lure)
+			self.NextRetarget = now + 0.5
+		end
+		self.Mover.Speed = self:GetSpeed()
+		self.Mover:Step(dt)
+		return
+	end
+
+	if not target or not root or not targetPos then
 		-- Nadie detectado: patrullar despacio entre zonas
 		if not self.PatrolPoint or (Vector3.new(self.PatrolPoint.X - position.X, 0, self.PatrolPoint.Z - position.Z)).Magnitude < 4 then
 			self.PatrolPoint = Common.randomPatrolPoint()
@@ -159,7 +177,7 @@ function Mannequin:Update(dt: number)
 
 	self.PatrolPoint = nil
 	if now >= self.NextRetarget or not self.Mover:HasPath() then
-		self.Mover:MoveTowards(root.Position)
+		self.Mover:MoveTowards(targetPos)
 		self.NextRetarget = now + 0.3
 	end
 	self.Mover.Speed = self:GetSpeed()
@@ -169,6 +187,19 @@ function Mannequin:Update(dt: number)
 		self.LastAttack = now
 		Common.damage(target, self.Def.Damage)
 	end
+end
+
+-- Destello: queda congelado aunque nadie lo mire.
+function Mannequin:OnFlash(_player: Player)
+	self.Mover:Clear()
+	DefenseService.Stun(self.Model, Config.Defense.Flash.StunSeconds)
+end
+
+-- Porrazo: sale despedido y queda aturdido.
+function Mannequin:OnShove(_player: Player, direction: Vector3)
+	self.Mover:Clear()
+	DefenseService.Stun(self.Model, Config.Defense.Shove.StunSeconds)
+	Common.knockback(self.Model, direction, Config.Defense.Shove.Distance)
 end
 
 function Mannequin:Destroy()

@@ -11,7 +11,9 @@
 --   pagados, solo puede girar con diamantes ganados jugando.
 -- * Diamantes gratis: cada N noches sobrevividas y con logros.
 --
--- Mientras no exista el lobby (Fase 6), esto se usa desde la partida.
+-- La ruleta y los slots se usan en el LOBBY. En el mall solo se permiten en
+-- Studio para probar (Config.Debug.ClassesInMallInStudio). Los diamantes por
+-- noches y logros se dan en el mall.
 
 local Players = game:GetService("Players")
 local PolicyService = game:GetService("PolicyService")
@@ -22,6 +24,7 @@ local Config = require(Shared.Config)
 local Util = require(Shared.Util)
 local Remotes = require(Shared.Remotes)
 local GameState = require(Shared.GameState)
+local Place = require(Shared.Place)
 
 local DataService = require(script.Parent.DataService)
 local PlayerStats = require(script.Parent.PlayerStats)
@@ -77,6 +80,9 @@ function ClassService.Spin(player: Player): (boolean, string, string?)
 	if not data then
 		return false, "Datos no cargados", nil
 	end
+	if not Place.ClassesEnabledHere() then
+		return false, "La ruleta está en el lobby", nil
+	end
 	if isNight() then
 		return false, "La ruleta no está disponible durante la noche", nil
 	end
@@ -112,6 +118,9 @@ function ClassService.EquipSlot(player: Player, slot: any): (boolean, string)
 	local data = DataService.GetData(player)
 	if not data then
 		return false, "Datos no cargados"
+	end
+	if not Place.ClassesEnabledHere() then
+		return false, "Los slots se cambian en el lobby"
 	end
 	if isNight() then
 		return false, "No puedes cambiar de clase durante la noche"

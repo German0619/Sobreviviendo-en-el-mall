@@ -35,8 +35,14 @@ local function refresh()
 	for itemId, row in rows do
 		local item = Config.ShopItems[itemId]
 		local owned = player:GetAttribute("Item_" .. itemId) or 0
+		local byPass = itemId == "FlashlightPro" and player:GetAttribute("Pass_PremiumFlashlight") == true
+		if byPass then
+			owned = 1
+		end
 		local full = (item.Unique and owned >= 1) or (item.MaxStack ~= nil and owned >= item.MaxStack)
-		if item.Unique then
+		if byPass then
+			row.Owned.Text = "Incluida en tu pase Linterna Premium"
+		elseif item.Unique then
 			row.Owned.Text = if owned >= 1 then "Equipada" else "No se gasta"
 		else
 			row.Owned.Text = string.format("Tienes %d / %d", owned, item.MaxStack or 99)
@@ -91,7 +97,8 @@ local function build()
 		Parent = player:WaitForChild("PlayerGui"),
 	})
 	local content
-	window, content = UIKit.window(gui, "TIENDA DEL MALL", Vector2.new(480, 360), ShopUI.Close)
+	-- Alto segun el numero de objetos (70 px por fila)
+	window, content = UIKit.window(gui, "TIENDA DEL MALL", Vector2.new(480, 130 + #Config.ShopOrder * 70), ShopUI.Close)
 
 	moneyLabel = UIKit.text({
 		Size = UDim2.new(1, 0, 0, 24),
