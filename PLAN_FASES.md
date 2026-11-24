@@ -138,11 +138,27 @@
   - Polillas: persecución, drenaje y huida al apagar la linterna.
 - Falta probar jugando: Polillas con la bengala y el destello; el Carrito chocando con una pared tras el arreglo de los pies.
 
-**Fase 6: enemigos nuevos de nivel 2.**
-- Reflejo: aparece en vidrios y escaparates.
-- Ducto: va por las rejillas, que ya existen en los techos.
-- Cajero: roba billetes.
-- Megafonía: anuncia misiones falsas.
+**Fase 6: enemigos nuevos de nivel 2.** — [HECHO] (`src/enemies/Reflection.luau`, `Duct.luau`, `Cashier.luau`, `Intercom.luau`; `Config.Enemies.Reflection/Duct/Cashier/Intercom`)
+- Tags nuevos en `Tags.luau`, que pone `MallBuilder`; en un mapa hecho a mano hay que ponerlos en Studio:
+  - `ReflectiveSurface`: vidrios de los escaparates y espejos de los baños.
+  - `CeilingVent`: rejillas de las tiendas, más 20 nuevas en los techos de los pasillos de las dos plantas.
+- Reflejo (desde la noche 4): aparece en vidrios y escaparates.
+  - Es una silueta semitransparente pegada a un cristal cerca de un jugador, y cambia de cristal cada ~12 s.
+  - Si la miras fijamente 1,5 s (cono de 20°; a oscuras hay que alumbrarla), sale y te persigue 12 s: 30 de daño y desaparece.
+  - El destello la devuelve a los cristales; la UV la marca a través de las paredes; el porrazo y el taser la aturden.
+- Ducto (desde la noche 5): va por las rejillas del techo.
+  - Se oye por dentro del techo y oye a quien corre a menos de 55 studs.
+  - Al llegar a la rejilla la hace temblar 1,3 s (con aviso en pantalla), cae, se queda agazapado 0,8 s y persigue 7 s: 35 de daño.
+  - Es negro con ojos naranjas que dan luz; tras golpear vuelve al techo.
+  - Caminar no lo atrae; el destello, el porrazo y el taser lo hacen subir; el petardo lo hace bajar donde explota.
+- Cajero (desde la noche 4): roba billetes.
+  - Persigue a quien ve con 10 billetes o más y le roba el 30%; luego huye 14 s.
+  - Si lo aturdes en ese tiempo, el dinero vuelve a su dueño; si no, se pierde. No hace daño.
+- Megafonía (desde la noche 6): anuncia misiones falsas.
+  - Sin cuerpo: cada 45–70 s anuncia una tarea falsa con el mismo aviso y el mismo "!" que las reales, a 40–120 studs de los jugadores.
+  - Al acercarte salta una alarma que atrae a los enemigos en 110 studs.
+  - No sale en la lista de tareas del HUD; el destello borra la marca y la UV la marca como "FALSA".
+- Probado jugando: los cuatro funcionan.
 
 **Fase 7: enemigos nuevos de nivel 3.**
 - Estatua de la fuente: solo la frenan las bengalas.
@@ -258,6 +274,13 @@ Que toda la interfaz use las herramientas nativas de Roblox para adaptarse a cad
 - que el texto no se corte;
 - que los botones midan al menos 44 px;
 - que cada acción tenga botón táctil y que los textos de teclas cambien según el dispositivo.
+
+**Fase 13: pulido** (la última; es el punto 10 de `plan sobreviviendo en el mall.txt`).
+- Sonido, ambientación, balance y pruebas con varios jugadores.
+- Mejorar el diseño del Globo y de las Polillas (ahora son modelos simples hechos con piezas).
+- Animaciones de movimiento para todas las entidades que no las tienen, como el Maniquí.
+- Ruleta de clases: el resultado aparece en el slot antes de que la ruleta se pare. Debe mostrarse solo cuando termine el giro.
+- Mejorar el diseño del lobby.
 
 **Orden elegido:**
 - La Fase 3 cambia la base de cómo aparece el peligro; el resto se apoya en ella.

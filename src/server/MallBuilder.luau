@@ -246,6 +246,16 @@ local function ceilingPanel(ceilingCF: CFrame, zoneName: string, size: Vector2, 
 	return p
 end
 
+-- Rejilla de ventilacion del techo (por ella baja el Ducto). ceilingCF = punto del techo.
+local function ceilingVent(ceilingCF: CFrame): Part
+	local vent = deco("CeilingVent", Vector3.new(2.4, 0.08, 2.4), ceilingCF * CFrame.new(0, -0.04, 0), M.DiamondPlate, Color3.fromRGB(215, 215, 215))
+	for i = -2, 2 do
+		deco("VentSlat", Vector3.new(2.2, 0.06, 0.12), ceilingCF * CFrame.new(0, -0.1, i * 0.42), M.Metal, Color3.fromRGB(70, 72, 76), { CastShadow = false })
+	end
+	tag(vent, Tags.CeilingVent)
+	return vent
+end
+
 -- Lampara colgante: cable, pantalla metalica y foco hacia abajo (alturas absolutas de la planta).
 local function pendant(x: number, z: number, hangFrom: number, bottom: number, zoneName: string, accent: Color3?)
 	deco("LampCable", Vector3.new(0.12, hangFrom - bottom, 0.12), at(x, bottom + (hangFrom - bottom) / 2, z), M.Metal, DARK)
@@ -1441,11 +1451,12 @@ local function buildStore(def, index: number, frontCenter: Vector3, inward: Vect
 	-- Fachada: vitrinas de vidrio, entrada de 16, cabecera con el nombre
 	for _, side in { -1, 1 } do
 		local x = side * 15.2
-		box("Glass", Vector3.new(13.6, 11.4, 0.3), L(base, x, 6.3, 0.4), M.Glass, GLASS, {
+		local glass = box("Glass", Vector3.new(13.6, 11.4, 0.3), L(base, x, 6.3, 0.4), M.Glass, GLASS, {
 			Transparency = 0.65,
 			Reflectance = 0.18,
 			Variant = false,
 		})
+		tag(glass, Tags.ReflectiveSurface)
 		box("KickPlate", Vector3.new(13.6, 0.6, 0.5), L(base, x, 0.3, 0.4), M.Metal, Color3.fromRGB(70, 72, 78))
 		for _, mx in { 8.2, 15.2, 22.2 } do
 			box("Mullion", Vector3.new(0.35, 12, 0.5), L(base, side * mx, 6, 0.4), M.Metal, Color3.fromRGB(70, 72, 78))
@@ -1506,7 +1517,7 @@ local function buildStore(def, index: number, frontCenter: Vector3, inward: Vect
 		for _, d in { 14, 36 } do
 			ceilingPanel(L(base, x, H, d), def.Name, Vector2.new(6, 2.4), 24, 1.6)
 		end
-		deco("CeilingVent", Vector3.new(2.4, 0.08, 2.4), L(base, x, H - 0.04, 25), M.DiamondPlate, Color3.fromRGB(215, 215, 215))
+		ceilingVent(L(base, x, H, 25))
 	end
 	for _, p in { { 0, 10 }, { 0, 30 }, { -18, 44 } } do
 		deco("Sprinkler", Vector3.new(0.3, 0.3, 0.3), L(base, p[1], H - 0.15, p[2]), M.Metal, STEEL)
@@ -2078,6 +2089,12 @@ local function buildGallery()
 			downlight(at(x, F2 - 1, z), if x < 0 then "Galería Oeste" else "Galería Este")
 		end
 	end
+	-- Rejillas de ventilacion bajo los pasillos de arriba (el Ducto)
+	for x = -96, 96, 48 do
+		for _, z in { -16, 16 } do
+			ceilingVent(at(x, F2 - 1, z))
+		end
+	end
 
 	-- Fuente central con agua real y dos platos
 	fountain(0, 0, 7.5, 2, "Galería Este")
@@ -2216,6 +2233,11 @@ local function buildUpperGallery()
 	for x = -108, 108, 24 do
 		for _, z in { -16, 16 } do
 			ceilingPanel(at(x, 18, z), if x < 0 then W1 else E1, Vector2.new(5, 2.4), 22, 1.4)
+		end
+	end
+	for x = -96, 96, 48 do
+		for _, z in { -16, 16 } do
+			ceilingVent(at(x, 18, z))
 		end
 	end
 	for _, bx in { -57, 57 } do
@@ -3114,7 +3136,8 @@ local function vanity(cf: CFrame, n: number, spacing: number, cracked: boolean?)
 			deco("SoapPump", Vector3.new(0.12, 0.25, 0.3), cf * CFrame.new(lx + spacing / 2, 3.9, -0.5), M.Metal, CHROME)
 		end
 	end
-	deco("Mirror", Vector3.new(len - 0.4, 3.4, 0.08), cf * CFrame.new(0, 6, -0.06), M.Glass, Color3.fromRGB(205, 215, 220), { Reflectance = 0.55 })
+	local mirror = deco("Mirror", Vector3.new(len - 0.4, 3.4, 0.08), cf * CFrame.new(0, 6, -0.06), M.Glass, Color3.fromRGB(205, 215, 220), { Reflectance = 0.55 })
+	tag(mirror, Tags.ReflectiveSurface)
 	for _, y in { 4.25, 7.75 } do
 		deco("MirrorTrim", Vector3.new(len - 0.3, 0.12, 0.14), cf * CFrame.new(0, y, -0.08), M.Metal, CHROME)
 	end

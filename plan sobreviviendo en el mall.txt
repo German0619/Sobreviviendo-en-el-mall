@@ -131,6 +131,8 @@ FASES DE IMPLEMENTACION
 9.  Mapa del mall: modelarlo en Studio con los tags de shared/Tags, o un generador de mapa
     mas detallado (tiendas con fachada, escaleras, segundo piso, decoracion) que reemplace al de prueba.
 10. Pulido: sonido, ambientacion, balance, pruebas con varios jugadores.
+    Detalle en PLAN_FASES.md (Fase 13): diseno del Globo y las Polillas, animaciones de movimiento
+    de las entidades (Maniqui...), resultado de la ruleta antes de que pare, diseno del lobby.
 
 
 PENDIENTES DEL USUARIO (en Studio / web de Roblox)

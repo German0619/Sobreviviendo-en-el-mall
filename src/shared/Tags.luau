@@ -35,6 +35,11 @@ return {
 	-- Camara de seguridad (la usa el Vigilante). Parte pequena en lo alto de una pared;
 	-- su cara frontal (Front) apunta hacia donde mira.
 	SecurityCamera = "SecurityCamera",
+	-- Vidrio de escaparate o espejo donde puede aparecer el Reflejo. Parte plana: su eje
+	-- mas fino (normalmente Z) es el grosor; el Reflejo aparece del lado donde estas.
+	ReflectiveSurface = "ReflectiveSurface",
+	-- Rejilla de ventilacion del techo (la usa el Ducto). Parte plana pegada al techo.
+	CeilingVent = "CeilingVent",
 
 	-- Misiones de varios puntos / de llevar objetos (ademas del MissionSpot de la mision):
 	-- Control de la persiana de una tienda (mision LockDoors). Atributo Wing = zona de la galeria

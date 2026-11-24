@@ -933,6 +933,82 @@ Config.Enemies = {
 		ReappearMinDistance = 35, -- vuelve lejos de los jugadores
 		Hint = "Nuevo: el Eco imita a tus compañeros. Si un \"compañero\" se te acerca, alúmbralo con la linterna.",
 	},
+	-- Reflejo: acecha dentro de los vidrios y espejos (tag ReflectiveSurface). Si lo miras fijamente,
+	-- sale y te persigue un rato. La linterna UV lo marca; el destello lo devuelve al cristal.
+	Reflection = {
+		DisplayName = "Reflejo",
+		UnlockNight = 4,
+		Tier = 2,
+		MaxPerFloor = 1,
+		LurkRange = 45, -- elige vidrios a esta distancia de algun jugador
+		RelocateSeconds = 12, -- cambia de vidrio cada tanto si nadie lo mira
+		LookRange = 50,
+		LookHalfAngle = 20, -- grados: hay que mirarlo casi de frente
+		EmergeSeconds = 1.5, -- segundos mirandolo hasta que sale
+		EmergeWindup = 0.7, -- aviso (sale del cristal) antes de perseguir
+		ChaseSpeed = 16,
+		ChaseSeconds = 12,
+		Damage = 30,
+		AttackRange = 4,
+		VanishSeconds = 10, -- tras golpear o un destello, tarda esto en volver a un vidrio
+		ReappearMinDistance = 30,
+		Hint = "Nuevo: el Reflejo vive en los vidrios y espejos. Si ves una silueta en un cristal, no la mires fijamente.",
+	},
+	-- Ducto: se arrastra por las rejillas del techo (tag CeilingVent) y se le oye. Si corres cerca
+	-- de una rejilla, la hace temblar y cae sobre ti. Caminar sin correr cerca de las rejillas lo evita.
+	Duct = {
+		DisplayName = "Ducto",
+		UnlockNight = 5,
+		Tier = 2,
+		MaxPerFloor = 1,
+		CrawlSpeed = 14, -- por dentro del techo
+		HearRange = 55, -- oye a quien corre a esta distancia
+		DropRange = 14, -- distancia horizontal a la rejilla para dejarse caer
+		RattleSeconds = 1.3, -- la rejilla tiembla antes de caer (aviso)
+		LandSeconds = 0.8, -- al caer se queda agazapado mirandote antes de perseguirte
+		HuntSpeed = 17,
+		HuntSeconds = 7,
+		Damage = 35,
+		AttackRange = 3.5,
+		AttackCooldown = 1.5,
+		ClimbCooldown = 6, -- tras volver a subir no baja enseguida
+		Hint = "Nuevo: el Ducto anda por las rejillas del techo. Si oyes ruido arriba, camina: correr cerca lo hace caer.",
+	},
+	-- Cajero: no hace dano, persigue al que lleva billetes y le roba una parte. Si lo aturdes
+	-- (destello, porrazo, taser, trapeador) antes de que escape, recuperas el dinero.
+	Cashier = {
+		DisplayName = "Cajero",
+		UnlockNight = 4,
+		Tier = 2,
+		MaxPerFloor = 1,
+		Speed = 10, -- patrullando
+		ChaseSpeed = 15,
+		FleeSpeed = 19,
+		MinCash = 10, -- ignora a quien lleva menos
+		StealFraction = 0.3,
+		StealMin = 10,
+		AttackRange = 3.5,
+		FleeSeconds = 14, -- si no lo aturdes en este tiempo, se queda el dinero
+		StealCooldown = 20,
+		Hint = "Nuevo: el Cajero roba billetes. Si te roba, atúrdelo antes de que escape para recuperarlos.",
+	},
+	-- Megafonia: no tiene cuerpo. Anuncia tareas falsas con su marca "!"; al acercarte, salta
+	-- una alarma que atrae a los enemigos. Las falsas NO salen en tu lista de tareas.
+	Intercom = {
+		DisplayName = "Megafonía",
+		UnlockNight = 6,
+		Tier = 2,
+		MaxPerFloor = 1,
+		FirstDelay = 20, -- segundos hasta el primer anuncio
+		Interval = { 45, 70 }, -- segundos entre anuncios
+		FakeLifetime = 60, -- la tarea falsa desaparece sola
+		MinDistance = 40, -- la pone a esta distancia de los jugadores (o mas)
+		MaxDistance = 120,
+		TriggerRange = 7,
+		LureSeconds = 12,
+		LureRadius = 110,
+		Hint = "Nuevo: la Megafonía anuncia tareas falsas. Si una tarea no aparece en tu lista, ¡no vayas!",
+	},
 	-- Rastro: si pisas un derrame te marca y te sigue a donde vayas (incluso a un escondite).
 	-- Limpiar los derrames lo mantiene a raya. Cada derrame sin limpiar lo hace mas rapido.
 	Tracker = {
