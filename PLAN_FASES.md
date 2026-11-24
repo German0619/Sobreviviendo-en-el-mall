@@ -117,10 +117,26 @@
 - Taser (10 usos), extintor, cartel de piso mojado (trampa), linterna UV (revela al Reflejo, al Mímico y al Eco) y trapeador.
 - Se reutilizan `DefenseService` (aturdir, empujar) y `ShopService`.
 
-**Fase 5: enemigos nuevos de nivel 1.**
-- Carrito: embiste y queda aturdido si choca con una pared.
-- Polilla de luz: persigue la linterna y le drena la batería.
-- Globo: revienta si lo miras y atrae enemigos.
+**Fase 5: enemigos nuevos de nivel 1.** — [HECHO] (`src/enemies/Cart.luau`, `Moth.luau`, `Balloon.luau`; `Config.Enemies.Cart/Balloon/Moth`)
+- Carrito (desde la noche 2): embiste y queda aturdido si choca con una pared.
+  - Al verte tiembla 0,9 s y embiste en línea recta (42 studs/s, unos 55 studs, 30 de daño una vez).
+  - Si choca con una pared queda aturdido 4 s.
+  - Solo embiste si te ve también a la altura de los pies, para no chocar con patas de bancos.
+  - El destello y el porrazo lo aturden.
+- Globo (desde la noche 3): revienta si lo miras y atrae enemigos.
+  - Si lo miras fijamente unos 3 s (cono de 15°) se hincha y revienta; el estallido es un señuelo que atrae a los enemigos en 90 studs.
+  - A oscuras solo cuenta como mirarlo si lo alumbras, hay una bengala o tienes visión nocturna.
+  - El taser, el destello o el porrazo lo revientan en silencio si estás a 15 studs o más; de cerca hace ruido.
+  - Reaparece en otro sitio a los 45 s.
+- Polillas (desde la noche 4): persiguen la linterna y le drenan la batería.
+  - Persiguen la linterna encendida y chupan 5 de batería por segundo; no hacen daño.
+  - Si la apagas te pierden a los 3 s.
+  - Prefieren una bengala; el petardo las atrae si no persiguen a nadie; el destello las dispersa 15 s.
+- Probado en el mall:
+  - Carrito: carga, golpe único y parada.
+  - Globo: se hincha y revienta al mirarlo; a oscuras no.
+  - Polillas: persecución, drenaje y huida al apagar la linterna.
+- Falta probar jugando: Polillas con la bengala y el destello; el Carrito chocando con una pared tras el arreglo de los pies.
 
 **Fase 6: enemigos nuevos de nivel 2.**
 - Reflejo: aparece en vidrios y escaparates.

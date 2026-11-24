@@ -861,6 +861,59 @@ Config.Enemies = {
 		FleeCooldown = 12,
 		ZoneLinger = 15, -- segundos sin victimas antes de cambiar de zona
 	},
+	-- Carrito: si te ve en linea recta tiembla y embiste. Apartate; si choca con una pared queda aturdido.
+	Cart = {
+		DisplayName = "Carrito",
+		UnlockNight = 2,
+		Tier = 1,
+		MaxPerFloor = 2,
+		Speed = 9, -- buscando / patrullando (x0.6)
+		ChargeRange = 40, -- distancia maxima para lanzarse
+		WindupSeconds = 0.9, -- tiembla antes de embestir (aviso para apartarse)
+		ChargeSpeed = 42,
+		ChargeDistance = 55, -- recorrido maximo de una embestida
+		HitRadius = 3.2,
+		Damage = 30,
+		WallStunSeconds = 4,
+		RecoverSeconds = 2, -- pausa tras una embestida sin chocar
+		Hint = "Nuevo: el Carrito embiste en línea recta. Cuando tiemble, apártate: si choca con una pared, queda aturdido.",
+	},
+	-- Globo: flota quieto. Si lo miras fijamente se hincha, revienta y atrae a los enemigos.
+	-- Reventarlo de lejos (taser, destello, porrazo, trapeador) no hace ruido.
+	Balloon = {
+		DisplayName = "Globo",
+		UnlockNight = 3,
+		Tier = 1,
+		MaxPerFloor = 2,
+		HoverHeight = 6,
+		LookRange = 70,
+		LookHalfAngle = 15, -- grados: hay que mirarlo casi de frente
+		PopSeconds = 3, -- segundos mirandolo hasta que revienta
+		DeflatePerSecond = 0.25, -- lo que se deshincha por segundo si nadie lo mira (0..1)
+		LureSeconds = 10,
+		LureRadius = 90,
+		SafeDistance = 15, -- reventarlo desde mas lejos que esto no hace ruido
+		RespawnSeconds = 45,
+		RespawnMinDistance = 35,
+		Hint = "Nuevo: el Globo revienta si lo miras fijamente y el estallido atrae a los enemigos. No lo mires, o reviéntalo de lejos.",
+	},
+	-- Polillas de luz: persiguen las linternas encendidas y les chupan la bateria (no hacen dano).
+	-- Apagar la linterna las despista; una bengala o un petardo las atrae; el destello las dispersa.
+	Moth = {
+		DisplayName = "Polillas",
+		UnlockNight = 4,
+		Tier = 1,
+		MaxPerFloor = 2,
+		Speed = 6, -- revoloteando
+		ChaseSpeed = 13,
+		HoverHeight = 5,
+		SenseRange = 70, -- ven una linterna encendida a esta distancia
+		DrainRange = 6,
+		DrainPerSecond = 5, -- segundos de bateria por segundo (aparte del consumo normal)
+		LingerSeconds = 3, -- siguen a donde estaba la luz tras apagarla
+		ScatterSeconds = 15, -- dispersas tras un destello
+		Hint = "Nuevo: las Polillas siguen tu linterna y le chupan la batería. Apágala o lánzales una bengala.",
+	},
 	-- Eco: se hace pasar por un companero (nombre, linterna y pasos). Alumbrarlo lo revela y lo hace
 	-- desaparecer; el destello lo hace al instante. Si te alcanza, golpea y se esfuma.
 	Echo = {
