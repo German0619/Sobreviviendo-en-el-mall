@@ -25,7 +25,13 @@ local GameState = require(Shared.GameState)
 local DataService = require(script.Parent.DataService)
 local PlayerStats = require(script.Parent.PlayerStats)
 
+local Signal = require(Shared.Signal)
+
 local ReviveService = {}
+
+-- (player, root) un participante acaba de caer (su cuerpo se puede revivir). Lo usa el
+-- jefe Coleccionista.
+ReviveService.Downed = Signal.new()
 
 local downed = {} -- [Player] = { Prompt, Marker, Root }
 local pending = {} -- [comprador] = jugador a revivir
@@ -57,6 +63,11 @@ end
 
 function ReviveService.IsDowned(player: Player): boolean
 	return downed[player] ~= nil and GameState.Folder:GetAttribute("Phase") == "Night"
+end
+
+-- El cuerpo ya no se puede revivir esta noche (el Coleccionista lo convirtio en maniquí).
+function ReviveService.Forfeit(player: Player)
+	clear(player)
 end
 
 -- Escudo al revivir pagando: los enemigos te ignoran (Common.isAlive mira ProtectedUntil)
@@ -205,6 +216,7 @@ function ReviveService.OnDowned(player: Player, character: Model)
 
 	downed[player] = { Prompt = prompt, Marker = marker, Root = root }
 	player:SetAttribute("Downed", true)
+	ReviveService.Downed:Fire(player, root)
 end
 
 -- Al terminar la noche se quitan todos los cuerpos revivibles.

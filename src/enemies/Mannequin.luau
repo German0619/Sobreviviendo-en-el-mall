@@ -42,11 +42,13 @@ local function pickDisplayMannequin(spawnPosition: Vector3): Model?
 	end)
 end
 
-function Mannequin.new(spawnPosition: Vector3, ctx)
+-- fresh = true: un maniqui nuevo justo en spawnPosition (el Coleccionista convierte a un
+-- jugador caido), sin tomar uno de los escaparates.
+function Mannequin.new(spawnPosition: Vector3, ctx, fresh: boolean?)
 	local def = Config.Enemies.Mannequin
 	-- Es uno de los maniquies de escaparate que cobra vida (vuelve a su peana al amanecer).
 	-- Si el mapa no tiene, uno nuevo en el spawn.
-	local model = pickDisplayMannequin(spawnPosition)
+	local model = if fresh then nil else pickDisplayMannequin(spawnPosition)
 	local home = nil
 	if model then
 		home = Common.claimMapModel(model, ctx.Container)

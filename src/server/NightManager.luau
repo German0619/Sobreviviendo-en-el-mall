@@ -31,6 +31,7 @@ local FlashlightService = require(script.Parent.FlashlightService)
 local MissionService = require(script.Parent.MissionService)
 local EnemyService = require(script.Parent.EnemyService)
 local EventDirector = require(script.Parent.EventDirector)
+local BossService = require(script.Parent.BossService)
 local ReviveService = require(script.Parent.ReviveService)
 local ClassService = require(script.Parent.ClassService)
 local RunState = require(script.Parent.RunState)
@@ -218,6 +219,7 @@ local function runNight(night: number): boolean -- devuelve true si todos murier
 	-- Preparacion
 	local prepSeconds = Config.Debug.PreparationSecondsOverride or Config.Night.PreparationSeconds
 	setPhase("Preparation", prepSeconds)
+	BossService.StopNight()
 	EventDirector.StopNight()
 	EnemyService.StopNight()
 	LightService.ResetAll()
@@ -249,11 +251,22 @@ local function runNight(night: number): boolean -- devuelve true si todos murier
 		teamSize += 1
 	end
 	setPhase("Night")
-	EnemyService.StartNight(night)
-	MissionService.StartNight(night, teamSize)
-	EventDirector.StartNight(night)
+	-- Noche de jefe: mitad de enemigos y de tareas, sin eventos al azar (el jefe es el evento)
+	local bossId = BossService.GetBossFor(night)
+	EnemyService.StartNight(night, if bossId then { BudgetMultiplier = Config.SpawnDirector.BossBudgetMultiplier } else nil)
+	MissionService.StartNight(night, teamSize, if bossId then Config.Bosses.GoalMultiplier else nil)
+	if bossId then
+		BossService.StartNight(night, bossId)
+	else
+		EventDirector.StartNight(night)
+	end
 	local _, goal = MissionService.GetProgress()
-	notifyAll(string.format("Noche %d: completen %d tareas en equipo para llegar a las 6 AM.", night, goal), "bad")
+	if bossId then
+		local boss = Config.Bosses[bossId]
+		notifyAll(string.format("¡Noche %d: JEFE! %s. %s Y completen %d tareas.", night, boss.DisplayName, boss.Objective, goal), "bad")
+	else
+		notifyAll(string.format("Noche %d: completen %d tareas en equipo para llegar a las 6 AM.", night, goal), "bad")
+	end
 
 	-- Si caen todos, hay unos segundos para revivir con Robux (solo si el producto existe)
 	local graceSeconds = if Config.DevProducts.Revive ~= 0 then Config.Revive.WipeGraceSeconds else 0
@@ -269,10 +282,15 @@ local function runNight(night: number): boolean -- devuelve true si todos murier
 		local done, total = MissionService.GetProgress()
 		local hour = Config.Night.StartHour
 			+ (Config.Night.EndHour - Config.Night.StartHour) * math.min(done / math.max(total, 1), 1)
+		-- Con el jefe aun en pie, el reloj se queda en 5:59
+		local bossAlive = bossId ~= nil and not BossService.IsDefeated()
+		if bossAlive then
+			hour = math.min(hour, Config.Night.EndHour - 1 / 60)
+		end
 		GameState.Folder:SetAttribute("GameHour", hour)
 
 		local alive = aliveParticipants()
-		if done >= total and alive > 0 then
+		if done >= total and alive > 0 and not bossAlive then
 			break -- noche ganada
 		end
 
@@ -310,7 +328,8 @@ local function runNight(night: number): boolean -- devuelve true si todos murier
 	end
 	GameState.Folder:SetAttribute("WipeAt", nil)
 
-	EventDirector.StopNight() -- antes que enemigos y misiones: deshace sus efectos
+	BossService.StopNight() -- antes que enemigos y misiones: deshacen sus efectos
+	EventDirector.StopNight()
 	EnemyService.StopNight()
 	MissionService.StopNight()
 	ReviveService.Clear()
@@ -328,6 +347,7 @@ end
 local function waitForStart()
 	startRequested = false
 	setPhase("Waiting")
+	BossService.StopNight()
 	EventDirector.StopNight()
 	EnemyService.StopNight()
 	MissionService.StopNight()
@@ -458,6 +478,7 @@ function NightManager.Start()
 			local ok, err = pcall(runGame)
 			if not ok then
 				warn("[NightManager] Error en la partida:", err)
+				BossService.StopNight()
 				EventDirector.StopNight()
 				EnemyService.StopNight()
 				MissionService.StopNight()

@@ -248,10 +248,11 @@ end
 ----------------------------------------------------------------------
 
 -- players = tamano del equipo esta noche (para la cuota y las misiones simultaneas)
-function MissionService.StartNight(night: number, players: number?)
+-- goalMultiplier: noches de jefe (Config.Bosses.GoalMultiplier), al menos 1 tarea.
+function MissionService.StartNight(night: number, players: number?, goalMultiplier: number?)
 	currentNight = night
 	teamSize = math.max(players or 1, 1)
-	goal = Config.getMissionGoal(night, teamSize)
+	goal = math.max(1, math.ceil(Config.getMissionGoal(night, teamSize) * (goalMultiplier or 1)))
 	doneCount = 0
 	GameState.Folder:SetAttribute("MissionGoal", goal)
 	GameState.Folder:SetAttribute("MissionsDone", 0)

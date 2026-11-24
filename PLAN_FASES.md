@@ -229,10 +229,31 @@
   - Cartel de piso mojado: el caballete ya no sale invertido; deja a los enemigos al 30 % en un radio de 9.
   - Revivir pagando (Robux o ficha): 20 s en los que los enemigos te ignoran y no te hacen daño (`ProtectedUntil`). Se ve como un contorno azul suave y "PROTEGIDO" en el HUD.
 
-**Fase 9: jefes cada 5 noches.**
-- El Gerente, Luni, El Coleccionista y La Central.
-- Usan las misiones de evento, el 50% del presupuesto de peligro y un pago, un logro y diamantes al vencerlos.
-- Al vencer un jefe, sumar 1 a `data.Lifetime.BossesDefeated`: la tabla "Jefes vencidos" del lobby ya lee ese dato (`LeaderboardService`).
+**Fase 9: jefes cada 5 noches.** — [HECHO] (`src/server/BossService.luau`, `src/server/Bosses/*`, `src/client/BossAlert.luau`, `Config.Bosses`; cuerpos en `src/enemies/Luni|Manager|Collector|Converted`)
+- Noche de jefe (cada 5 noches, en el orden de `Config.Bosses.Order`, de más fácil a más difícil):
+  - mitad de enemigos y mitad de tareas, y sin eventos al azar;
+  - las misiones del jefe son misiones de evento (no pagan ni avanzan el reloj);
+  - para ganar hay que completar las tareas y vencer al jefe (el reloj se queda en 5:59 mientras viva);
+  - alerta en pantalla, latido grave de música (`MusicSoundId` para poner una de verdad) y progreso bajo el reloj.
+- Al vencerlo:
+  - billetes para todos;
+  - `Lifetime.BossesDefeated` (tabla "Jefes vencidos") y `Lifetime.Boss_<Id>`;
+  - un logro por jefe.
+- Para probar: `Config.Debug.ForceBoss`.
+- Jefes (todos probados jugando):
+  - **Luni** (noche 5, 400 billetes, logro de 150 diamantes):
+    - mascota gigante que corre detrás del grupo más numeroso; el destello, el taser y los empujones solo la frenan;
+    - se vence atrayéndola al cuarto del generador y activando el apagón de sector con ella dentro (3 s en equipo, 0,5 s jugando solo).
+  - **El Gerente** (noche 10, 500 billetes, 250 diamantes):
+    - con su walkie pide refuerzos de nivel 1 y 2 cada 30 s (tantos como radios le quedan; duran 50 s; Reflejo sí, Cajero no) y cierra persianas;
+    - se vence destruyendo sus 3 radios.
+  - **El Coleccionista** (noche 15, 600 billetes, 350 diamantes):
+    - un caído que no revivan en 30 s se convierte en un maniquí enemigo con su nombre, y él va un 15 % más rápido por cada uno;
+    - se vence llevando 3 objetos perdidos a los pedestales de sus tiendas.
+  - **La Central** (noche 20, 800 billetes, 500 diamantes):
+    - IA sin cuerpo: las cámaras la avisan y atraen enemigos; apaga luces, cierra persianas y anuncia tareas falsas;
+    - se vence reiniciando 3 servidores en plantas distintas antes de que acabe la cuenta atrás (30 s en equipo, 120 s solo).
+- Pendiente (noche 25 en adelante): el documento dice que los jefes se repiten "con más vida y velocidad y mecánicas combinadas" (p. ej. Luni junto al Gerente). Ahora se repiten igual.
 
 **Fase 10: lobby completo.**
 - [HECHO] Cuadros de sala físicos (`PadService` + `PadUI`): se entra solo subiéndose, no se sale caminando (solo saltando) y salir del cuadro es salir de la sala.

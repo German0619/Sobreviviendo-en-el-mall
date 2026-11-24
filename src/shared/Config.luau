@@ -24,6 +24,7 @@ Config.Debug = {
 	MissionGoalOverride = nil :: number?, -- ej. 2: tareas necesarias para pasar la noche (para probar)
 	OnlyEvents = nil :: { string }?, -- ej. { "Fog" }: solo salen esos eventos (para probarlos)
 	EventDelayOverride = nil :: number?, -- ej. 10: segundos hasta el primer evento y entre eventos
+	ForceBoss = nil :: string?, -- ej. "Manager": TODAS las noches son de ese jefe (para probarlo)
 	PreparationSecondsOverride = nil :: number?,
 	-- SOLO en Studio:
 	StudioStartCash = 0, -- billetes al empezar cada partida (ej. 5000 para probar la tienda)
@@ -430,6 +431,17 @@ Config.Achievements = {
 		Diamonds = 200,
 	},
 	MythicClass = { DisplayName = "Mito viviente", Description = "Consigue una clase Mítica.", Stat = "BestRarity", Goal = 5, Diamonds = 1000 },
+	-- Un logro por jefe (Lifetime.Boss_<Id>, lo suma BossService)
+	BossLuni = { DisplayName = "Fin de la función", Description = "Vence a Luni, la mascota (noche 5).", Stat = "Boss_Luni", Goal = 1, Diamonds = 150 },
+	BossManager = { DisplayName = "Despido fulminante", Description = "Vence al Gerente (noche 10).", Stat = "Boss_Manager", Goal = 1, Diamonds = 250 },
+	BossCollector = {
+		DisplayName = "Colección incompleta",
+		Description = "Vence al Coleccionista (noche 15).",
+		Stat = "Boss_Collector",
+		Goal = 1,
+		Diamonds = 350,
+	},
+	BossCentral = { DisplayName = "Desconectada", Description = "Vence a La Central (noche 20).", Stat = "Boss_Central", Goal = 1, Diamonds = 500 },
 }
 
 Config.AchievementOrder = {
@@ -445,6 +457,10 @@ Config.AchievementOrder = {
 	"EpicClass",
 	"LegendaryClass",
 	"MythicClass",
+	"BossLuni",
+	"BossManager",
+	"BossCollector",
+	"BossCentral",
 }
 
 -- Progreso actual de un logro segun los datos guardados del jugador.
@@ -1159,6 +1175,46 @@ Config.Enemies = {
 		RetreatSeconds = 20, -- tras golpear desaparece y vuelve lejos
 		Hint = "Nuevo: el Cazador marca al que está más solo. Si te marca, ¡reúnete con tu equipo o escóndete lejos de él!",
 	},
+	-- JEFES (sin Tier: el director de aparicion no los saca; los pone BossService)
+	-- El Gerente: patrulla con su walkie; si te ve, te marca y te persigue.
+	Manager = {
+		DisplayName = "El Gerente",
+		Speed = 10,
+		ChaseSpeed = 15.5,
+		Damage = 40,
+		AttackRange = 4,
+		AttackCooldown = 1.8,
+		StunSeconds = 2, -- destello, taser y empujones solo lo frenan un momento
+	},
+	-- Luni, la mascota gigante de Plaza Luna: corre detras del grupo mas numeroso (sabe
+	-- donde esta). El destello, el taser y los empujones la FRENAN, pero no la paran.
+	Luni = {
+		DisplayName = "Luni",
+		Speed = 12, -- buscando
+		ChaseSpeed = 17, -- corre: mas que caminar, menos que correr (22)
+		Damage = 45,
+		AttackRange = 5.5,
+		AttackCooldown = 1.5,
+		GroupRadius = 25, -- jugadores a esta distancia cuentan como el mismo grupo
+		SlowMultiplier = 0.4, -- frenada: va a esta fraccion de su velocidad...
+		SlowSeconds = 3, -- ...durante este tiempo
+	},
+	-- El Coleccionista: altisimo, con mascara de porcelana. Persigue a quien ve; cada
+	-- jugador que convierte en maniqui lo hace mas rapido.
+	Collector = {
+		DisplayName = "El Coleccionista",
+		Speed = 9,
+		ChaseSpeed = 13.5,
+		SpeedPerConverted = 0.15, -- +15% por cada jugador convertido
+		Damage = 35,
+		AttackRange = 4,
+		AttackCooldown = 1.6,
+		StunSeconds = 2,
+	},
+	-- Maniqui convertido (un jugador caido del Coleccionista): se comporta como un Maniqui.
+	Converted = {
+		DisplayName = "Maniquí convertido",
+	},
 	-- Vigilante: patrulla y ve a traves de las camaras de seguridad (tag SecurityCamera).
 	-- Esquiva sus haces rojos o ciega las camaras con el destello.
 	Watcher = {
@@ -1412,6 +1468,80 @@ Config.Events = {
 	},
 }
 
+----------------------------------------------------------------------
+-- Jefes (BossService, un modulo por jefe en server/Bosses)
+----------------------------------------------------------------------
+-- Un jefe cada Every noches, en el orden de Order (y se repiten). Si el jefe de esa
+-- noche aun no tiene modulo, la noche es normal. En la noche de jefe:
+--   * enemigos con la mitad del presupuesto (Config.SpawnDirector.BossBudgetMultiplier)
+--     y la mitad de tareas (GoalMultiplier); no hay eventos al azar;
+--   * para llegar a las 6 AM hay que completar las tareas Y vencer al jefe;
+--   * sus misiones son misiones de evento (no pagan ni avanzan el reloj);
+--   * al vencerlo: Reward billetes a cada uno, Lifetime.BossesDefeated y Boss_<Id> (+ logro).
+Config.Bosses = {
+	Every = 5,
+	-- De mas facil a mas dificil: Luni (noche 5), Gerente (10), Coleccionista (15), Central (20)
+	Order = { "Luni", "Manager", "Collector", "Central" },
+	GoalMultiplier = 0.5,
+	-- Musica de la noche de jefe: un SoundId de audio (rbxassetid://...). Vacio = un latido
+	-- grave de los sonidos de Roblox.
+	MusicSoundId = "",
+	Manager = {
+		DisplayName = "El Gerente",
+		Objective = "Destruyan sus 3 radios repartidas por el mall.",
+		Reward = 500,
+		Radios = 3,
+		RadioHoldSeconds = 4,
+		RadioMinDistance = 30, -- las radios aparecen a esta distancia de los jugadores (o mas)
+		CallSeconds = 30, -- cada 30 s pide refuerzos (tantos como radios le quedan)
+		ReinforcementSeconds = 50, -- lo que duran los refuerzos (se solapan como mucho 2 tandas)
+		ReinforcementTiers = { 1, 2 }, -- de nivel 1 y 2 (los que ya pueden salir esa noche)
+		-- Los que no sirven de refuerzo: sin cuerpo, del techo, quietos o que no atacan (Cajero).
+		-- (El Reflejo si: aparece en los cristales cerca de los jugadores.)
+		ReinforcementExclude = { Intercom = true, Duct = true, Balloon = true, Cashier = true },
+		ShutterSeconds = 50, -- cada tanto ordena cerrar persianas...
+		ShutterStores = 2, -- ...de tantas tiendas...
+		ShutterCloseSeconds = 30, -- ...durante este tiempo
+	},
+	Luni = {
+		DisplayName = "Luni, la mascota",
+		Objective = "Atráiganla al cuarto del generador y activen el apagón de sector con ella dentro.",
+		Reward = 400,
+		RoomRadius = 22, -- Luni tiene que estar a esta distancia del panel del generador
+		HoldSeconds = 3, -- mantener E en el panel (con Luni dentro), jugando en equipo
+		SoloHoldSeconds = 0.5, -- jugando solo (si no, es imposible: te alcanza mientras aprietas)
+	},
+	Collector = {
+		DisplayName = "El Coleccionista",
+		Objective = "Devuelvan 3 objetos perdidos a sus tiendas. Revivan a los caídos antes de que se conviertan en maniquíes.",
+		Reward = 600,
+		Offerings = 3,
+		OfferingMinDistance = 30, -- los objetos aparecen a esta distancia de los jugadores (o mas)
+		PickupHold = 0.5,
+		DeliverHold = 2,
+		DeliverRadius = 6, -- el pedestal de la tienda
+		TransformSeconds = 30, -- un caido se convierte en maniqui si no lo reviven en este tiempo
+	},
+	Central = {
+		DisplayName = "La Central",
+		Objective = "Reinicien sus 3 servidores (en plantas distintas) casi a la vez: tendrán que separarse.",
+		Reward = 800,
+		Servers = 3,
+		RestartHold = 5, -- mantener E en cada servidor
+		SyncSeconds = 30, -- tras reiniciar el primero, tiempo para reiniciar los demas (en equipo)
+		SoloSyncSeconds = 120, -- jugando solo
+		ServerMinSpacing = 60, -- distancia minima entre servidores
+		ActionSeconds = 35, -- cada tanto la Central hace algo (luces, persianas o megafonia)
+		LightsOutSeconds = 20,
+		ShutterStores = 2,
+		ShutterCloseSeconds = 25,
+		IntercomSeconds = 60,
+		IntercomInterval = { 15, 25 },
+		CameraLureSeconds = 8, -- si una camara te ve, los enemigos van a tu posicion
+		CameraLureRadius = 90,
+	},
+}
+
 -- Camaras de seguridad (las usa el Vigilante; solo funcionan las noches en que hay Vigilante)
 Config.SecurityCameras = {
 	Range = 50,
@@ -1573,6 +1703,10 @@ Config.DefaultData = {
 		DiamondsEarned = 0,
 		RunsPlayed = 0,
 		BossesDefeated = 0, -- lo suma el sistema de jefes (tabla "Jefes vencidos")
+		Boss_Manager = 0, -- veces que venciste a cada jefe (logros)
+		Boss_Luni = 0,
+		Boss_Collector = 0,
+		Boss_Central = 0,
 	},
 } :: Types.PlayerData
 

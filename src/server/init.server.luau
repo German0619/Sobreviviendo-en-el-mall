@@ -50,6 +50,7 @@ else
 		require(script.MissionService),
 		require(script.EnemyService),
 		require(script.EventDirector), -- eventos de la noche (server/Events)
+		require(script.BossService), -- jefes cada 5 noches (server/Bosses)
 		require(script.NightManager),
 		require(script.RoomService),
 		require(script.LeaderboardService), -- sube los records (noche, jefes)

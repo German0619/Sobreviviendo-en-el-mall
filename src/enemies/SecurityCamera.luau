@@ -15,6 +15,7 @@ local ServerScriptService = game:GetService("ServerScriptService")
 local Shared = game:GetService("ReplicatedStorage"):WaitForChild("Shared")
 local Config = require(Shared.Config)
 local Remotes = require(Shared.Remotes)
+local Signal = require(Shared.Signal)
 
 local Server = ServerScriptService:WaitForChild("Server")
 local DefenseService = require(Server:WaitForChild("DefenseService"))
@@ -46,12 +47,21 @@ function SecurityCamera.ClearSighting()
 	lastSighting = nil
 end
 
+-- (player, position) una camara vio a alguien. Lo usa la Central (jefe de la noche 20).
+SecurityCamera.Spotted = Signal.new()
+-- Aviso al jugador visto (la Central lo cambia por el suyo; "" = sin aviso)
+SecurityCamera.ReportMessage = nil :: string?
+
 local function report(player: Player, position: Vector3)
 	local now = os.clock()
 	lastSighting = { Position = position, Time = now, Player = player }
 	if not lastWarned[player] or now - lastWarned[player] > 8 then
 		lastWarned[player] = now
-		Remotes.event("Notify"):FireClient(player, "¡Una cámara te vio! El Vigilante viene hacia aquí.", "bad")
+		local message = SecurityCamera.ReportMessage or "¡Una cámara te vio! El Vigilante viene hacia aquí."
+		if message ~= "" then
+			Remotes.event("Notify"):FireClient(player, message, "bad")
+		end
+		SecurityCamera.Spotted:Fire(player, position)
 	end
 end
 

@@ -44,6 +44,11 @@ local enemyModules = {
 	Statue = require(EnemiesFolder.Statue),
 	Mimic = require(EnemiesFolder.Mimic),
 	Hunter = require(EnemiesFolder.Hunter),
+	-- Jefes (los pone BossService)
+	Manager = require(EnemiesFolder.Manager),
+	Luni = require(EnemiesFolder.Luni),
+	Collector = require(EnemiesFolder.Collector),
+	Converted = require(EnemiesFolder.Converted),
 }
 
 local EnemyService = {}
@@ -157,13 +162,13 @@ end
 
 local startCameras
 
-local function spawnEnemy(enemyType: string, ctx, floor: number?)
+local function spawnEnemy(enemyType: string, ctx, floor: number?, at: Vector3?)
 	local module = enemyModules[enemyType]
 	if not module then
 		warn("[EnemyService] Enemigo sin modulo:", enemyType)
 		return
 	end
-	local position = pickSpawnPosition(enemyType, floor)
+	local position = at or pickSpawnPosition(enemyType, floor)
 	if not position then
 		warn("[EnemyService] No hay donde aparecer", enemyType, "(faltan EnemySpawn o MallZone)")
 		return
@@ -292,12 +297,13 @@ end
 
 -- Aparicion de un evento (Oleada, Megafonia hackeada): un enemigo que se va solo a
 -- los `seconds`. Devuelve el enemigo (o nil).
-function EnemyService.SpawnTemporary(enemyType: string, floor: number?, seconds: number)
+-- at: punto del suelo exacto donde aparece (si no, un EnemySpawn de esa planta).
+function EnemyService.SpawnTemporary(enemyType: string, floor: number?, seconds: number, at: Vector3?)
 	if not currentCtx then
 		return nil
 	end
 	local token = nightToken
-	local enemy = spawnEnemy(enemyType, currentCtx, floor)
+	local enemy = spawnEnemy(enemyType, currentCtx, floor, at)
 	if enemy then
 		task.delay(seconds, function()
 			if token == nightToken then
@@ -308,17 +314,36 @@ function EnemyService.SpawnTemporary(enemyType: string, floor: number?, seconds:
 	return enemy
 end
 
--- Tipos de nivel 1 que ya pueden salir esta noche (para la Oleada).
-function EnemyService.GetTier1Types(): { string }
+-- Tipos de esos niveles que ya pueden salir esta noche (Oleada, refuerzos del Gerente).
+-- exclude: tipos que no sirven (p. ej. los que no tienen cuerpo).
+function EnemyService.GetTypesForTiers(tiers: { number }, exclude: { [string]: boolean }?): { string }
 	local night = currentCtx and currentCtx.Night or 1
 	local list = {}
 	for enemyType, def in Config.Enemies do
-		if def.Tier == 1 and night >= (def.UnlockNight or 1) and enemyModules[enemyType] then
+		if
+			def.Tier
+			and table.find(tiers, def.Tier)
+			and night >= (def.UnlockNight or 1)
+			and enemyModules[enemyType]
+			and not (exclude and exclude[enemyType])
+		then
 			table.insert(list, enemyType)
 		end
 	end
 	table.sort(list)
 	return list
+end
+
+function EnemyService.GetTier1Types(): { string }
+	return EnemyService.GetTypesForTiers({ 1 })
+end
+
+-- Enciende las camaras de seguridad esta noche aunque no haya Vigilante (la Central).
+function EnemyService.EnsureCameras()
+	if currentCtx and not camerasStarted then
+		camerasStarted = true
+		startCameras(currentCtx)
+	end
 end
 
 -- Evento Camaras amigas: contorno de todas las entidades visible a traves de las paredes.

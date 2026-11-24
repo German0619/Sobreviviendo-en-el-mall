@@ -642,9 +642,21 @@ local function update()
 	end
 	phaseLabel.Text = phaseText
 
-	-- Evento activo: "APAGÓN GENERAL (planta alta) · 1:23"
+	-- Jefe (noche de jefe): "☠ EL GERENTE · Radios destruidas 1/3"; si no, el evento activo:
+	-- "APAGÓN GENERAL (planta alta) · 1:23"
+	local bossName = state:GetAttribute("BossName")
 	local eventName = state:GetAttribute("EventName")
-	if type(eventName) == "string" and phase == "Night" then
+	if type(bossName) == "string" and phase == "Night" then
+		if state:GetAttribute("BossDefeated") == true then
+			eventLabel.Text = string.upper(bossName) .. " VENCIDO"
+			eventLabel.TextColor3 = COLORS.Good
+		else
+			local progress = state:GetAttribute("BossProgress")
+			eventLabel.Text = "☠ " .. string.upper(bossName) .. (if type(progress) == "string" and progress ~= "" then "  ·  " .. progress else "")
+			eventLabel.TextColor3 = COLORS.Bad
+		end
+		eventLabel.Visible = true
+	elseif type(eventName) == "string" and phase == "Night" then
 		local floor = state:GetAttribute("EventFloor")
 		local eventEnds = state:GetAttribute("EventEndsAt") or 0
 		local textValue = string.upper(eventName)
