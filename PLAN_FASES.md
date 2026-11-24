@@ -95,7 +95,10 @@
 - Defensas: destello, bengala, petardo, escondites y porrazo.
 - Mapa de 2 pisos.
 
-**Fase 3: director de aparición por presupuesto.** Base de todo lo demás.
+**Fase 3: director de aparición por presupuesto.** Base de todo lo demás. — [HECHO, falta probar una noche real en el mall]
+- Implementado en `src/server/SpawnDirector.luau` (plan puro, probado con 200 planes por caso) y `EnemyService.StartNight`. Valores en `Config.SpawnDirector`, `Config.Enemies[x].Tier/MaxPerFloor` y `Config.Floors`.
+- Curva inicial: noche 1 → 3 enemigos; noche 5 con 2 jugadores → ~9; noche 7 con 4 → ~16; desde ~noche 10 con 5 jugadores se llenan los topes (17–18).
+- El aviso de contramedida sale la primera vez que aparece cada tipo en la partida (ya no depende de `UnlockNight`).
 - Sustituye a `Config.getEnemyCount` y a `EnemyService.spawnEnemy`:
   - cada enemigo tiene un nivel 1–3 con coste 1, 3 o 6;
   - el presupuesto crece con la noche y con los jugadores;
