@@ -45,6 +45,7 @@ local COLORS = {
 	Public = Color3.fromRGB(120, 200, 255),
 	Friends = Color3.fromRGB(190, 120, 255),
 	Starting = Color3.fromRGB(255, 210, 90),
+	VIP = Color3.fromRGB(255, 190, 40), -- el anfitrion tiene el pase VIP
 }
 
 type Pad = {
@@ -364,6 +365,10 @@ local function updateDisplay(pad: Pad)
 	local model = pad.Model
 	local count = #pad.Members + (if pad.State == "Choosing" or pad.State == "Creating" then 1 else 0)
 	local hostName = if pad.Host then pad.Host.DisplayName elseif pad.Chooser then pad.Chooser.DisplayName else ""
+	local vipHost = pad.Host ~= nil and pad.Host:GetAttribute("Pass_VIP") == true
+	if vipHost then
+		hostName = "👑 " .. hostName
+	end
 
 	local countText, hint
 	if pad.State == "Free" then
@@ -387,6 +392,7 @@ local function updateDisplay(pad: Pad)
 	local color = if pad.State == "Starting"
 		then COLORS.Starting
 		elseif pad.State == "Free" then COLORS.Free
+		elseif vipHost then COLORS.VIP
 		elseif pad.Public then COLORS.Public
 		else COLORS.Friends
 	local glow = model:FindFirstChild("Glow")

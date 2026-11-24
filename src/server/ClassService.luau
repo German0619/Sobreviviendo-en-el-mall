@@ -28,6 +28,8 @@ local Place = require(Shared.Place)
 
 local DataService = require(script.Parent.DataService)
 local PlayerStats = require(script.Parent.PlayerStats)
+local PassService = require(script.Parent.PassService)
+local AchievementService = require(script.Parent.AchievementService)
 
 local ClassService = {}
 
@@ -81,6 +83,7 @@ local function applySpinResult(player: Player, className: string): string
 		d.ClassSlots[slot] = className
 	end)
 	PlayerStats.Apply(player)
+	AchievementService.Check(player) -- logros de "consigue una clase Epica/Legendaria/Mitica"
 	DataService.Save(player) -- que no se pierda el giro si se cae el servidor
 	return string.format(
 		"¡Obtuviste %s! Reemplazó a %s en el slot %d.",
@@ -117,8 +120,9 @@ function ClassService.Spin(player: Player): (boolean, string, string?)
 	if isNight() then
 		return false, "La ruleta no está disponible durante la noche", nil
 	end
-	if not DataService.TrySpendDiamonds(player, Config.Roulette.SpinCost, ClassService.IsRestricted(player)) then
-		if ClassService.IsRestricted(player) and data.Diamonds >= Config.Roulette.SpinCost then
+	local cost = Config.getSpinCost(PassService.Owns(player, "VIP")) -- VIP: con descuento
+	if not DataService.TrySpendDiamonds(player, cost, ClassService.IsRestricted(player)) then
+		if ClassService.IsRestricted(player) and data.Diamonds >= cost then
 			return false, "En tu país solo puedes girar con diamantes ganados jugando", nil
 		end
 		return false, "Diamantes insuficientes", nil
@@ -153,21 +157,9 @@ end
 -- Diamantes ganados jugando
 ----------------------------------------------------------------------
 
+-- Los logros los lleva AchievementService (se desbloquean aqui, se reclaman en el lobby).
 function ClassService.CheckAchievements(player: Player)
-	local data = DataService.GetData(player)
-	if not data then
-		return
-	end
-	for achievementId, achievement in Config.Achievements do
-		if not data.Achievements[achievementId] and achievement.BestNight and data.BestNight >= achievement.BestNight then
-			DataService.Update(player, function(d)
-				d.Achievements[achievementId] = true
-			end)
-			local reward = achievement.Diamonds or 0
-			DataService.AddDiamonds(player, reward, false)
-			notify(player, string.format("Logro: %s  (+%d diamantes)", achievement.DisplayName, reward), "good")
-		end
-	end
+	AchievementService.Check(player)
 end
 
 -- Llamar cuando el jugador sobrevive una noche (despues de sumar NightsSurvived).

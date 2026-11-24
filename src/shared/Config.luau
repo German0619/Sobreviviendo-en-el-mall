@@ -393,16 +393,90 @@ Config.Diamonds = {
 
 -- Logros: dan diamantes. Los comprueba ClassService al terminar cada noche.
 -- BestNight: se consigue al sobrevivir esa noche.
+-- Se DESBLOQUEAN solos al llegar a la meta y los diamantes se dan al RECLAMARLOS
+-- en el panel LOGROS del lobby (AchievementService). Los jefes sumaran los suyos.
+-- Stat: que se mide (ver Config.getAchievementProgress). Goal: la meta.
 Config.Achievements = {
-	FirstNight = { DisplayName = "Primer turno", Description = "Sobrevive tu primera noche.", BestNight = 1, Diamonds = 50 },
-	ReachNight5 = { DisplayName = "Turno largo", Description = "Sobrevive la noche 5.", BestNight = 5, Diamonds = 150 },
+	FirstRun = { DisplayName = "Primer día", Description = "Juega tu primera partida.", Stat = "RunsPlayed", Goal = 1, Diamonds = 25 },
+	FirstNight = { DisplayName = "Primer turno", Description = "Sobrevive tu primera noche.", Stat = "BestNight", Goal = 1, Diamonds = 50 },
+	ReachNight5 = { DisplayName = "Turno largo", Description = "Sobrevive la noche 5.", Stat = "BestNight", Goal = 5, Diamonds = 150 },
 	ReachNight10 = {
 		DisplayName = "Veterano del turno noche",
 		Description = "Sobrevive la noche 10.",
-		BestNight = 10,
+		Stat = "BestNight",
+		Goal = 10,
 		Diamonds = 300,
 	},
+	ReachNight20 = {
+		DisplayName = "Leyenda de Plaza Luna",
+		Description = "Sobrevive la noche 20.",
+		Stat = "BestNight",
+		Goal = 20,
+		Diamonds = 600,
+	},
+	Survive25 = { DisplayName = "Insomne", Description = "Sobrevive 25 noches en total.", Stat = "NightsSurvived", Goal = 25, Diamonds = 150 },
+	Missions10 = { DisplayName = "Manos a la obra", Description = "Completa 10 tareas.", Stat = "MissionsCompleted", Goal = 10, Diamonds = 50 },
+	Missions100 = { DisplayName = "Empleado del mes", Description = "Completa 100 tareas.", Stat = "MissionsCompleted", Goal = 100, Diamonds = 200 },
+	Money10k = { DisplayName = "Buen sueldo", Description = "Gana 10,000 billetes en total.", Stat = "MoneyEarned", Goal = 10000, Diamonds = 100 },
+	EpicClass = { DisplayName = "Suerte épica", Description = "Consigue una clase Épica o mejor.", Stat = "BestRarity", Goal = 3, Diamonds = 75 },
+	LegendaryClass = {
+		DisplayName = "Leyenda en la ruleta",
+		Description = "Consigue una clase Legendaria o mejor.",
+		Stat = "BestRarity",
+		Goal = 4,
+		Diamonds = 200,
+	},
+	MythicClass = { DisplayName = "Mito viviente", Description = "Consigue una clase Mítica.", Stat = "BestRarity", Goal = 5, Diamonds = 1000 },
 }
+
+Config.AchievementOrder = {
+	"FirstRun",
+	"FirstNight",
+	"ReachNight5",
+	"ReachNight10",
+	"ReachNight20",
+	"Survive25",
+	"Missions10",
+	"Missions100",
+	"Money10k",
+	"EpicClass",
+	"LegendaryClass",
+	"MythicClass",
+}
+
+-- Progreso actual de un logro segun los datos guardados del jugador.
+function Config.getAchievementProgress(data: any, achievement: any): number
+	local stat = achievement.Stat
+	if stat == "BestNight" then
+		return data.BestNight or 0
+	elseif stat == "BestRarity" then
+		-- La mejor rareza que tienes en tus slots (1 Comun ... 5 Mitica)
+		local best = 0
+		for _, className in data.ClassSlots or {} do
+			local class = Config.Classes[className]
+			local rarity = class and Config.Rarities[class.Rarity]
+			if rarity then
+				best = math.max(best, rarity.Order)
+			end
+		end
+		return best
+	end
+	return (data.Lifetime and data.Lifetime[stat]) or 0
+end
+
+----------------------------------------------------------------------
+-- VIP (Game Pass Config.GamePasses.VIP)
+----------------------------------------------------------------------
+Config.VIP = {
+	DailyDiamonds = 50, -- se reclaman una vez por dia (UTC) en el panel LOGROS
+	SpinDiscount = 0.2, -- la ruleta cuesta un 20% menos
+}
+
+-- Diamantes que cuesta un giro de la ruleta (VIP con descuento).
+function Config.getSpinCost(isVip: boolean?): number
+	local discount = if isVip then Config.VIP.SpinDiscount else 0
+	return math.floor(Config.Roulette.SpinCost * (1 - discount) + 0.5)
+end
 
 ----------------------------------------------------------------------
 -- Revivir y deteccion
@@ -817,7 +891,7 @@ Config.GamePassInfo = {
 	},
 	VIP = {
 		DisplayName = "VIP",
-		Description = "Etiqueta VIP sobre tu cabeza y nombre dorado en las salas.",
+		Description = "50 💎 gratis cada día, ruleta 20% más barata, [VIP] en el chat y nombre dorado.",
 	},
 }
 Config.GamePassOrder = { "DoubleMoney", "PremiumFlashlight", "VIP" }
@@ -847,7 +921,7 @@ Config.Data = {
 
 -- Solo lo PERMANENTE. Billetes, mejoras y objetos son por partida (RunState / ShopService).
 Config.DefaultData = {
-	Version = 2,
+	Version = 3,
 	Diamonds = 0, -- total de diamantes
 	PaidDiamonds = 0, -- cuantos de ellos se compraron con Robux (politica de objetos aleatorios)
 	ClassSlots = { Config.DefaultClass }, -- clase en cada slot
@@ -857,7 +931,9 @@ Config.DefaultData = {
 	SodaTokens = 0, -- sodas a eleccion compradas que no se pudieron usar
 	ProcessedReceipts = {}, -- compras de Robux ya entregadas (evita entregarlas dos veces)
 	BestNight = 0,
-	Achievements = {},
+	Achievements = {}, -- [id] = true: desbloqueado
+	ClaimedAchievements = {}, -- [id] = true: ya se cobraron sus diamantes
+	VipDailyDay = 0, -- dia (UTC, os.time() // 86400) del ultimo bono diario VIP
 	Lifetime = {
 		NightsSurvived = 0,
 		MissionsCompleted = 0,

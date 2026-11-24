@@ -27,6 +27,7 @@ if Place.IsLobby then
 		require(script.MonetizationService),
 		require(script.LobbyService),
 		require(script.PadService), -- cuadros de sala (usa LobbyService)
+		require(script.AchievementService), -- reclamar logros y bono diario VIP
 		require(script.DataService),
 	}
 else

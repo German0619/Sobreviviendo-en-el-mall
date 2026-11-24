@@ -2,7 +2,7 @@
 -- Registro de paneles del lobby. Cada fase registra el suyo y los botones del
 -- HUD / los puestos de la plaza solo piden abrirlo por su id:
 --   "Shop"         boton TIENDA          (Fase 4)
---   "Achievements" boton LOGROS          (Fase 5)
+--   "Achievements" boton LOGROS          (AchievementsPanel)
 --   "Classes"      puesto CLASES         (ClassPanel)
 --   "Upgrades"     puesto MEJORAS        (por decidir)
 -- Mientras un panel no exista se muestra un aviso nativo de "Proximamente".

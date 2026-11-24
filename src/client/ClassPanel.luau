@@ -167,6 +167,11 @@ local function isRestricted(): boolean
 	return player:GetAttribute("PaidRandomRestricted") ~= false
 end
 
+-- Costo de un giro (VIP: con descuento, Config.VIP.SpinDiscount)
+local function spinCost(): number
+	return Config.getSpinCost(player:GetAttribute("Pass_VIP") == true)
+end
+
 -- Diamantes que se pueden gastar en la ruleta (en paises restringidos, solo los ganados)
 local function spendableDiamonds(): number
 	local total = player:GetAttribute("Diamonds") or 0
@@ -316,12 +321,12 @@ local function refreshCenter()
 
 	diamondsLabel.Text = string.format("%s %d", DIAMOND, player:GetAttribute("Diamonds") or 0)
 
-	local canPay = spendableDiamonds() >= Config.Roulette.SpinCost
+	local canPay = spendableDiamonds() >= spinCost()
 	if os.clock() < confirmUntil then
 		spinButton.Text = string.format("¿Reemplazar a %s? Pulsa otra vez", classDef(equipped).DisplayName)
 		spinButton.BackgroundColor3 = COLORS.Bad
 	else
-		spinButton.Text = string.format("GIRAR · %d %s", Config.Roulette.SpinCost, DIAMOND)
+		spinButton.Text = string.format("GIRAR · %d %s%s", spinCost(), DIAMOND, if player:GetAttribute("Pass_VIP") == true then "  (VIP -" .. math.floor(Config.VIP.SpinDiscount * 100 + 0.5) .. "%)" else "")
 		spinButton.BackgroundColor3 = if canPay and not autoOn and not animating then COLORS.Spin else COLORS.Off
 	end
 
@@ -390,9 +395,9 @@ local function onSpinPressed()
 	if busy or animating or autoOn then
 		return
 	end
-	if spendableDiamonds() < Config.Roulette.SpinCost then
+	if spendableDiamonds() < spinCost() then
 		setStatus(
-			if isRestricted() and (player:GetAttribute("Diamonds") or 0) >= Config.Roulette.SpinCost
+			if isRestricted() and (player:GetAttribute("Diamonds") or 0) >= spinCost()
 				then "En tu país solo puedes girar con diamantes ganados jugando."
 				else "No tienes diamantes suficientes.",
 			"bad"
@@ -428,7 +433,7 @@ local function onAutoPressed()
 		setStatus("Ya tienes " .. classDef(target).DisplayName .. " en el slot equipado.", "info")
 		return
 	end
-	if spendableDiamonds() < Config.Roulette.SpinCost then
+	if spendableDiamonds() < spinCost() then
 		setStatus("No tienes diamantes suficientes.", "bad")
 		return
 	end
@@ -437,7 +442,7 @@ local function onAutoPressed()
 	refreshCenter()
 	local spins = 0
 	while autoOn and window.Visible do
-		if spendableDiamonds() < Config.Roulette.SpinCost then
+		if spendableDiamonds() < spinCost() then
 			setStatus(string.format("Sin diamantes tras %d giros. No salió %s.", spins, classDef(target).DisplayName), "bad")
 			break
 		end
@@ -698,7 +703,7 @@ function ClassPanel.Start()
 	gui.Parent = player:WaitForChild("PlayerGui")
 	build(gui)
 
-	for _, attr in { "Diamonds", "PaidDiamonds", "MaxSlots", "EquippedSlot", "EquippedClass", "PaidRandomRestricted" } do
+	for _, attr in { "Diamonds", "PaidDiamonds", "MaxSlots", "EquippedSlot", "EquippedClass", "PaidRandomRestricted", "Pass_VIP" } do
 		player:GetAttributeChangedSignal(attr):Connect(function()
 			if window.Visible and not animating then
 				refreshAll()

@@ -15,6 +15,8 @@ local LOBBY_MODULES = {
 	PadUI = true, -- cuadros de sala
 	ClassPanel = true, -- clases y ruleta (puesto CLASES)
 	ShopPanel = true, -- tienda con Robux (boton TIENDA)
+	AchievementsPanel = true, -- logros y bono diario VIP (boton LOGROS)
+	VipChat = true, -- [VIP] en el chat (tambien en el mall)
 	Movement = true,
 }
 
@@ -26,6 +28,7 @@ local LOBBY_ONLY = {
 	PadUI = true,
 	ClassPanel = true,
 	ShopPanel = true,
+	AchievementsPanel = true,
 	LobbyUI = true,
 	StoreUI = true,
 }

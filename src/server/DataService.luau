@@ -80,9 +80,16 @@ local function pushAttributes(player: Player, data: PlayerData)
 	for i = 1, Config.Roulette.MaxSlots do
 		player:SetAttribute("Slot_" .. i, data.ClassSlots[i] or "")
 	end
-	for achievementId in Config.Achievements do
-		player:SetAttribute("Ach_" .. achievementId, data.Achievements[achievementId] == true)
+	-- Logros: estado ("locked" | "claimable" | "claimed") y progreso actual
+	for achievementId, achievement in Config.Achievements do
+		local state = if data.ClaimedAchievements[achievementId]
+			then "claimed"
+			elseif data.Achievements[achievementId] then "claimable"
+			else "locked"
+		player:SetAttribute("Ach_" .. achievementId, state)
+		player:SetAttribute("AchProg_" .. achievementId, Config.getAchievementProgress(data, achievement))
 	end
+	player:SetAttribute("VipDailyDay", data.VipDailyDay)
 end
 
 local function sanitize(data: PlayerData)
@@ -102,6 +109,18 @@ local function sanitize(data: PlayerData)
 	raw.OwnedClasses = nil
 	raw.EquippedClass = nil
 	raw.PendingClass = nil
+
+	-- Migracion v2 -> v3: los logros pasan a reclamarse a mano. Los que ya estaban
+	-- desbloqueados se pagaron solos al conseguirlos: quedan como reclamados.
+	if (raw.Version or 1) < 3 then
+		raw.ClaimedAchievements = raw.ClaimedAchievements or {}
+		for achievementId, unlocked in raw.Achievements or {} do
+			if unlocked then
+				raw.ClaimedAchievements[achievementId] = true
+			end
+		end
+		raw.Version = 3
+	end
 
 	Util.reconcile(raw, Config.DefaultData :: any)
 

@@ -19,6 +19,7 @@ local LobbyPanels = require(script.Parent.LobbyPanels)
 -- Paneles que ya existian (se rehacen en formato nativo en sus fases)
 local ClassPanel = require(script.Parent.ClassPanel)
 local ShopPanel = require(script.Parent.ShopPanel)
+local AchievementsPanel = require(script.Parent.AchievementsPanel)
 
 local LobbyHUD = {}
 
@@ -199,14 +200,36 @@ function LobbyHUD.Start()
 	buildDiamondCounter(gui)
 	buildSideButtons(gui)
 
-	LobbyPanels.register("Classes", function()
+	-- Un panel a la vez
+	local function closeAll()
+		ClassPanel.Close()
 		ShopPanel.Close()
+		AchievementsPanel.Close()
+	end
+	LobbyPanels.register("Classes", function()
+		closeAll()
 		ClassPanel.Open()
 	end)
 	LobbyPanels.register("Shop", function()
-		ClassPanel.Close()
+		closeAll()
 		ShopPanel.Open()
 	end)
+	LobbyPanels.register("Achievements", function()
+		closeAll()
+		AchievementsPanel.Open()
+	end)
+
+	-- "!" en LOGROS cuando hay un logro o el bono VIP por reclamar
+	local rail = gui:FindFirstChild("SideButtons")
+	local achievementsButton = rail and rail:FindFirstChild("Achievements")
+	local badge = achievementsButton and achievementsButton:FindFirstChild("Badge") :: GuiObject?
+	if badge then
+		local function refreshBadge()
+			badge.Visible = AchievementsPanel.HasClaimable()
+		end
+		AchievementsPanel.Changed.Event:Connect(refreshBadge)
+		refreshBadge()
+	end
 
 	-- Puestos de la plaza (ProximityPrompt creado por PlazaService)
 	ProximityPromptService.PromptTriggered:Connect(function(prompt: ProximityPrompt)

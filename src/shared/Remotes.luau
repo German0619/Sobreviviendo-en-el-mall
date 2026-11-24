@@ -49,6 +49,8 @@ local FUNCTIONS = {
 	"RequestLeaveRoom", -- () -> (ok, mensaje)
 	"RequestStartRoom", -- () -> (ok, mensaje). Solo el anfitrion: todos viajan al mall
 	"RequestPadCreate", -- (esPublica) -> (ok, mensaje). Quien eligio en su cuadro libre
+	"RequestClaimAchievement", -- (idLogro) -> (ok, mensaje). Da los diamantes de un logro desbloqueado
+	"RequestClaimVipDaily", -- () -> (ok, mensaje). Bono diario VIP
 }
 
 local IS_SERVER = RunService:IsServer()

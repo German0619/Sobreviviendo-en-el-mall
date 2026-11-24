@@ -51,6 +51,8 @@ export type PlayerData = {
 	ProcessedReceipts: { string },
 	BestNight: number,
 	Achievements: { [string]: boolean },
+	ClaimedAchievements: { [string]: boolean },
+	VipDailyDay: number,
 	Lifetime: LifetimeStats,
 	SessionLock: SessionLock?,
 }
