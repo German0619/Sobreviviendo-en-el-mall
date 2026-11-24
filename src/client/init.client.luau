@@ -9,7 +9,7 @@ local ReplicatedStorage = game:GetService("ReplicatedStorage")
 local Place = require(ReplicatedStorage:WaitForChild("Shared"):WaitForChild("Place"))
 
 local LOBBY_MODULES = {
-	HUD = true, -- en modo lobby: avisos, diamantes y clase
+	LobbyHUD = true, -- diamantes, botones laterales y paneles de los puestos
 	ClassUI = true,
 	LobbyUI = true,
 	StoreUI = true,
@@ -17,6 +17,8 @@ local LOBBY_MODULES = {
 }
 
 local LOBBY_ONLY = {
+	LobbyHUD = true,
+	LobbyPanels = true,
 	LobbyUI = true,
 	StoreUI = true,
 }

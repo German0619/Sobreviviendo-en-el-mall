@@ -70,8 +70,8 @@ local function buildOverhead(player: Player, character: Model, humanoid: Humanoi
 
 	local bb = Instance.new("BillboardGui")
 	bb.Name = "Overhead"
-	bb.Size = UDim2.fromScale(7, 2.6) -- en studs: se ve proporcionado en cualquier pantalla
-	bb.StudsOffsetWorldSpace = Vector3.new(0, 2.8, 0)
+	bb.Size = UDim2.fromScale(5, 1.9) -- en studs: se ve proporcionado en cualquier pantalla
+	bb.StudsOffsetWorldSpace = Vector3.new(0, 2.4, 0)
 	bb.MaxDistance = 70
 	bb.LightInfluence = 0
 	bb.Adornee = head

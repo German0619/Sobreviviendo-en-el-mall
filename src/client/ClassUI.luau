@@ -538,7 +538,7 @@ function ClassUI.Start()
 			end
 		end
 		return Enum.ContextActionResult.Pass
-	end, true, Enum.KeyCode.C)
+	end, not Place.IsLobby, Enum.KeyCode.C) -- en el lobby el boton tactil sobra (puesto CLASES)
 	ContextActionService:SetTitle("Classes", "Clases")
 	ContextActionService:SetPosition("Classes", UDim2.new(1, -100, 1, -300))
 end

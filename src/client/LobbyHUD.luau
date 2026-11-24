@@ -13,6 +13,10 @@ local ReplicatedStorage = game:GetService("ReplicatedStorage")
 local Shared = ReplicatedStorage:WaitForChild("Shared")
 local Remotes = require(Shared.Remotes)
 local LobbyPanels = require(script.Parent.LobbyPanels)
+-- Paneles que ya existian (se rehacen en formato nativo en sus fases)
+local ClassUI = require(script.Parent.ClassUI)
+local StoreUI = require(script.Parent.StoreUI)
+local LobbyUI = require(script.Parent.LobbyUI)
 
 local LobbyHUD = {}
 
@@ -192,6 +196,20 @@ function LobbyHUD.Start()
 
 	buildDiamondCounter(gui)
 	buildSideButtons(gui)
+
+	LobbyPanels.register("Classes", function()
+		LobbyUI.CloseRooms()
+		StoreUI.Close()
+		ClassUI.Open()
+	end)
+	LobbyPanels.register("Shop", function()
+		LobbyUI.CloseRooms()
+		ClassUI.Close()
+		StoreUI.Open()
+	end)
+	LobbyPanels.register("Rooms", function()
+		LobbyUI.OpenRooms() -- cierra ClassUI y StoreUI
+	end)
 
 	-- Puestos de la plaza (ProximityPrompt creado por PlazaService)
 	ProximityPromptService.PromptTriggered:Connect(function(prompt: ProximityPrompt)

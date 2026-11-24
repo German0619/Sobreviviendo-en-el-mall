@@ -506,11 +506,14 @@ local function updateClassInfo()
 	)
 end
 
+-- Menu compacto abajo al centro: clase con la que entras + JUGAR / INICIAR PARTIDA.
+-- CLASES y TIENDA estan ahora en la plaza (puesto CLASES) y en LobbyHUD.
+-- (Se reemplaza por los cuadros de sala de la plaza en la Fase 2.)
 local function buildMenu(gui: ScreenGui)
 	local menu = UIKit.make("Frame", {
-		AnchorPoint = Vector2.new(0, 1),
-		Position = UDim2.new(0, 24, 1, -24),
-		Size = UDim2.fromOffset(340, 210),
+		AnchorPoint = Vector2.new(0.5, 1),
+		Position = UDim2.new(0.5, 0, 1, -16),
+		Size = UDim2.fromOffset(320, 112),
 		BackgroundColor3 = C.Panel,
 		BackgroundTransparency = 0.15,
 		Parent = gui,
@@ -524,28 +527,9 @@ local function buildMenu(gui: ScreenGui)
 			PaddingRight = UDim.new(0, 16),
 		}),
 	})
-	UIKit.text({
-		Size = UDim2.new(1, 0, 0, 26),
-		TextXAlignment = Enum.TextXAlignment.Left,
-		TextColor3 = C.Accent,
-		Text = "SOBREVIVIENDO EN EL MALL",
-		TextScaled = true,
-		Parent = menu,
-	})
-	UIKit.text({
-		Position = UDim2.fromOffset(0, 28),
-		Size = UDim2.new(1, 0, 0, 18),
-		TextXAlignment = Enum.TextXAlignment.Left,
-		TextSize = 14,
-		Font = UIKit.FONT_LIGHT,
-		TextColor3 = C.Dim,
-		Text = "Sala de descanso · turno de noche",
-		Parent = menu,
-	})
 	classInfo = UIKit.text({
-		Position = UDim2.fromOffset(0, 54),
 		Size = UDim2.new(1, 0, 0, 20),
-		TextXAlignment = Enum.TextXAlignment.Left,
+		TextXAlignment = Enum.TextXAlignment.Center,
 		TextSize = 15,
 		RichText = true,
 		Text = "",
@@ -553,42 +537,12 @@ local function buildMenu(gui: ScreenGui)
 	})
 	playButton = UIKit.button({
 		AnchorPoint = Vector2.new(0, 1),
-		Position = UDim2.new(0, 0, 1, -54),
+		Position = UDim2.fromScale(0, 1),
 		Size = UDim2.new(1, 0, 0, 46),
 		TextSize = 20,
 		Text = "JUGAR",
 		Parent = menu,
 	}, onPlayPressed)
-	UIKit.button({
-		AnchorPoint = Vector2.new(0, 1),
-		Position = UDim2.fromScale(0, 1),
-		Size = UDim2.new(0.5, -4, 0, 44),
-		BackgroundColor3 = Color3.fromRGB(110, 70, 160),
-		TextSize = 17,
-		Text = "CLASES",
-		Parent = menu,
-	}, function()
-		LobbyUI.CloseRooms()
-		StoreUI.Close()
-		ClassUI.Open()
-	end)
-	UIKit.button({
-		AnchorPoint = Vector2.new(1, 1),
-		Position = UDim2.fromScale(1, 1),
-		Size = UDim2.new(0.5, -4, 0, 44),
-		BackgroundColor3 = Color3.fromRGB(170, 120, 20),
-		TextSize = 17,
-		Text = "TIENDA",
-		Parent = menu,
-	}, function()
-		LobbyUI.CloseRooms()
-		ClassUI.Close()
-		if StoreUI.IsOpen() then
-			StoreUI.Close()
-		else
-			StoreUI.Open()
-		end
-	end)
 end
 
 function LobbyUI.Start()

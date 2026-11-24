@@ -56,4 +56,14 @@ return {
 	-- Agua de las fuentes (solo visual, la anima el cliente): laminas de agua que giran
 	-- despacio (atributo Spin, rad/s) y focos sumergidos que titilan (atributo Shimmer).
 	FountainWater = "FountainWater",
+
+	-- LOBBY (place del lobby, Workspace.Lobby)
+	-- Cuadro blanco del suelo donde se crea / reune una sala. Atributo: PadId (number)
+	LobbyRoomPad = "LobbyRoomPad",
+	-- Puesto de la plaza. Atributos: Stand ("Classes" | "Upgrades"), ActionText, ObjectText.
+	-- Debe tener una parte hija llamada "PromptPart" donde aparece el ProximityPrompt.
+	LobbyStand = "LobbyStand",
+	-- Pantalla de clasificacion. Atributo: Board ("BestNight" | "BossesDefeated").
+	-- Debe tener una parte hija llamada "Screen" con un SurfaceGui.
+	LobbyLeaderboard = "LobbyLeaderboard",
 }

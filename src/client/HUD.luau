@@ -494,6 +494,15 @@ end
 function HUD.Toast(message: string, kind: string?)
 	if toastList then
 		toast(message, kind)
+	else
+		-- En el lobby este HUD no se arranca (lo reemplaza LobbyHUD): aviso nativo.
+		pcall(function()
+			game:GetService("StarterGui"):SetCore("SendNotification", {
+				Title = "Plaza Luna",
+				Text = message,
+				Duration = 4,
+			})
+		end)
 	end
 end
 

@@ -69,10 +69,11 @@ local function setupLighting()
 end
 
 function LobbyMapBuilder.BuildIfNeeded()
-	setupLighting()
+	-- Con la plaza modelada en Studio, su iluminacion es la del place (no se toca).
 	if not Config.Debug.BuildTestMap or Workspace:FindFirstChild("Lobby") then
 		return
 	end
+	setupLighting()
 
 	local map = Instance.new("Model")
 	map.Name = "Lobby"

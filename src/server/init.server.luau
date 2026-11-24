@@ -2,7 +2,9 @@
 -- Punto de entrada del servidor. Arranca los servicios en orden.
 --
 -- El mismo codigo corre en los dos places (ver shared/Place):
---   * Lobby: ruleta, slots, compras con Robux y salas (LobbyService).
+--   * Lobby: plaza (PlazaService), ruleta, slots, compras con Robux y salas (LobbyService).
+--     La plaza se modela en Studio (Workspace.Lobby); si no existe, LobbyMapBuilder
+--     construye el lobby de prueba.
 --   * Mall:  la partida completa + RoomService (registro de la sala).
 --
 -- IMPORTANTE: DataService va al final. Los demas servicios se suscriben a
@@ -18,6 +20,7 @@ if Place.IsLobby then
 	require(script.LobbyMapBuilder).BuildIfNeeded()
 	services = {
 		require(script.RunState),
+		require(script.PlazaService),
 		require(script.PlayerStats),
 		require(script.ClassService),
 		require(script.PassService),
