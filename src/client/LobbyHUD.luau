@@ -1,6 +1,7 @@
 --!strict
 -- HUD del lobby: contador de diamantes (con "+" para comprar) en el lateral
--- derecho y botones TIENDA, LOGROS y SALAS en el lateral izquierdo. Tambien abre el panel de cada puesto de la plaza.
+-- derecho y botones TIENDA y LOGROS en el lateral izquierdo. (Las salas no
+-- tienen boton: se entra subiendose a un cuadro de la plaza.) Tambien abre el panel de cada puesto de la plaza.
 --
 -- Todo se dimensiona en Scale con limites en pixeles (UISizeConstraint), y el
 -- ScreenGui respeta las zonas seguras (notch, barra de Roblox), asi que se ve
@@ -16,7 +17,6 @@ local LobbyPanels = require(script.Parent.LobbyPanels)
 -- Paneles que ya existian (se rehacen en formato nativo en sus fases)
 local ClassUI = require(script.Parent.ClassUI)
 local StoreUI = require(script.Parent.StoreUI)
-local LobbyUI = require(script.Parent.LobbyUI)
 
 local LobbyHUD = {}
 
@@ -121,7 +121,7 @@ end
 local SIDE_BUTTONS = {
 	{ Id = "Shop", Icon = "🛒", Text = "TIENDA" },
 	{ Id = "Achievements", Icon = "🏆", Text = "LOGROS" },
-	{ Id = "Rooms", Icon = "👥", Text = "SALAS" },
+	-- Sin boton de salas: se entra subiendose a un cuadro de la plaza (PadUI).
 }
 
 local function buildSideButtons(gui: ScreenGui)
@@ -198,17 +198,12 @@ function LobbyHUD.Start()
 	buildSideButtons(gui)
 
 	LobbyPanels.register("Classes", function()
-		LobbyUI.CloseRooms()
 		StoreUI.Close()
 		ClassUI.Open()
 	end)
 	LobbyPanels.register("Shop", function()
-		LobbyUI.CloseRooms()
 		ClassUI.Close()
 		StoreUI.Open()
-	end)
-	LobbyPanels.register("Rooms", function()
-		LobbyUI.OpenRooms() -- cierra ClassUI y StoreUI
 	end)
 
 	-- Puestos de la plaza (ProximityPrompt creado por PlazaService)

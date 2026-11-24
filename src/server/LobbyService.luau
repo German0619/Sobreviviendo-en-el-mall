@@ -406,6 +406,22 @@ function LobbyService.JoinRoom(player: Player, roomId: any): (boolean, string)
 	return joinRoom(player, roomId, true)
 end
 
+-- Para PadService (servidor, de confianza): entra por id aunque la sala sea
+-- "solo amigos" (PadService ya comprobo la amistad con el anfitrion).
+function LobbyService.JoinRoomById(player: Player, roomId: string): (boolean, string)
+	return joinRoom(player, roomId, false)
+end
+
+-- Sala en la que esta el jugador (id = PrivateServerId), o nil.
+function LobbyService.GetPartyId(player: Player): string?
+	return partyOf[player]
+end
+
+-- Inicio automatico (cuenta atras del cuadro): no exige anfitrion.
+function LobbyService.StartById(roomId: string): (boolean, string)
+	return startRoom(roomId, nil)
+end
+
 function LobbyService.JoinByCode(player: Player, rawCode: any): (boolean, string)
 	local code = Rooms.NormalizeCode(rawCode)
 	if not code then
@@ -476,26 +492,8 @@ end
 ----------------------------------------------------------------------
 
 function LobbyService.Start()
-	local function handler(action: string, seconds: number, fn)
-		return function(player: Player, ...)
-			if throttled(player, action, seconds) then
-				return false, "Espera un momento."
-			end
-			return fn(player, ...)
-		end
-	end
-
-	Remotes.func("RequestRoomList").OnServerInvoke = function(player: Player)
-		if throttled(player, "List", 0.5) then
-			return cachedList
-		end
-		return LobbyService.GetPublicRooms()
-	end
-	Remotes.func("RequestCreateRoom").OnServerInvoke = handler("Create", 2, LobbyService.CreateRoom)
-	Remotes.func("RequestJoinRoom").OnServerInvoke = handler("Join", 1, LobbyService.JoinRoom)
-	Remotes.func("RequestJoinByCode").OnServerInvoke = handler("Join", 1, LobbyService.JoinByCode)
-	Remotes.func("RequestLeaveRoom").OnServerInvoke = handler("Leave", 1, LobbyService.LeaveRoom)
-	Remotes.func("RequestStartRoom").OnServerInvoke = handler("Start", 1, LobbyService.StartRoom)
+	-- Crear, unirse, salir e iniciar se hace SOLO con los cuadros de la plaza
+	-- (PadService llama a esta API). No hay remotes de salas aqui.
 
 	TeleportService.TeleportInitFailed:Connect(function(player: Player, result: Enum.TeleportResult, message: string)
 		teleporting[player] = nil -- la siguiente revision lo reintenta

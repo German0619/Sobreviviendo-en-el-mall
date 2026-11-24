@@ -58,6 +58,9 @@ Config.Rooms = {
 	ListMax = 100,
 	MaxTeleportAttempts = 3, -- reintentos de viaje al mall antes de sacar al jugador de la sala
 	ArrivalTimeout = 25, -- en el mall: segundos maximos esperando a que lleguen todos los miembros
+	-- Cuadros de sala de la plaza (PadService)
+	PadStartSeconds = 40, -- la partida empieza sola este tiempo despues de abrir la sala
+	PadChooseSeconds = 15, -- tiempo para elegir publica / solo amigos (si no, queda publica)
 }
 
 ----------------------------------------------------------------------

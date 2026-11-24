@@ -8,10 +8,12 @@ local ReplicatedStorage = game:GetService("ReplicatedStorage")
 
 local Place = require(ReplicatedStorage:WaitForChild("Shared"):WaitForChild("Place"))
 
+-- LobbyUI (ventana de salas del lobby de prueba) ya no se usa: las salas se
+-- arman subiendose a los cuadros de la plaza (PadUI / PadService).
 local LOBBY_MODULES = {
 	LobbyHUD = true, -- diamantes, botones laterales y paneles de los puestos
+	PadUI = true, -- cuadros de sala
 	ClassUI = true,
-	LobbyUI = true,
 	StoreUI = true,
 	Movement = true,
 }
@@ -19,6 +21,7 @@ local LOBBY_MODULES = {
 local LOBBY_ONLY = {
 	LobbyHUD = true,
 	LobbyPanels = true,
+	PadUI = true,
 	LobbyUI = true,
 	StoreUI = true,
 }

@@ -26,6 +26,7 @@ if Place.IsLobby then
 		require(script.PassService),
 		require(script.MonetizationService),
 		require(script.LobbyService),
+		require(script.PadService), -- cuadros de sala (usa LobbyService)
 		require(script.DataService),
 	}
 else

@@ -30,6 +30,7 @@ local EVENTS = {
 	"RequestBuyPass", -- cliente -> servidor: (nombre del pase en Config.GamePasses)
 	"OpenSodaPicker", -- servidor -> cliente (mall): abrir el selector de soda a eleccion
 	"RequestChoiceSoda", -- cliente -> servidor (mall): (efecto) usar ficha o comprar con Robux
+	"PadPrompt", -- servidor -> cliente (lobby): (padId) elegir sala publica / solo amigos, o (nil) cerrar
 }
 
 local FUNCTIONS = {
@@ -37,13 +38,15 @@ local FUNCTIONS = {
 	"RequestPurchase", -- cliente -> servidor: (itemId) -> (ok, mensaje)
 	"RequestSpin", -- cliente -> servidor: () -> (ok, mensaje, className). Reemplaza la clase equipada.
 	"RequestEquipSlot", -- cliente -> servidor: (slot) -> (ok, mensaje)
-	-- Lobby (Fase 6)
+	-- Lobby. Las salas se crean y se unen SOLO subiendose a un cuadro (PadService);
+	-- List/Create/Join/JoinByCode/Leave ya no se atienden (quedan del lobby de prueba).
 	"RequestRoomList", -- () -> { salas publicas }
 	"RequestCreateRoom", -- (esPublica, nombre) -> (ok, mensaje). Crea la sala y te mete en ella
 	"RequestJoinRoom", -- (idSala) -> (ok, mensaje)
 	"RequestJoinByCode", -- (codigo) -> (ok, mensaje)
 	"RequestLeaveRoom", -- () -> (ok, mensaje)
 	"RequestStartRoom", -- () -> (ok, mensaje). Solo el anfitrion: todos viajan al mall
+	"RequestPadCreate", -- (esPublica) -> (ok, mensaje). Quien eligio en su cuadro libre
 }
 
 local IS_SERVER = RunService:IsServer()
