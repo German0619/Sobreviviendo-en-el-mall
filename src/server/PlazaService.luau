@@ -174,6 +174,32 @@ local function placeFountainStatue()
 			end
 		end
 	end
+
+	-- Chorro de agua entre las manos de la estatua, como en la fuente del mall
+	local jet = Instance.new("Part")
+	jet.Name = "FountainJet"
+	jet.Size = Vector3.new(0.4, 0.4, 0.4)
+	jet.Transparency = 1
+	jet.Anchored = true
+	jet.CanCollide = false
+	jet.CanQuery = false
+	jet.CanTouch = false
+	jet.Position = feet + Vector3.new(0, EntityModels.STATUE_HANDS_Y + 0.3, 0)
+	local water = Instance.new("ParticleEmitter")
+	water.Name = "Water"
+	water.Texture = "rbxasset://textures/particles/sparkles_main.dds"
+	water.Color = ColorSequence.new(Color3.fromRGB(210, 232, 245))
+	water.LightEmission = 0.1
+	water.Size = NumberSequence.new({ NumberSequenceKeypoint.new(0, 0.25), NumberSequenceKeypoint.new(1, 0.1) })
+	water.Transparency = NumberSequence.new({ NumberSequenceKeypoint.new(0, 0.3), NumberSequenceKeypoint.new(1, 1) })
+	water.Lifetime = NumberRange.new(0.8, 1.1)
+	water.Rate = 120
+	water.Speed = NumberRange.new(6, 8)
+	water.SpreadAngle = Vector2.new(10, 10)
+	water.Acceleration = Vector3.new(0, -24, 0)
+	water.EmissionDirection = Enum.NormalId.Top
+	water.Parent = jet
+	jet.Parent = fountain
 end
 
 function PlazaService.Start()

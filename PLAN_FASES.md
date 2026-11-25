@@ -416,14 +416,16 @@ Que toda la interfaz use las herramientas nativas de Roblox para adaptarse a cad
   - Si un modelo sigue siendo de una pieza (p. ej. un maniquí del mapa), el cuerpo entero se balancea sobre los pies al andar.
   - Al acabar la noche las piezas vuelven a su pose de reposo (los maniquíes y la estatua vuelven al mapa).
 - [HECHO] Ruleta de clases: el resultado aparece en el slot antes de que la ruleta se pare. Debe mostrarse solo cuando termine el giro. (`ClassPanel` muestra la clase anterior en slots y carrete hasta que termina la animación, también en el tiro afortunado.)
-- [PROGRAMADO, falta probar y GUARDAR el place del lobby] Mejorar el diseño del lobby (2026-11-25). Hecho en el place del lobby (no en el código):
+- [HECHO] (probado jugando; hay que GUARDAR el place del lobby para conservarlo) Mejorar el diseño del lobby (2026-11-25). Hecho en el place del lobby (no en el código):
   - Materiales PBR generados con IA en MaterialService (LobbyFloorTile1, LobbyAisleMarble1, LobbyWallPanel, LobbyCeilingTile3, LobbyWalnut, LobbyGranite1, LobbyBrushedSteel1, LobbyShutter) aplicados a suelo, pasillo, paredes, techo, persianas, marcos, columnas, barandillas, balcones, puestos, bancos, macetas y punto de aparición.
   - Iluminación: atardecer (ClockTime 18.3) que se ve por el tragaluz, luz ambiente cálida, exposición +0.25, lámparas más fuertes, bloom suave; se quitaron 2 cielos duplicados.
   - Cuadros de sala: base de mármol azul y dorado; muros de cristal tintado con una tira de neón arriba (carpeta Glow: PadService la colorea por estado). Misma altura (no se sale caminando).
   - `Workspace.Lobby.Details`: columnas con base, anillo de latón, capitel y carteles iluminados; luz indirecta violeta bajo los balcones y cálida en lo alto de las paredes; fuente con agua visible (antes peleaba con el borde), aro de granito, luces bajo el agua y anillo de latón en el suelo; 4 estandartes de Plaza Luna; papeleras; directorio junto a la entrada.
-  - Pendiente (pedido por el usuario, 2026-11-25):
-    - Ajustar el brillo del lobby.
-    - Cambiar las baldosas de creación de partida (los cuadros de sala).
+  - Ajustes pedidos por el usuario (2026-11-25, probados):
+    - Brillo del lobby: exposición −0.1 (antes +0.25), luz ambiente más baja, bloom 0.4; lámparas del techo sobre las tiendas 1.1 y de los balcones 0.8 (antes 2.2); persianas y lamas de las tiendas cerradas en gris oscuro; paredes un poco menos blancas.
+    - Puestos (CLASES, MEJORAS, SKINS, CAJA, TAQUILLA): toldo y mostrador oscuros en vez de blancos, el borde del mostrador ya no es neón, círculo del suelo más tenue (0.75), foco 0.7 y luz del cartel 0.45.
+    - Cuadros de sala: base azul liso (SmoothPlastic, sin mármol). Los muros de cristal con la tira de color por estado se quedan.
+    - Fuente con el agua del mall: el vaso macizo pasa a ser muro de mármol + fondo de azulejo azul con monedas; dos láminas con el material `Mall_FountainWater2` (copiado al MaterialService del lobby) que giran en sentidos opuestos, agua sobre el plato con cortina que cae del borde, bruma y focos bajo el agua que titilan. `WaterFX` ya arranca en el lobby y `PlazaService` pone el chorro entre las manos de la Estatua.
 - [HECHO] (probado jugando) Mejorar el diseño de la ruleta de clases (2026-11-25, con la imagen de referencia del usuario). `ClassPanel`: lista de probabilidades a la izquierda, RUEDA en el centro (un sector por clase con el color de su rareza y solo su nombre, flecha arriba, GIRAR en el centro con su precio, aro con remaches; gira 5 vueltas y frena en la clase que salio, con un clic por sector; el nombre ganador parpadea) y detalle con "Girar hasta" y tiro afortunado a la derecha. Los sectores se rellenan por anillos de barras (sin mezclar colores con el vecino).
 - [HECHO] Subir el precio de las armas: en una sola noche se ganan fácilmente más de 300 billetes.
   - Escalonadas: Trapeador 400, Cartel 700, Extintor 1100, Linterna UV 1600, Taser 3200 (no alcanza antes de terminar la noche 5 sin el pase x2). Mercader en proporción (3800, 1400, 1100, 1000).
