@@ -3,10 +3,10 @@
 -- telefono (tocar la casilla y tocar para usar) y consola (mando).
 --
 -- * Cada objeto usable de la tienda (Config.ShopItems con Use) que tengas es una
---   herramienta (Tool) llamada "Batería x2". El arma equipada es otra: "Taser (9)".
+--   herramienta (Tool) llamada "Batería x2". Cada arma que lleves es otra: "Taser (9)".
 -- * Usar la herramienta (Tool.Activated) gasta el objeto (ShopService.UseItem) o
---   usa el arma (WeaponService.Use).
--- * La fuente de verdad siguen siendo los atributos Item_<id> / Weapon / WeaponUses:
+--   usa esa arma (WeaponService.Use); sacar un arma a la mano la deja activa para [R].
+-- * La fuente de verdad siguen siendo los atributos Item_<id> / Weapons / WeaponUses_<id>:
 --   la mochila se rehace al cambiar y al reaparecer (Roblox la vacia al reaparecer).
 
 local Players = game:GetService("Players")
@@ -97,21 +97,24 @@ function BackpackService.Sync(player: Player)
 		end
 	end
 
-	-- Arma equipada (una sola)
-	local weaponId = WeaponService.Get(player)
+	-- Armas: una herramienta por cada una que lleve
+	local carried = {}
+	for _, weaponId in WeaponService.List(player) do
+		carried["Weapon_" .. weaponId] = true
+	end
 	for _, container in { player:FindFirstChildOfClass("Backpack"), player.Character } do
 		if container then
 			for _, child in container:GetChildren() do
 				local key = child:IsA("Tool") and child:GetAttribute("InventoryKey")
-				if type(key) == "string" and string.sub(key, 1, 7) == "Weapon_" and key ~= "Weapon_" .. tostring(weaponId) then
-					child:Destroy() -- arma anterior
+				if type(key) == "string" and string.sub(key, 1, 7) == "Weapon_" and not carried[key] then
+					child:Destroy() -- ya no la lleva (sin usos, muerte...)
 				end
 			end
 		end
 	end
-	if weaponId then
+	for _, weaponId in WeaponService.List(player) do
 		local item = Config.ShopItems[weaponId]
-		local uses = player:GetAttribute("WeaponUses") or -1
+		local uses = player:GetAttribute("WeaponUses_" .. weaponId) or -1
 		-- Con usos: "Taser (9)"; con el pase Taser infinito: "Taser (∞)"
 		local limited = Config.Weapons[weaponId] and Config.Weapons[weaponId].Uses ~= nil
 		local name = if uses >= 0
@@ -123,9 +126,15 @@ function BackpackService.Sync(player: Player)
 		if tool then
 			tool.Name = name
 		else
-			newTool(player, key, name, item.Description, weaponId, player:GetAttribute("Skin_" .. weaponId), function()
-				WeaponService.Use(player)
+			tool = newTool(player, key, name, item.Description, weaponId, player:GetAttribute("Skin_" .. weaponId), function()
+				WeaponService.Use(player, weaponId)
 			end)
+			if tool then
+				-- Sacarla a la mano la deja como arma activa ([R])
+				tool.Equipped:Connect(function()
+					WeaponService.SetActive(player, weaponId)
+				end)
+			end
 		end
 	end
 
@@ -155,8 +164,10 @@ function BackpackService.Start()
 				player:GetAttributeChangedSignal("Item_" .. itemId):Connect(sync)
 			end
 		end
-		player:GetAttributeChangedSignal("Weapon"):Connect(sync)
-		player:GetAttributeChangedSignal("WeaponUses"):Connect(sync)
+		player:GetAttributeChangedSignal("Weapons"):Connect(sync)
+		for weaponId in Config.Weapons do
+			player:GetAttributeChangedSignal("WeaponUses_" .. weaponId):Connect(sync)
+		end
 		player:GetAttributeChangedSignal("FumigatorReady"):Connect(sync)
 		-- Al reaparecer Roblox vacia la mochila: se rehace
 		player.CharacterAdded:Connect(function()

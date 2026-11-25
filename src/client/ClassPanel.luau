@@ -16,6 +16,7 @@ local MarketplaceService = game:GetService("MarketplaceService")
 local Players = game:GetService("Players")
 local ReplicatedStorage = game:GetService("ReplicatedStorage")
 local TweenService = game:GetService("TweenService")
+local Workspace = game:GetService("Workspace")
 
 local Shared = ReplicatedStorage:WaitForChild("Shared")
 local Config = require(Shared.Config)
@@ -174,6 +175,44 @@ local function equippedClass(): string
 	return if type(c) == "string" and Config.Classes[c] then c else Config.DefaultClass
 end
 
+-- Lo que se MUESTRA en los slots y el carrete. El servidor cambia la clase del slot en
+-- cuanto gira; aqui se sigue mostrando la anterior hasta que la ruleta se pare:
+--   * spinPending: giro pedido, esperando respuesta;
+--   * animating: la ruleta gira;
+--   * SpinRevealAt (lo pone el servidor, tambien en el tiro afortunado con Robux): hasta
+--     esa hora, salvo que este giro ya se haya revelado aqui (handledRevealAt).
+local spinPending = false
+local handledRevealAt: number? = nil
+local shownSlots: { [number]: any } = {}
+local shownEquipped: string? = nil
+
+local function revealing(animatingNow: boolean): boolean
+	if spinPending or animatingNow then
+		return true
+	end
+	local revealAt = player:GetAttribute("SpinRevealAt")
+	return type(revealAt) == "number" and revealAt ~= handledRevealAt and Workspace:GetServerTimeNow() < revealAt
+end
+
+-- Toma la foto de lo que se muestra (solo fuera de un giro).
+local function snapshotSlots(animatingNow: boolean)
+	if revealing(animatingNow) then
+		return
+	end
+	for i = 1, Config.Roulette.MaxSlots do
+		shownSlots[i] = player:GetAttribute("Slot_" .. i)
+	end
+	shownEquipped = equippedClass()
+end
+
+local function shownSlot(i: number): any
+	return shownSlots[i]
+end
+
+local function shownEquippedClass(): string
+	return shownEquipped or equippedClass()
+end
+
 local function isRestricted(): boolean
 	return player:GetAttribute("PaidRandomRestricted") ~= false
 end
@@ -254,7 +293,7 @@ local function refreshSlots()
 		local bottom = b:FindFirstChild("Bottom") :: TextLabel
 		local s = b:FindFirstChildOfClass("UIStroke") :: UIStroke
 		if i <= maxSlots then
-			local className = player:GetAttribute("Slot_" .. i)
+			local className = shownSlot(i) -- (la anterior hasta que la ruleta se pare)
 			local def = classDef(if type(className) == "string" and className ~= "" then className else nil)
 			top.Text = if i == equipped then string.format("SLOT %d · EQUIPADO", i) else string.format("SLOT %d", i)
 			top.TextColor3 = if i == equipped then COLORS.Gold else COLORS.Dim
@@ -327,7 +366,7 @@ local function refreshDetail()
 
 	local owned = {}
 	for i = 1, player:GetAttribute("MaxSlots") or 1 do
-		if player:GetAttribute("Slot_" .. i) == selectedClass then
+		if shownSlot(i) == selectedClass then
 			table.insert(owned, tostring(i))
 		end
 	end
@@ -335,7 +374,7 @@ local function refreshDetail()
 end
 
 local function refreshCenter()
-	local equipped = equippedClass()
+	local equipped = shownEquippedClass() -- (la anterior hasta que la ruleta se pare)
 	local slot = player:GetAttribute("EquippedSlot") or 1
 	if not animating then
 		showReel(equipped)
@@ -372,6 +411,7 @@ local function refreshAll()
 	if not window then
 		return
 	end
+	snapshotSlots(animating)
 	refreshSlots()
 	refreshList()
 	refreshDetail()
@@ -385,6 +425,7 @@ end
 -- Anima el carrete hasta `className`. fast = giros automaticos.
 local function animateTo(className: string, fast: boolean)
 	animating = true
+	spinPending = false
 	refreshCenter()
 	local steps = if fast then 10 else 20
 	local delay = if fast then 0.025 else 0.04
@@ -399,13 +440,18 @@ local function animateTo(className: string, fast: boolean)
 	reelStroke.Thickness = 6
 	TweenService:Create(reelStroke, TweenInfo.new(0.6), { Thickness = 2 }):Play()
 	animating = false
+	-- Este giro ya se revelo: los slots muestran ya el resultado
+	handledRevealAt = player:GetAttribute("SpinRevealAt")
 	refreshAll()
 end
 
 -- Un giro con diamantes. Devuelve (ok, clase).
 local function spinOnce(fast: boolean): (boolean, string?)
+	-- Los slots no cambian hasta que la ruleta se pare (el servidor los cambia ya)
+	spinPending = true
 	local ok, message, className = Remotes.func("RequestSpin"):InvokeServer()
 	if not ok or type(className) ~= "string" then
+		spinPending = false
 		setStatus(message or "No se pudo girar.", "bad")
 		return false, nil
 	end
@@ -733,9 +779,11 @@ function ClassPanel.Start()
 	gui.DisplayOrder = 6
 	gui.Parent = player:WaitForChild("PlayerGui")
 	build(gui)
+	snapshotSlots(false)
 
 	for _, attr in { "Diamonds", "PaidDiamonds", "MaxSlots", "EquippedSlot", "EquippedClass", "PaidRandomRestricted", "Pass_VIP" } do
 		player:GetAttributeChangedSignal(attr):Connect(function()
+			snapshotSlots(animating) -- (con el panel cerrado tambien: fuera de un giro)
 			if window.Visible and not animating then
 				refreshAll()
 			end
@@ -743,6 +791,7 @@ function ClassPanel.Start()
 	end
 	for i = 1, Config.Roulette.MaxSlots do
 		player:GetAttributeChangedSignal("Slot_" .. i):Connect(function()
+			snapshotSlots(animating)
 			if window.Visible and not animating then
 				refreshAll()
 			end

@@ -148,10 +148,11 @@ return {
 					return
 				end
 				if isWeapon then
-					-- Arma: reemplaza a la que lleves (como en la tienda)
+					-- Arma: va a su casilla; si ya la llevas, se recarga hasta los usos de la oferta
 					local weaponDef = Config.Weapons[itemId]
 					local uses = offer.Uses or (weaponDef and weaponDef.Uses)
-					if WeaponService.Get(player) == itemId and (not uses or (player:GetAttribute("WeaponUses") or 0) >= uses) then
+					local current = player:GetAttribute("WeaponUses_" .. itemId)
+					if type(current) == "number" and (not uses or current < 0 or current >= uses) then
 						notify(player, "Ya llevas esa arma cargada.", "info")
 						return
 					end

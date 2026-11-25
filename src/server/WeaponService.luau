@@ -1,10 +1,13 @@
 -- WeaponService: armas del mall (Config.Weapons). Defensas temporales: aturden o
 -- apartan a los enemigos, no los matan.
 --
--- * Una equipada a la vez, se usa con [R] (UseWeapon). Se compran con billetes en
---   la tienda del mall (ShopService llama a Equip); comprar otra reemplaza a la
---   actual y comprar la misma recarga sus usos. Se pierden al morir (ShopService
---   llama a Clear junto con el inventario).
+-- * Se pueden llevar TODAS (una de cada tipo), cada una en su casilla de la mochila
+--   (BackpackService). Usar su herramienta la usa; [R] (UseWeapon) usa el arma ACTIVA:
+--   la que tienes en la mano o la ultima que tuviste (SetActive). Se compran con
+--   billetes en la tienda del mall (ShopService llama a Equip); comprar una que ya
+--   llevas recarga sus usos (el taser no: se vuelve a comprar cuando se le acaban, cada
+--   vez mas caro, ver Config.getShopPrice). Se pierden al morir (ShopService llama a
+--   Clear), salvo al revivir pagando (Snapshot / Restore).
 -- * Taser: aturde al enemigo mas cercano de enfrente (nivel 3: casi nada).
 -- * Extintor: nube que ciega (DefenseService.AddSmoke) y tapa el olor del Rastro.
 -- * Cartel de piso mojado: trampa que ralentiza (DefenseService.AddSlowZone).
@@ -12,8 +15,11 @@
 --   (el Eco) y gasta mas bateria (FlashlightService).
 -- * Trapeador: empujon corto (DefenseService.Push con menos fuerza que el Porrazo).
 --
--- Atributos del Player: Weapon (id o nil), WeaponUses (-1 = infinitos),
--- WeaponReadyAt (Workspace:GetServerTimeNow()) y UVOn.
+-- Atributos del Player:
+--   WeaponUses_<id> (nil = no la llevas; -1 = infinitos) y WeaponReadyAt_<id>, por arma;
+--   Weapon (arma activa o nil) y WeaponUses / WeaponReadyAt (copia de los de la activa,
+--   los usan el HUD, la tienda y la recarga de taser); Weapons ("Taser,Mop": las que
+--   llevas, en orden de compra); TaserBuys (compras del taser en la partida); UVOn.
 
 local Players = game:GetService("Players")
 local ReplicatedStorage = game:GetService("ReplicatedStorage")
@@ -96,9 +102,62 @@ end
 -- Equipar / quitar
 ----------------------------------------------------------------------
 
+-- Armas que lleva cada jugador: [id] = { Uses = n (-1 = infinitos), ReadyAt = t }
+type Owned = { Uses: number, ReadyAt: number }
+local owned: { [Player]: { [string]: Owned } } = {}
+local order: { [Player]: { string } } = {} -- en orden de compra (casillas de la mochila)
+
+local function ownedOf(player: Player): { [string]: Owned }
+	local list = owned[player]
+	if not list then
+		list = {}
+		owned[player] = list
+		order[player] = {}
+	end
+	return list
+end
+
+-- Arma activa ([R]): la de la mano o la ultima que tuvo.
 function WeaponService.Get(player: Player): string?
 	local id = player:GetAttribute("Weapon")
-	return if type(id) == "string" and W[id] then id else nil
+	return if type(id) == "string" and W[id] and ownedOf(player)[id] then id else nil
+end
+
+function WeaponService.Has(player: Player, weaponId: string): boolean
+	return ownedOf(player)[weaponId] ~= nil
+end
+
+-- Las que lleva, en orden de compra.
+function WeaponService.List(player: Player): { string }
+	ownedOf(player)
+	return table.clone(order[player])
+end
+
+-- Publica los atributos de un arma y, si es la activa, sus copias generales.
+local function publish(player: Player, weaponId: string)
+	local entry = ownedOf(player)[weaponId]
+	player:SetAttribute("WeaponUses_" .. weaponId, if entry then entry.Uses else nil)
+	player:SetAttribute("WeaponReadyAt_" .. weaponId, if entry then entry.ReadyAt else nil)
+	if player:GetAttribute("Weapon") == weaponId then
+		player:SetAttribute("WeaponUses", if entry then entry.Uses else nil)
+		player:SetAttribute("WeaponReadyAt", if entry then entry.ReadyAt else nil)
+	end
+end
+
+local function publishList(player: Player)
+	ownedOf(player)
+	player:SetAttribute("Weapons", if #order[player] > 0 then table.concat(order[player], ",") else nil)
+end
+
+-- Cambia el arma activa (la que usa [R]): al sacar su herramienta (BackpackService).
+function WeaponService.SetActive(player: Player, weaponId: string?)
+	if weaponId and not ownedOf(player)[weaponId] then
+		return
+	end
+	player:SetAttribute("Weapon", weaponId)
+	local entry = weaponId and ownedOf(player)[weaponId]
+	player:SetAttribute("WeaponUses", if entry then entry.Uses else nil)
+	player:SetAttribute("WeaponReadyAt", if entry then entry.ReadyAt else nil)
 end
 
 -- Pase Taser infinito: el taser no gasta usos.
@@ -112,43 +171,50 @@ function WeaponService.CanEquip(player: Player, weaponId: string): (boolean, str
 	if not def then
 		return false, "Arma inválida"
 	end
-	if WeaponService.Get(player) == weaponId then
-		if not def.Uses or (player:GetAttribute("WeaponUses") or 0) < 0 then
+	local entry = ownedOf(player)[weaponId]
+	if entry then
+		if not def.Uses or entry.Uses < 0 then
 			return false, "Ya la llevas"
 		end
-		if (player:GetAttribute("WeaponUses") or 0) >= def.Uses then
+		if weaponId == "Taser" then
+			return false, "Ya llevas un taser: podrás comprar otro cuando se le acaben los usos"
+		end
+		if entry.Uses >= def.Uses then
 			return false, "Ya la tienes cargada"
 		end
 	end
 	return true, nil
 end
 
+-- Da un arma (o recarga la que ya lleva) y la deja activa.
 -- uses: usos de esta version (el Mercader vende armas con mas usos); por defecto, los de Config.
 function WeaponService.Equip(player: Player, weaponId: string, uses: number?)
 	local def = W[weaponId]
 	if not def then
 		return
 	end
-	local previous = WeaponService.Get(player)
-	if previous == "UVFlashlight" and weaponId ~= "UVFlashlight" then
-		WeaponService.SetUV(player, false)
-	end
-	player:SetAttribute("Weapon", weaponId)
+	local list = ownedOf(player)
 	local infinite = not def.Uses or (weaponId == "Taser" and hasInfiniteTaser(player))
-	player:SetAttribute("WeaponUses", if infinite then -1 else (uses or def.Uses))
-	player:SetAttribute("WeaponReadyAt", 0)
-	if previous and previous ~= weaponId then
-		notify(player, string.format("Dejaste %s; ahora llevas %s en la mochila.", displayName(previous), displayName(weaponId)))
+	local entry = list[weaponId]
+	if entry then
+		entry.Uses = if infinite then -1 else math.max(entry.Uses, uses or def.Uses)
+	else
+		list[weaponId] = { Uses = if infinite then -1 else (uses or def.Uses), ReadyAt = 0 }
+		table.insert(order[player], weaponId)
+		publishList(player)
 	end
+	WeaponService.SetActive(player, weaponId)
+	publish(player, weaponId)
 end
 
 -- Producto Recarga de taser: +uses al taser que llevas. Sin taser (lo perdio entre la
 -- compra y la entrega), le da uno con esos usos para no perder la compra.
 function WeaponService.AddTaserUses(player: Player, uses: number)
-	if WeaponService.Get(player) == "Taser" then
-		local current = player:GetAttribute("WeaponUses") or 0
-		if current >= 0 then
-			player:SetAttribute("WeaponUses", current + uses)
+	local entry = ownedOf(player).Taser
+	if entry then
+		if entry.Uses >= 0 then
+			entry.Uses += uses
+			publish(player, "Taser")
 		end
 	else
 		WeaponService.Equip(player, "Taser", uses)
@@ -156,28 +222,69 @@ function WeaponService.AddTaserUses(player: Player, uses: number)
 	notify(player, string.format("Taser recargado: +%d usos.", uses), "good")
 end
 
-function WeaponService.Clear(player: Player)
-	if WeaponService.Get(player) == "UVFlashlight" then
+-- Quita un arma (sin usos). Si era la activa, pasa a la ultima comprada que quede.
+function WeaponService.Remove(player: Player, weaponId: string)
+	local list = ownedOf(player)
+	if not list[weaponId] then
+		return
+	end
+	if weaponId == "UVFlashlight" then
 		WeaponService.SetUV(player, false)
 	end
-	player:SetAttribute("Weapon", nil)
-	player:SetAttribute("WeaponUses", nil)
-	player:SetAttribute("WeaponReadyAt", nil)
+	list[weaponId] = nil
+	local index = table.find(order[player], weaponId)
+	if index then
+		table.remove(order[player], index)
+	end
+	publish(player, weaponId)
+	publishList(player)
+	if player:GetAttribute("Weapon") == weaponId then
+		WeaponService.SetActive(player, order[player][#order[player]])
+	end
+end
+
+-- Quita todas (al morir, al salir, al empezar otra partida).
+function WeaponService.Clear(player: Player)
+	for _, weaponId in WeaponService.List(player) do
+		WeaponService.Remove(player, weaponId)
+	end
+	WeaponService.SetActive(player, nil)
+end
+
+-- Copia de las armas que lleva (para devolverlas al revivir pagando).
+function WeaponService.Snapshot(player: Player): { { Id: string, Uses: number } }
+	local copy = {}
+	for _, weaponId in WeaponService.List(player) do
+		table.insert(copy, { Id = weaponId, Uses = ownedOf(player)[weaponId].Uses })
+	end
+	return copy
+end
+
+function WeaponService.Restore(player: Player, snapshot: { { Id: string, Uses: number } })
+	for _, entry in snapshot do
+		WeaponService.Equip(player, entry.Id, if entry.Uses >= 0 then entry.Uses else nil)
+	end
 end
 
 -- Gasta un uso (si tiene limite). Sin usos: se pierde el arma.
 local function consume(player: Player, weaponId: string)
 	local def = W[weaponId]
-	player:SetAttribute("WeaponReadyAt", serverNow() + (def.Cooldown or 0))
-	-- WeaponUses < 0: sin limite (armas sin usos o pase Taser infinito)
-	if def.Uses and (player:GetAttribute("WeaponUses") or 0) >= 0 then
-		local left = (player:GetAttribute("WeaponUses") or 0) - 1
-		player:SetAttribute("WeaponUses", left)
-		if left <= 0 then
-			WeaponService.Clear(player)
-			notify(player, string.format("%s se quedó sin usos.", displayName(weaponId)), "bad")
+	local entry = ownedOf(player)[weaponId]
+	if not entry then
+		return
+	end
+	entry.ReadyAt = serverNow() + (def.Cooldown or 0)
+	-- Uses < 0: sin limite (armas sin usos o pase Taser infinito)
+	if def.Uses and entry.Uses >= 0 then
+		entry.Uses -= 1
+		if entry.Uses <= 0 then
+			WeaponService.Remove(player, weaponId)
+			local more = if weaponId == "Taser" then " Puedes comprar otro en la tienda." else ""
+			notify(player, string.format("%s se quedó sin usos.%s", displayName(weaponId), more), "bad")
+			return
 		end
 	end
+	publish(player, weaponId)
 end
 
 ----------------------------------------------------------------------
@@ -465,16 +572,21 @@ local USES = {
 	Mop = useMop,
 }
 
-function WeaponService.Use(player: Player)
-	local weaponId = WeaponService.Get(player)
-	if not weaponId then
+-- weaponId: la de la herramienta que se uso; nil = la activa ([R]).
+function WeaponService.Use(player: Player, weaponId: string?)
+	weaponId = weaponId or WeaponService.Get(player)
+	local entry = weaponId and ownedOf(player)[weaponId]
+	if not weaponId or not entry then
 		notify(player, "No llevas ningún arma. Cómprala en la tienda del mall.")
 		return
+	end
+	if player:GetAttribute("Weapon") ~= weaponId then
+		WeaponService.SetActive(player, weaponId)
 	end
 	if not DefenseService.CanAct(player) then
 		return
 	end
-	if (player:GetAttribute("WeaponReadyAt") or 0) > serverNow() then
+	if entry.ReadyAt > serverNow() then
 		return
 	end
 	local fn = USES[weaponId]
@@ -507,8 +619,10 @@ function WeaponService.Start()
 		end)
 		-- Pase Taser infinito comprado durante la partida: el taser que lleva pasa a infinito
 		player:GetAttributeChangedSignal("Pass_InfiniteTaser"):Connect(function()
-			if hasInfiniteTaser(player) and WeaponService.Get(player) == "Taser" then
-				player:SetAttribute("WeaponUses", -1)
+			local entry = ownedOf(player).Taser
+			if hasInfiniteTaser(player) and entry then
+				entry.Uses = -1
+				publish(player, "Taser")
 			end
 		end)
 	end
@@ -518,6 +632,14 @@ function WeaponService.Start()
 	end
 	Players.PlayerRemoving:Connect(function(player)
 		lastUse[player] = nil
+		owned[player] = nil
+		order[player] = nil
+	end)
+
+	-- Partida nueva: el taser vuelve a su precio normal
+	local RunState = require(script.Parent.RunState) :: any
+	RunState.Reset:Connect(function(player: Player)
+		player:SetAttribute("TaserBuys", nil)
 	end)
 
 	local accumulator = 0

@@ -629,35 +629,39 @@ Config.ShopItems = {
 		Unique = true,
 	},
 
-	-- Armas (Weapon = true): una equipada a la vez, se usa con [R]. Comprar otra
-	-- reemplaza a la que llevas. Se pierden al morir. Datos en Config.Weapons.
+	-- Armas (Weapon = true): se pueden llevar todas (una casilla de la mochila cada una);
+	-- [R] usa la que tienes en la mano o la ultima que tuviste. Se pierden al morir (salvo
+	-- al revivir pagando). Datos en Config.Weapons. Precios escalonados (2026-11-24): el
+	-- taser no se puede comprar antes de terminar la noche 5 (sin el pase x2 Billetes), y
+	-- cada vez que se vuelve a comprar en la misma partida cuesta RebuyGrowth mas.
 	Taser = {
 		DisplayName = "Taser",
-		Price = 250,
+		Price = 3200,
+		RebuyGrowth = 0.25, -- +25% cada vez que lo vuelves a comprar en la partida
 		Description = "Aturde 10 s al enemigo de enfrente (nivel 3: 1 s). 10 usos.",
 		Weapon = true,
 	},
 	Extinguisher = {
 		DisplayName = "Extintor",
-		Price = 200,
+		Price = 1100,
 		Description = "Nube que ciega a los enemigos 5 s. Útil contra el Rastro. 6 usos.",
 		Weapon = true,
 	},
 	WetFloorSign = {
 		DisplayName = "Cartel de piso mojado",
-		Price = 150,
+		Price = 700,
 		Description = "Trampa: los enemigos que pasan resbalan y van muy lentos. 3 usos.",
 		Weapon = true,
 	},
 	UVFlashlight = {
 		DisplayName = "Linterna UV",
-		Price = 300,
+		Price = 1600,
 		Description = "Enciende la luz UV: revela al Eco de lejos. Gasta más batería.",
 		Weapon = true,
 	},
 	Mop = {
 		DisplayName = "Trapeador",
-		Price = 100,
+		Price = 400,
 		Description = "Empujón corto que aturde 1.5 s. Sin límite de usos.",
 		Weapon = true,
 	},
@@ -949,6 +953,20 @@ Config.ShopOrder = {
 	"UVFlashlight",
 	"Mop",
 }
+
+-- Precio de un objeto de la tienda. buys = veces que ya lo compraste en esta partida
+-- (solo cuenta para los que tienen RebuyGrowth, como el taser). Redondeado a 50.
+function Config.getShopPrice(itemId: string, buys: number?): number
+	local item = Config.ShopItems[itemId]
+	if not item then
+		return 0
+	end
+	local growth = item.RebuyGrowth
+	if not growth or not buys or buys <= 0 then
+		return item.Price
+	end
+	return math.floor(item.Price * (1 + growth) ^ buys / 50 + 0.5) * 50
+end
 
 -- Armas (WeaponService). Uses = usos (nil = infinitos). Cooldown en segundos.
 -- Son defensas temporales: aturden o apartan, no matan (sigue siendo un juego de terror).
@@ -1693,12 +1711,13 @@ Config.Events = {
 		-- Solo cosas importantes: armas (algunas mejoradas) y exclusivos del mercader.
 		-- Cada jugador puede comprar cada oferta una vez.
 		--   Item = clave de Config.ShopItems (+ Amount)
-		--   Weapon = clave de Config.Weapons (+ Uses: usos de esta version; reemplaza al arma que lleves)
+		--   Weapon = clave de Config.Weapons (+ Uses: usos de esta version; si ya la llevas, se recarga)
 		Offers = {
-			{ Weapon = "Taser", Uses = 20, Price = 300, Label = "Taser cargado (20 usos)" },
-			{ Weapon = "Extinguisher", Uses = 12, Price = 250, Label = "Extintor doble (12 usos)" },
-			{ Weapon = "UVFlashlight", Price = 200, Label = "Linterna UV (rebajada)" },
-			{ Weapon = "WetFloorSign", Uses = 6, Price = 220, Label = "Carteles de piso mojado (6 usos)" },
+			-- (precios de armas en proporcion a los de la tienda, 2026-11-24)
+			{ Weapon = "Taser", Uses = 20, Price = 3800, Label = "Taser cargado (20 usos)" },
+			{ Weapon = "Extinguisher", Uses = 12, Price = 1400, Label = "Extintor doble (12 usos)" },
+			{ Weapon = "UVFlashlight", Price = 1100, Label = "Linterna UV (rebajada)" },
+			{ Weapon = "WetFloorSign", Uses = 6, Price = 1000, Label = "Carteles de piso mojado (6 usos)" },
 			{ Item = "FlashlightPro", Amount = 1, Price = 700, Label = "Linterna Pro (rebajada)" },
 			-- Exclusivos
 			{ Item = "BigMedkit", Amount = 1, Price = 250 },

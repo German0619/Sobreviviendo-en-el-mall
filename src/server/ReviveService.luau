@@ -8,7 +8,9 @@
 --   * Si tienes "fichas de revivir" (compras que no se pudieron usar), se usa
 --     una ficha en vez de pedir Robux.
 --   * Revivir pagando (Robux o ficha) da un escudo: los enemigos te ignoran y no te
---     hacen dano durante Config.Revive.PaidProtectionSeconds (atributo ProtectedUntil).
+--     hacen dano durante Config.Revive.PaidProtectionSeconds (atributo ProtectedUntil),
+--     y devuelve los objetos y armas que llevabas al caer (ShopService.RestoreAfterRevive).
+--     Con el Medico (gratis) se pierden.
 -- La entrega de la compra la hace MonetizationService -> OnRevivePurchased.
 -- Atributo del Player: Downed (true mientras su cuerpo se puede revivir)
 
@@ -113,8 +115,14 @@ local function revive(player: Player, by: Player, paid: boolean?)
 		player.Character:PivotTo(CFrame.new(position + Vector3.new(0, 3, 0)))
 	end
 	player:SetAttribute("Alive", true)
+	-- Revivir pagando conserva los objetos y armas que llevaba al caer; gratis, no.
+	-- (ShopService se carga aqui: ReviveService arranca antes)
+	local ShopService = require(script.Parent.ShopService) :: any
 	if paid then
 		protect(player, Config.Revive.PaidProtectionSeconds)
+		ShopService.RestoreAfterRevive(player)
+	else
+		ShopService.DropStash(player)
 	end
 
 	local message = if by == player

@@ -34,30 +34,35 @@ local function refresh()
 	moneyLabel.Text = "Billetes: " .. Util.formatMoney(money)
 	for itemId, row in rows do
 		local item = Config.ShopItems[itemId]
-		-- Armas: un solo hueco (en la mochila); la misma se recarga, otra la reemplaza
+		-- Armas: cada una en su casilla de la mochila; la misma se recarga. El taser no se
+		-- recarga aqui: se vuelve a comprar cuando se acaba, cada vez mas caro.
 		if item.Weapon then
 			local def = Config.Weapons[itemId]
-			local equipped = player:GetAttribute("Weapon") == itemId
-			local uses = player:GetAttribute("WeaponUses") or 0
-			local infinite = equipped and uses < 0
-			local full = equipped and (def.Uses == nil or infinite or uses >= def.Uses)
+			local usesAttr = player:GetAttribute("WeaponUses_" .. itemId)
+			local carried = type(usesAttr) == "number"
+			local uses = if carried then usesAttr else 0
+			local infinite = carried and uses < 0
+			local full = carried and (def.Uses == nil or infinite or uses >= def.Uses or itemId == "Taser")
+			local price = Config.getShopPrice(itemId, player:GetAttribute(itemId .. "Buys") or 0)
 			if infinite and def.Uses then
-				row.Owned.Text = "Equipada · usos infinitos (pase)"
-			elseif equipped then
-				row.Owned.Text = if def.Uses then string.format("Equipada · %d/%d usos", uses, def.Uses) else "Equipada"
+				row.Owned.Text = "La llevas · usos infinitos (pase)"
+			elseif carried then
+				row.Owned.Text = if def.Uses then string.format("La llevas · %d/%d usos", uses, def.Uses) else "La llevas"
+			elseif price > item.Price then
+				row.Owned.Text = "Arma · vuelve a comprarla (más cara cada vez)"
 			else
-				row.Owned.Text = "Arma · reemplaza a la que llevas"
+				row.Owned.Text = "Arma · va a su casilla de la mochila"
 			end
 			-- Recarga de taser con Robux (+10 usos): solo con un taser que se gasta
 			if row.Recharge then
-				row.Recharge.Visible = equipped and not infinite
+				row.Recharge.Visible = carried and not infinite
 			end
 			if full then
-				row.Button.Text = "EQUIPADA"
+				row.Button.Text = "LA LLEVAS"
 				row.Button.BackgroundColor3 = C.ButtonOff
 			else
-				row.Button.Text = Util.formatMoney(item.Price)
-				row.Button.BackgroundColor3 = if money >= item.Price then C.Button else C.ButtonOff
+				row.Button.Text = Util.formatMoney(price)
+				row.Button.BackgroundColor3 = if money >= price then C.Button else C.ButtonOff
 			end
 			continue
 		end
@@ -127,6 +132,7 @@ local function build()
 	})
 	UIKit.adapt(gui) -- escala segun la pantalla y respeta el notch
 	local content
+	-- (Precio de las armas: Config.getShopPrice, el taser sube al volver a comprarlo)
 	-- Alto segun el numero de objetos (ROW px por fila), con tope: el resto con scroll
 	local height = math.min(130 + #Config.ShopOrder * ROW, 560)
 	-- (scroll = true: en pantallas bajas la ventana baja de alto y la lista hace scroll)
@@ -243,8 +249,10 @@ function ShopUI.Start()
 	for itemId in Config.ShopItems do
 		player:GetAttributeChangedSignal("Item_" .. itemId):Connect(refresh)
 	end
-	player:GetAttributeChangedSignal("Weapon"):Connect(refresh)
-	player:GetAttributeChangedSignal("WeaponUses"):Connect(refresh)
+	for weaponId in Config.Weapons do
+		player:GetAttributeChangedSignal("WeaponUses_" .. weaponId):Connect(refresh)
+		player:GetAttributeChangedSignal(weaponId .. "Buys"):Connect(refresh)
+	end
 
 	-- Cerrar si te alejas del mostrador o mueres
 	RunService.Heartbeat:Connect(function()

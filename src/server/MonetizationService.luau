@@ -203,11 +203,12 @@ local function promptProduct(player: Player, kind: any, index: any)
 		productId = Config.DevProducts.PermanentReset
 	elseif kind == "TaserRecharge" then
 		-- Solo si llevas un taser que se gasta (con el pase Taser infinito no hace falta)
-		if player:GetAttribute("Weapon") ~= "Taser" then
+		local taserUses = player:GetAttribute("WeaponUses_Taser")
+		if type(taserUses) ~= "number" then
 			notify(player, "Necesitas llevar un taser para recargarlo.", "info")
 			return
 		end
-		if (player:GetAttribute("WeaponUses") or 0) < 0 then
+		if taserUses < 0 then
 			notify(player, "Tu taser es infinito: no necesita recarga.", "info")
 			return
 		end

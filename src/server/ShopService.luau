@@ -36,6 +36,30 @@ local function setCount(player: Player, itemId: string, count: number)
 	player:SetAttribute("Item_" .. itemId, count)
 end
 
+-- Lo que llevaba al morir: [Player] = { Items = { [id] = n }, Weapons = WeaponService.Snapshot }
+local stash: { [Player]: { Items: { [string]: number }, Weapons: { any } } } = {}
+
+-- Revivir pagando (Robux o ficha): recupera los objetos y armas que tenia al caer.
+function ShopService.RestoreAfterRevive(player: Player)
+	local saved = stash[player]
+	stash[player] = nil
+	if not saved then
+		return
+	end
+	for itemId, count in saved.Items do
+		setCount(player, itemId, count)
+	end
+	WeaponService.Restore(player, saved.Weapons)
+	FlashlightService.Refresh(player)
+	-- (notify se define mas abajo)
+	Remotes.event("Notify"):FireClient(player, "Recuperaste tus objetos.", "good")
+end
+
+-- Revivir gratis (Medico) o empezar otra partida: lo que llevaba se pierde.
+function ShopService.DropStash(player: Player)
+	stash[player] = nil
+end
+
 -- Vacia el inventario (al morir, al salir, al empezar otra partida).
 function ShopService.ClearInventory(player: Player)
 	inventories[player] = nil
@@ -124,17 +148,24 @@ function ShopService.Purchase(player: Player, itemId: any): (boolean, string)
 		return false, "Estás muerto"
 	end
 
-	-- Armas: van al hueco de arma (reemplazan a la actual; la misma se recarga)
+	-- Armas: cada una en su casilla de la mochila (la misma se recarga). El taser sube
+	-- de precio cada vez que se vuelve a comprar en la partida (TaserBuys).
 	if item.Weapon then
 		local canEquip, reason = WeaponService.CanEquip(player, itemId)
 		if not canEquip then
 			return false, reason or "No puedes comprarla"
 		end
-		if not RunState.TrySpend(player, item.Price) then
+		local buysAttr = itemId .. "Buys"
+		local buys = player:GetAttribute(buysAttr) or 0
+		local price = Config.getShopPrice(itemId, buys)
+		if not RunState.TrySpend(player, price) then
 			return false, "Billetes insuficientes"
 		end
+		if item.RebuyGrowth then
+			player:SetAttribute(buysAttr, buys + 1)
+		end
 		WeaponService.Equip(player, itemId)
-		return true, "Equipaste: " .. item.DisplayName .. " (en tu mochila)"
+		return true, "Compraste: " .. item.DisplayName .. " (en tu mochila)"
 	end
 
 	local owned = ShopService.GetCount(player, itemId)
@@ -260,15 +291,21 @@ function ShopService.Start()
 		end
 	end)
 
-	-- Morir = perder todos los objetos
+	-- Morir = perder todos los objetos y armas. Se guarda una copia por si te reviven
+	-- pagando (Robux o ficha): entonces se devuelven (RestoreAfterRevive).
 	local function setup(player: Player)
 		ShopService.ClearInventory(player)
 		player.CharacterAdded:Connect(function(character)
 			local humanoid = character:WaitForChild("Humanoid", 10)
 			if humanoid then
 				humanoid.Died:Connect(function()
-					if next(inventories[player] or {}) ~= nil then
-						notify(player, "Perdiste tus objetos.", "bad")
+					local items = table.clone(inventories[player] or {})
+					local weapons = WeaponService.Snapshot(player)
+					if next(items) ~= nil or #weapons > 0 then
+						stash[player] = { Items = items, Weapons = weapons }
+						notify(player, "Perdiste tus objetos. Si te reviven pagando, los recuperas.", "bad")
+					else
+						stash[player] = nil
 					end
 					ShopService.ClearInventory(player)
 				end)
@@ -283,6 +320,7 @@ function ShopService.Start()
 	Players.PlayerRemoving:Connect(function(player)
 		lastAction[player] = nil
 		inventories[player] = nil
+		stash[player] = nil
 	end)
 end
 

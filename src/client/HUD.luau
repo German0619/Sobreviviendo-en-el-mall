@@ -682,8 +682,8 @@ local function update()
 		classLabel.TextColor3 = Config.Rarities[classDef.Rarity].Color
 	end
 
-	-- Los objetos y el arma estan en la mochila nativa (abajo). Aqui solo el estado
-	-- del arma: usos, luz UV y espera.
+	-- Los objetos y las armas estan en la mochila nativa (abajo). Aqui solo el estado
+	-- del arma activa ([R]: la de la mano o la ultima que tuviste): usos, luz UV y espera.
 	local weaponId = player:GetAttribute("Weapon")
 	local weaponItem = if type(weaponId) == "string" then Config.ShopItems[weaponId] else nil
 	if weaponItem then
@@ -698,6 +698,12 @@ local function update()
 		end
 		local readyIn = (player:GetAttribute("WeaponReadyAt") or 0) - now
 		weaponText ..= if readyIn > 0.05 then string.format("  ·  %d s", math.ceil(readyIn)) else "  ·  lista"
+		-- Las demas armas que lleva (cada una en su casilla de la mochila)
+		local list = player:GetAttribute("Weapons")
+		local count = if type(list) == "string" then #string.split(list, ",") else 1
+		if count > 1 then
+			weaponText ..= string.format("  (+%d)", count - 1)
+		end
 		itemsLabel.Text = weaponText
 		itemsLabel.TextColor3 = if readyIn > 0.05 then COLORS.Dim else COLORS.Good
 	else

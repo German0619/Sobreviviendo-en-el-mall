@@ -391,11 +391,16 @@ Que toda la interfaz use las herramientas nativas de Roblox para adaptarse a cad
 - Sonido, ambientación, balance y pruebas con varios jugadores.
 - Mejorar el diseño del Globo y de las Polillas (ahora son modelos simples hechos con piezas).
 - Animaciones de movimiento para todas las entidades que no las tienen, como el Maniquí.
-- Ruleta de clases: el resultado aparece en el slot antes de que la ruleta se pare. Debe mostrarse solo cuando termine el giro.
+- [HECHO] Ruleta de clases: el resultado aparece en el slot antes de que la ruleta se pare. Debe mostrarse solo cuando termine el giro. (`ClassPanel` muestra la clase anterior en slots y carrete hasta que termina la animación, también en el tiro afortunado.)
 - Mejorar el diseño del lobby.
-- Subir el precio de las armas: en una sola noche se ganan fácilmente más de 300 billetes.
-- Revivir con Robux no debe hacer perder los objetos (hoy morir vacía el inventario aunque luego revivas).
-- Poder llevar más de un arma (hoy solo hay un hueco de arma).
+- Mejorar el diseño de la ruleta de clases (el usuario pasará imágenes de referencia cuando toque).
+- [HECHO] Subir el precio de las armas: en una sola noche se ganan fácilmente más de 300 billetes.
+  - Escalonadas: Trapeador 400, Cartel 700, Extintor 1100, Linterna UV 1600, Taser 3200 (no alcanza antes de terminar la noche 5 sin el pase x2). Mercader en proporción (3800, 1400, 1100, 1000).
+  - El taser se vuelve a comprar cuando se le acaban los usos, un 25 % más caro cada vez en la misma partida (`RebuyGrowth`, `Config.getShopPrice`, atributo `TaserBuys`).
+- [HECHO] Revivir con Robux no debe hacer perder los objetos (hoy morir vacía el inventario aunque luego revivas).
+  - Al caer se guarda una copia de objetos y armas; revivir pagando (Robux o ficha) la devuelve (`ShopService.RestoreAfterRevive`). Con el Médico se pierden.
+- [HECHO] Poder llevar más de un arma (hoy solo hay un hueco de arma).
+  - Sin límite (una de cada tipo), cada una en su casilla de la mochila. [R] usa la de la mano o la última que tuviste (`WeaponService.SetActive`). Comprar una que ya llevas la recarga (el taser no).
 
 **Orden elegido:**
 - La Fase 3 cambia la base de cómo aparece el peligro; el resto se apoya en ella.
