@@ -56,6 +56,12 @@ local function build()
 		Text = "",
 		Parent = gui,
 	})
+	-- En telefono el bloque central del HUD es mas pequeno y esta mas arriba (HUD.applyCenterLayout)
+	local function placeAbilities()
+		abilitiesLabel.Position = UDim2.new(0.5, 0, 0, if UIKit.isPhone(gui) then 66 else 98)
+	end
+	placeAbilities()
+	gui:GetPropertyChangedSignal("AbsoluteSize"):Connect(placeAbilities)
 
 	-- Vista desde dentro del escondite: franjas oscuras con rendijas
 	overlay = UIKit.make("Frame", {

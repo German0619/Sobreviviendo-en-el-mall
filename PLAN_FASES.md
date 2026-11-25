@@ -334,8 +334,19 @@ Las cuatro ideas se usan, **cada una en su propia tienda**. Todas con paneles na
   - Datos: `data.Skins`, `data.EquippedSkins`; el mall las lee de `Skin_<objeto>`.
 - Pendiente para el pulido: que las skins también cambien el color de los efectos de las armas (rayo del taser, nube del extintor...).
 
-**Fase 12: interfaz adaptable (PC, teléfono, tablet y consola).**
+**Fase 12: interfaz adaptable (PC, teléfono, tablet y consola).** — [HECHO] (2026-11-24)
 Que toda la interfaz use las herramientas nativas de Roblox para adaptarse a cada pantalla y control.
+
+*Hecho el 2026-11-24 (probado con el simulador en Galaxy A06, iPhone 17 Pro, iPad Pro M5 y Xbox One):*
+- Ya existían `UIKit.adapt` (escala y notch) e `InputHints` (teclas según el control) en toda la UI del mall, y la mochila nativa para los objetos.
+- **Solo horizontal** (`LandscapeSensor`), fijado en `init.client` y reaplicado al aparecer el personaje.
+- **Botones táctiles** (`src/client/TouchButtons.luau`): en dos arcos alrededor del botón de saltar (correr, linterna y destello cerca; habilidad o escondite, mejoras y lobby fuera). Antes, en el Galaxy A06, correr quedaba debajo del de saltar y lobby y destello se salían de pantalla.
+- **Ventanas** (`UIKit.window`): se encogen hasta caber en la pantalla; la tienda baja de alto y usa su scroll. La X mide al menos 44 px reales en táctil.
+- **Texto mínimo** en táctil: los textos fijos crecen hacia 10 px reales, solo hasta donde caben en su caja.
+- **Consola**: la UI se ve 1.3 veces más grande (hasta 1.7).
+- Ajustes tras revisarlo el usuario: en **teléfono** el bloque central (hora, noche, fase y habilidades) es más pequeño y está más arriba (`UIKit.isPhone`), y las columnas izquierda (barras) y derecha (billetes, tareas) van pegadas bajo la barra de Roblox (las líneas vacías de sodas y arma ya no dejan hueco); en **tablet** los botones táctiles miden al menos el 55 % del botón de saltar (66 px en el iPad Pro).
+- Tienda: filas más altas con la descripción en dos líneas (antes se cortaba en todas las pantallas).
+- Pendiente de revisar jugando: la lista de tareas con muchas tareas en un teléfono pequeño, y los márgenes de la tele en consola (*overscan*).
 
 *Estado actual (revisado el 2026-11-22):*
 - Toda la UI se crea por código en `src/client` (HUD, ClassUI, LobbyUI, RoomUI, ShopUI, SodaUI, StoreUI, UpgradeUI, Defense) con el helper `UIKit`.

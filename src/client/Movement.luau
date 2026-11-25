@@ -41,8 +41,7 @@ function Movement.Start()
 		return Enum.ContextActionResult.Pass
 	end, true, Enum.KeyCode.LeftShift, Enum.KeyCode.ButtonL3)
 	ContextActionService:SetTitle("Sprint", "🏃")
-	-- A la izquierda del arco de botones (en su sitio por defecto quedaba detras del de saltar)
-	ContextActionService:SetPosition("Sprint", UDim2.new(1, -300, 1, -90))
+	-- (posicion: la coloca TouchButtons, en el arco junto al boton de saltar)
 
 	RunService.RenderStepped:Connect(function(dt)
 		local character = player.Character

@@ -139,6 +139,8 @@ end
 ----------------------------------------------------------------------
 
 local eventLabel
+local top: Frame
+local missionsFrame: Frame
 local gui, clockLabel, nightLabel, phaseLabel, moneyLabel, zoneLabel, itemsLabel, sodaLabel, classLabel, barsFrame
 local diamondsLabel, deadSubtitle, reviveButton, missionsTitle
 local bars = {}
@@ -158,8 +160,9 @@ local function build()
 	})
 	UIKit.adapt(gui) -- escala segun la pantalla y respeta el notch
 
-	-- Arriba al centro: reloj, noche, fase
-	local top = make("Frame", {
+	-- Arriba al centro: reloj, noche, fase (en telefono, mas pequeno y mas arriba:
+	-- ver applyCenterLayout)
+	top = make("Frame", {
 		AnchorPoint = Vector2.new(0.5, 0),
 		Position = UDim2.new(0.5, 0, 0, 14),
 		Size = UDim2.fromOffset(420, 136),
@@ -283,7 +286,7 @@ local function build()
 	bars.Battery = makeBar(barsFrame, "BATERÍA", COLORS.Battery, 3)
 
 	-- Derecha: tareas
-	local missionsFrame = make("Frame", {
+	missionsFrame = make("Frame", {
 		AnchorPoint = Vector2.new(1, 0),
 		Position = UDim2.new(1, -18, 0, 94),
 		Size = UDim2.fromOffset(290, 360),
@@ -849,7 +852,8 @@ function HUD.Start()
 		local layout = barsFrame:FindFirstChildOfClass("UIListLayout")
 		if InputHints.IsTouch() then
 			barsFrame.AnchorPoint = Vector2.new(0, 0)
-			barsFrame.Position = UDim2.new(0, 18, 0, 10)
+			-- En telefono, pegada a la barra de Roblox
+			barsFrame.Position = UDim2.new(0, 18, 0, if UIKit.isPhone(gui) then 2 else 10)
 			layout.VerticalAlignment = Enum.VerticalAlignment.Top
 		else
 			barsFrame.AnchorPoint = Vector2.new(0, 1)
@@ -859,6 +863,45 @@ function HUD.Start()
 	end
 	applyLayout()
 	InputHints.Changed.Event:Connect(applyLayout)
+	gui:GetPropertyChangedSignal("AbsoluteSize"):Connect(applyLayout)
+
+	-- Las lineas de sodas y del arma no ocupan sitio mientras estan vacias
+	-- (en tactil la columna va arriba y dejaban un hueco encima de la zona)
+	for _, line in { sodaLabel, itemsLabel } do
+		local function sync()
+			line.Visible = line.Text ~= ""
+		end
+		sync()
+		line:GetPropertyChangedSignal("Text"):Connect(sync)
+	end
+
+	-- Columna derecha (billetes, diamantes, clase y tareas): en telefono pegada arriba
+	local function applyRightLayout()
+		if Place.IsLobby then
+			return -- (en el lobby la colocan arriba)
+		end
+		local lift = if UIKit.isPhone(gui) then 12 else 0
+		moneyLabel.Position = UDim2.new(1, -18, 0, 14 - lift)
+		diamondsLabel.Position = UDim2.new(1, -18, 0, 46 - lift)
+		classLabel.Position = UDim2.new(1, -18, 0, 66 - lift)
+		missionsFrame.Position = UDim2.new(1, -18, 0, 94 - lift)
+	end
+	applyRightLayout()
+	gui:GetPropertyChangedSignal("AbsoluteSize"):Connect(applyRightLayout)
+
+	-- Bloque central (reloj, noche, fase, evento): en telefono mas pequeno y mas arriba.
+	-- La linea de habilidades (Defense) se coloca debajo con UIKit.isPhone igual.
+	local function applyCenterLayout()
+		local phone = UIKit.isPhone(gui)
+		top.Position = UDim2.new(0.5, 0, 0, if phone then 2 else 14)
+		clockLabel.Size = UDim2.new(1, 0, 0, if phone then 26 else 40)
+		UIKit.setTextSize(clockLabel, if phone then 24 else 38)
+		nightLabel.Position = UDim2.fromOffset(0, if phone then 26 else 40)
+		phaseLabel.Position = UDim2.fromOffset(0, if phone then 44 else 62)
+		eventLabel.Position = UDim2.fromOffset(0, if phone then 90 else 110) -- bajo las habilidades
+	end
+	applyCenterLayout()
+	gui:GetPropertyChangedSignal("AbsoluteSize"):Connect(applyCenterLayout)
 
 	for _, value in GameState.Missions:GetChildren() do
 		addMissionEntry(value)

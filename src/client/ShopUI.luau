@@ -115,6 +115,8 @@ function ShopUI.Close()
 	counterPosition = nil
 end
 
+local ROW = 84 -- alto de cada fila de la lista (con su separacion)
+
 local function build()
 	local gui = UIKit.make("ScreenGui", {
 		Name = "ShopUI",
@@ -125,9 +127,10 @@ local function build()
 	})
 	UIKit.adapt(gui) -- escala segun la pantalla y respeta el notch
 	local content
-	-- Alto segun el numero de objetos (70 px por fila), con tope: el resto con scroll
-	local height = math.min(130 + #Config.ShopOrder * 70, 560)
-	window, content = UIKit.window(gui, "TIENDA DEL MALL", Vector2.new(480, height), ShopUI.Close)
+	-- Alto segun el numero de objetos (ROW px por fila), con tope: el resto con scroll
+	local height = math.min(130 + #Config.ShopOrder * ROW, 560)
+	-- (scroll = true: en pantallas bajas la ventana baja de alto y la lista hace scroll)
+	window, content = UIKit.window(gui, "TIENDA DEL MALL", Vector2.new(480, height), ShopUI.Close, true)
 
 	moneyLabel = UIKit.text({
 		Size = UDim2.new(1, 0, 0, 24),
@@ -145,7 +148,7 @@ local function build()
 		BorderSizePixel = 0,
 		ScrollBarThickness = 6,
 		ScrollingDirection = Enum.ScrollingDirection.Y,
-		CanvasSize = UDim2.fromOffset(0, #Config.ShopOrder * 70),
+		CanvasSize = UDim2.fromOffset(0, #Config.ShopOrder * ROW),
 		ZIndex = 22,
 		Parent = content,
 	})
@@ -153,8 +156,8 @@ local function build()
 	for i, itemId in Config.ShopOrder do
 		local item = Config.ShopItems[itemId]
 		local row = UIKit.make("Frame", {
-			Position = UDim2.fromOffset(0, (i - 1) * 70),
-			Size = UDim2.new(1, -10, 0, 62),
+			Position = UDim2.fromOffset(0, (i - 1) * ROW),
+			Size = UDim2.new(1, -10, 0, ROW - 8),
 			BackgroundColor3 = C.Row,
 			ZIndex = 22,
 			Parent = list,
@@ -168,10 +171,13 @@ local function build()
 			ZIndex = 23,
 			Parent = row,
 		})
+		-- Descripcion en hasta dos lineas
 		UIKit.text({
 			Position = UDim2.fromOffset(12, 28),
-			Size = UDim2.new(1, -140, 0, 16),
+			Size = UDim2.new(1, -140, 0, 30),
 			TextXAlignment = Enum.TextXAlignment.Left,
+			TextYAlignment = Enum.TextYAlignment.Top,
+			TextWrapped = true,
 			TextSize = 13,
 			Font = UIKit.FONT_LIGHT,
 			TextColor3 = C.Dim,
@@ -180,7 +186,7 @@ local function build()
 			Parent = row,
 		})
 		local owned = UIKit.text({
-			Position = UDim2.fromOffset(12, 44),
+			Position = UDim2.fromOffset(12, 58),
 			Size = UDim2.new(1, -140, 0, 14),
 			TextXAlignment = Enum.TextXAlignment.Left,
 			TextSize = 12,

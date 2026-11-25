@@ -21,6 +21,7 @@ local LOBBY_MODULES = {
 	LockerPanel = true, -- taquilla del conserje (puesto TAQUILLA)
 	VipChat = true, -- [VIP] en el chat (tambien en el mall)
 	Movement = true,
+	TouchButtons = true, -- botones tactiles en arco junto al de saltar (tambien en el mall)
 }
 
 -- StoreUI, LobbyUI y ClassUI (ruleta vieja) son del lobby de prueba y ya no arrancan:
@@ -39,6 +40,24 @@ local LOBBY_ONLY = {
 	LobbyUI = true,
 	StoreUI = true,
 }
+
+-- Solo horizontal (gira entre los dos horizontales): toda la UI esta pensada para
+-- pantalla ancha. Se fija aqui y no en StarterGui para que valga en los dos places.
+-- Roblox la vuelve a copiar de StarterGui al aparecer el personaje: se reaplica.
+do
+	local localPlayer = game:GetService("Players").LocalPlayer
+	local function landscape()
+		local playerGui = localPlayer:FindFirstChildOfClass("PlayerGui")
+		if playerGui then
+			playerGui.ScreenOrientation = Enum.ScreenOrientation.LandscapeSensor
+		end
+	end
+	localPlayer:WaitForChild("PlayerGui")
+	landscape()
+	localPlayer.CharacterAdded:Connect(function()
+		task.defer(landscape)
+	end)
+end
 
 local function shouldStart(name: string): boolean
 	if Place.IsLobby then
