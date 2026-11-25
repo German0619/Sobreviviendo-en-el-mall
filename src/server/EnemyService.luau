@@ -255,6 +255,11 @@ function EnemyService.StartNight(night: number, options: { BudgetMultiplier: num
 
 	local difficulty = Config.getDifficulty(night)
 	currentDifficulty = difficulty
+	Common.SetDifficulty(difficulty) -- dano y distancia de vision de la noche
+	if RunService:IsStudio() then
+		print(string.format("[Dificultad] Noche %d: velocidad x%.2f, dano x%.2f, vision x%.2f", night,
+			difficulty.SpeedMultiplier, difficulty.DamageMultiplier, difficulty.SenseMultiplier))
+	end
 	baseSpeedMultiplier = difficulty.SpeedMultiplier
 	overtimeBonus = 0
 	eventSpeed = 1

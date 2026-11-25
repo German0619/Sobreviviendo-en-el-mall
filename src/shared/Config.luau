@@ -581,8 +581,13 @@ Config.Revive = {
 Config.Detection = {
 	BaseTime = 0.6, -- segundos viendote para detectarte (x DetectionDelay de la clase Sombra)
 	Memory = 6, -- segundos que te siguen buscando tras perderte de vista
-	SenseRange = 90, -- distancia maxima de vision
+	SenseRange = 90, -- distancia maxima de vision (x SenseMultiplier de Config.getDifficulty)
 	CloseRange = 8, -- a esta distancia te sienten aunque no te vean
+	-- Dejan de perseguirte (todos menos la Estatua; el Cazador y el olor del Rastro van aparte):
+	GiveUpSeconds = 15, -- tras perseguirte este tiempo...
+	GiveUpDistance = 45, -- ...o si les sacas esta distancia (y te alejaste GiveUpGap desde
+	GiveUpGap = 10, --     lo mas cerca que llegaron: que te vean de lejos no basta)
+	IgnoreSeconds = 10, -- despues te ignoran este tiempo (pueden ir a por otro)
 }
 
 ----------------------------------------------------------------------
@@ -1957,10 +1962,11 @@ end
 -- Valores de partida para ajustar jugando.
 Config.SpawnDirector = {
 	TierCost = { 1, 3, 6 },
+	-- Con 3 jugadores: noche 1 = 2, noche 2 = 4, noche 3 = 6, noche 5 = 10 (solo: 1, 3, 4, 7).
 	Budget = {
-		Base = 2,
-		PerNight = 1.5,
-		PerExtraPlayer = 0.35,
+		Base = 1,
+		PerNight = 1,
+		PerExtraPlayer = 0.2,
 		Max = 60,
 	},
 	-- { desde la noche, { % nivel 1, % nivel 2, % nivel 3 } } (tabla del documento de diseno)
@@ -2005,12 +2011,29 @@ function Config.getTierOdds(night: number): { number }
 	return odds
 end
 
--- Multiplicador de dificultad por noche (velocidad y deteccion; la cantidad la decide el director)
+-- Dificultad progresiva: las primeras noches los enemigos van mas lentos, hacen menos dano
+-- y te ven desde menos lejos. Suben poco a poco hasta lo normal en la noche RampNights.
+Config.Difficulty = {
+	RampNights = 8,
+	StartSpeed = 0.6, -- noche 1: 60 % de velocidad...
+	StartDamage = 0.4, -- ...40 % de dano...
+	StartSense = 0.5, -- ...y te ven a la mitad de distancia (45 de 90 studs)
+}
+
+-- Multiplicador de dificultad por noche (la cantidad la decide el director).
+-- SpeedMultiplier sigue subiendo +5 % por noche despues de la rampa.
 function Config.getDifficulty(night: number)
 	local n = math.max(night - 1, 0)
+	local d = Config.Difficulty
+	local t = math.clamp(n / math.max(d.RampNights - 1, 1), 0, 1)
+	local function ramp(start: number): number
+		return start + (1 - start) * t
+	end
 	return {
-		SpeedMultiplier = math.min(1 + 0.05 * n, 1.6),
+		SpeedMultiplier = math.min(1 + 0.05 * n, 1.6) * ramp(d.StartSpeed),
 		DetectionMultiplier = math.min(1 + 0.10 * n, 2.5),
+		DamageMultiplier = ramp(d.StartDamage),
+		SenseMultiplier = ramp(d.StartSense),
 	}
 end
 

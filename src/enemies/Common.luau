@@ -20,6 +20,17 @@ local DefenseService = require(ServerScriptService:WaitForChild("Server"):WaitFo
 
 local Common = {}
 
+-- Dificultad de la noche actual (Config.getDifficulty; la pone EnemyService.StartNight).
+-- Aqui se usan DamageMultiplier (Common.damage) y SenseMultiplier (Common.canSee).
+local difficulty = { DamageMultiplier = 1, SenseMultiplier = 1 }
+
+function Common.SetDifficulty(d: { DamageMultiplier: number?, SenseMultiplier: number? })
+	difficulty = {
+		DamageMultiplier = d.DamageMultiplier or 1,
+		SenseMultiplier = d.SenseMultiplier or 1,
+	}
+end
+
 ----------------------------------------------------------------------
 -- Jugadores
 ----------------------------------------------------------------------
@@ -77,7 +88,7 @@ function Common.damage(player: Player, amount: number)
 		if DefenseService.IsHidden(player) then
 			DefenseService.ForceOut(player)
 		end
-		humanoid:TakeDamage(amount)
+		humanoid:TakeDamage(amount * difficulty.DamageMultiplier)
 	end
 end
 
@@ -569,8 +580,21 @@ Awareness.__index = Awareness
 
 local awarenessRegistry = setmetatable({}, { __mode = "k" })
 
-function Common.newAwareness(ctx)
-	local self = setmetatable({ Ctx = ctx, Level = {}, KnownAt = {}, LastSensed = {}, Watched = {} }, Awareness)
+-- Persecuciones: tras Config.Detection.GiveUpSeconds persiguiendo a alguien, o si este le saca
+-- GiveUpDistance, el enemigo lo suelta y lo ignora IgnoreSeconds.
+-- options.NoGiveUp = true: nunca suelta (la Estatua).
+function Common.newAwareness(ctx, options: { NoGiveUp: boolean? }?)
+	local self = setmetatable({
+		Ctx = ctx,
+		Level = {},
+		KnownAt = {},
+		LastSensed = {},
+		Watched = {},
+		ChaseStart = {},
+		Closest = {},
+		IgnoreUntil = {},
+		NoGiveUp = options ~= nil and options.NoGiveUp == true,
+	}, Awareness)
 	awarenessRegistry[self] = true
 	return self
 end
@@ -587,9 +611,46 @@ DefenseService.PlayerHid:Connect(function(player: Player)
 			awareness.Watched[player] = nil
 			awareness.Level[player] = 0
 			awareness.KnownAt[player] = nil
+			awareness.ChaseStart[player] = nil
+			awareness.Closest[player] = nil
 		end
 	end
 end)
+
+-- d = distancia del enemigo a su objetivo. Devuelve el motivo si debe soltarlo.
+function Awareness:ShouldGiveUp(player: Player, d: number, now: number): string?
+	if self.NoGiveUp then
+		return nil
+	end
+	local start = self.ChaseStart[player]
+	if not start then
+		self.ChaseStart[player] = now
+		self.Closest[player] = d
+		return nil
+	end
+	local closest = math.min(self.Closest[player] or d, d)
+	self.Closest[player] = closest
+	local det = Config.Detection
+	if now - start >= det.GiveUpSeconds then
+		return "tiempo"
+	end
+	if d > det.GiveUpDistance and d > closest + det.GiveUpGap then
+		return "distancia"
+	end
+	return nil
+end
+
+function Awareness:GiveUp(player: Player, now: number, reason: string)
+	self.KnownAt[player] = nil
+	self.Level[player] = 0
+	self.Watched[player] = nil
+	self.ChaseStart[player] = nil
+	self.Closest[player] = nil
+	self.IgnoreUntil[player] = now + Config.Detection.IgnoreSeconds
+	if RunService:IsStudio() then
+		print(string.format("[Persecucion] Un enemigo dejo de seguir a %s (%s)", player.Name, reason))
+	end
+end
 
 function Awareness:DetectTime(player: Player): number
 	local delay = PlayerStats.GetPerk(player, "DetectionDelay") or 1
@@ -617,7 +678,9 @@ function Awareness:Update(dt: number, position: Vector3, senses: (Player, BasePa
 				self.Watched[player] = nil
 				-- Nube del extintor: no ve desde dentro ni a quien esta dentro
 				local blinded = DefenseService.IsInSmoke(position) or DefenseService.IsInSmoke(root.Position)
-				if not blinded and senses(player, root) then
+				-- Recien soltado: lo ignora un rato
+				local ignored = (self.IgnoreUntil[player] or 0) > now
+				if not ignored and not blinded and senses(player, root) then
 					self.LastSensed[player] = now
 					local level = (self.Level[player] or 0) + dt / self:DetectTime(player)
 					self.Level[player] = math.min(level, 1)
@@ -632,9 +695,15 @@ function Awareness:Update(dt: number, position: Vector3, senses: (Player, BasePa
 			if knownAt and now - knownAt <= Config.Detection.Memory then
 				local targetPos = Common.targetPosition(player, root)
 				local d = (targetPos - position).Magnitude
-				if d < bestDist then
+				local reason = self:ShouldGiveUp(player, d, now)
+				if reason then
+					self:GiveUp(player, now, reason)
+				elseif d < bestDist then
 					best, bestRoot, bestDist, bestPos = player, root, d, targetPos
 				end
+			else
+				self.ChaseStart[player] = nil
+				self.Closest[player] = nil
 			end
 		end
 	end
@@ -648,7 +717,7 @@ function Common.canSee(eye: Vector3, root: BasePart): boolean
 	if d <= Config.Detection.CloseRange then
 		return true
 	end
-	return d <= Config.Detection.SenseRange and Common.lineOfSight(eye, root.Position)
+	return d <= Config.Detection.SenseRange * difficulty.SenseMultiplier and Common.lineOfSight(eye, root.Position)
 end
 
 -- Punto al azar para patrullar: un punto libre del suelo de una zona al azar.

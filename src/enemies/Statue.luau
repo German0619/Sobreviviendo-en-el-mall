@@ -69,7 +69,7 @@ function Statue.new(spawnPosition: Vector3, ctx)
 	self.Height = height
 	self.Steps = steps
 	self.Mover = Common.newMover(model, { Speed = def.Speed, Height = height, AgentHeight = 6.5 })
-	self.Awareness = Common.newAwareness(ctx)
+	self.Awareness = Common.newAwareness(ctx, { NoGiveUp = true }) -- no para nunca
 	self.State = if home then "Wake" else "Hunt"
 	self.StateUntil = os.clock() + def.WakeSeconds
 	self.WakeFrom = model:GetPivot()
