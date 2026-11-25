@@ -19,6 +19,7 @@
 
 local Players = game:GetService("Players")
 local RunService = game:GetService("RunService")
+local TweenService = game:GetService("TweenService")
 local ServerScriptService = game:GetService("ServerScriptService")
 local Shared = game:GetService("ReplicatedStorage"):WaitForChild("Shared")
 local Config = require(Shared.Config)
@@ -346,6 +347,13 @@ function Echo:MountAvatar(template: Model, player: Player)
 		end
 	end
 	self:PlayAnimation("Idle", 1)
+	-- Hombros (R15 RightShoulder, R6 "Right Shoulder"): para estirar los brazos al atacar
+	self.Shoulders = {}
+	for _, d in avatar:GetDescendants() do
+		if d:IsA("Motor6D") and string.find(d.Name, "Shoulder") then
+			table.insert(self.Shoulders, { Motor = d, C0 = d.C0 })
+		end
+	end
 
 	self.Avatar = avatar
 	self.Humanoid = humanoid
@@ -355,6 +363,20 @@ function Echo:MountAvatar(template: Model, player: Player)
 	self:SetRevealed(revealed == true)
 	if RunService:IsStudio() then
 		print(string.format("[Eco] Ahora tiene el aspecto de %s", player.Name))
+	end
+end
+
+-- Ataque: estira los brazos hacia ti de golpe (gira los hombros hacia delante, sobre el
+-- torso: vale para R15 y R6). angle 0 = brazos en su sitio.
+function Echo:SetReach(angle: number, seconds: number)
+	for _, shoulder in self.Shoulders or {} do
+		local c0 = shoulder.C0
+		local goal = CFrame.new(c0.Position) * CFrame.Angles(math.rad(angle), 0, 0) * c0.Rotation
+		if seconds <= 0 then
+			shoulder.Motor.C0 = goal
+		else
+			TweenService:Create(shoulder.Motor, TweenInfo.new(seconds, Enum.EasingStyle.Quad, Enum.EasingDirection.Out), { C0 = goal }):Play()
+		end
 	end
 end
 
@@ -396,6 +418,8 @@ function Echo:SetRevealed(revealed: boolean)
 end
 
 function Echo:Vanish()
+	self.VanishAt = nil
+	self:SetReach(0, 0)
 	self.State = "Vanished"
 	self.ReappearAt = os.clock() + self.Def.VanishSeconds
 	self.Exposure = 0
@@ -472,6 +496,14 @@ function Echo:Update(dt: number)
 		return
 	end
 
+	-- Acaba de golpear: se queda con los brazos estirados y se esfuma
+	if self.VanishAt then
+		if now >= self.VanishAt then
+			self:Vanish()
+		end
+		return
+	end
+
 	if Common.isStunned(self.Model) then
 		self.Steps:Stop()
 		self:PlayAnimation("Idle", 1)
@@ -541,7 +573,12 @@ function Echo:Update(dt: number)
 	if dist <= self.Def.AttackRange + 1 and now - self.LastAttack >= self.Def.AttackCooldown then
 		self.LastAttack = now
 		Common.damage(target, self.Def.Damage)
-		self:Vanish() -- golpea y se esfuma
+		-- Golpea (brazos estirados hacia ti) y se esfuma al terminar
+		self.Mover:Clear()
+		self.Steps:Stop()
+		self:PlayAnimation("Idle", 1)
+		self:SetReach(95, 0.08)
+		self.VanishAt = now + 0.45
 	end
 end
 

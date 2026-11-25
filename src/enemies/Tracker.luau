@@ -261,6 +261,7 @@ function Tracker:Chase(dt: number, target: Player, targetPos: Vector3, dist: num
 	self.Mover:Step(dt)
 	if dist <= self.Def.AttackRange + 1 and now - self.LastAttack >= self.Def.AttackCooldown then
 		self.LastAttack = now
+		Common.playAttack(self.Model)
 		Common.damage(target, self.Def.Damage)
 	end
 end

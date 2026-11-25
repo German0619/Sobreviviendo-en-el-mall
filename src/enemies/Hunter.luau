@@ -250,7 +250,12 @@ function Hunter:Retreat()
 	self.Gone = true
 	self.ReturnAt = os.clock() + self.Def.RetreatSeconds
 	self.Mover:Clear()
-	self.Model.Parent = nil
+	-- (se esfuma al terminar el zarpazo, para que se vea)
+	task.delay(0.45, function()
+		if self.Gone then
+			self.Model.Parent = nil
+		end
+	end)
 end
 
 function Hunter:TryReturn(): boolean
@@ -337,6 +342,7 @@ function Hunter:Update(dt: number)
 		self:Walk(dt, goal, self.Def.ChaseSpeed * mul, 0.3)
 		if (goal - pos).Magnitude <= self.Def.AttackRange + 1 and now - self.LastAttack >= self.Def.AttackCooldown then
 			self.LastAttack = now
+			Common.playAttack(self.Model)
 			Common.damage(prey, self.Def.Damage)
 			self:Unmark(nil)
 			self:Retreat()

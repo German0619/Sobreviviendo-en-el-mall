@@ -205,6 +205,7 @@ function Collector:Update(dt: number)
 		self:Walk(dt, targetPos, self.Def.ChaseSpeed * mul, 0.3)
 		if dist <= self.Def.AttackRange + 1 and now - self.LastAttack >= self.Def.AttackCooldown then
 			self.LastAttack = now
+			Common.playAttack(self.Model)
 			Common.damage(target, self.Def.Damage)
 		end
 		return

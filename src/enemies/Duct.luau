@@ -489,6 +489,7 @@ function Duct:Update(dt: number)
 	self.Mover:Step(dt)
 	if (root.Position - pos).Magnitude <= self.Def.AttackRange + 1 and now - self.LastAttack >= self.Def.AttackCooldown then
 		self.LastAttack = now
+		Common.playAttack(self.Model)
 		Common.damage(target, self.Def.Damage)
 		-- Golpea, se queda un instante a la vista y huye al techo
 		self.Mover:Clear()

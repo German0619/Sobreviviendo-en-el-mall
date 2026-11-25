@@ -408,6 +408,7 @@ function Reflection:Update(dt: number)
 	self.Mover:Step(dt)
 	if (goal - pos).Magnitude <= self.Def.AttackRange + 1 and now - self.LastAttack > 1 then
 		self.LastAttack = now
+		Common.playAttack(self.Model)
 		Common.damage(target, self.Def.Damage)
 		self:Vanish(self.Def.VanishSeconds)
 	end

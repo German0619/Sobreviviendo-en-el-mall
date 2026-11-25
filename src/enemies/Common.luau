@@ -81,6 +81,12 @@ function Common.damage(player: Player, amount: number)
 	end
 end
 
+-- Animacion de ataque del enemigo (EnemyAnimator la lee del atributo AttackAt: zarpazo,
+-- agarre, salto... segun su estilo en Config.EnemyAnimation). Llamarla al golpear.
+function Common.playAttack(model: Model)
+	model:SetAttribute("AttackAt", os.clock())
+end
+
 -- Hacia donde ir para alcanzar a un jugador (si esta escondido: a la puerta del escondite).
 function Common.targetPosition(player: Player, root: BasePart): Vector3
 	return DefenseService.GetTargetPosition(player, root)

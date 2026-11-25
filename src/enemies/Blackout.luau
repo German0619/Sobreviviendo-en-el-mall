@@ -293,6 +293,7 @@ function Blackout:Update(dt: number)
 			self.Mover:Step(dt)
 			if dist <= self.Def.AttackRange + 2 and now - self.LastAttack >= self.Def.AttackCooldown then
 				self.LastAttack = now
+				Common.playAttack(self.Model)
 				Common.damage(target, self.Def.Damage)
 			end
 		elseif now - self.LastSeenVictim > self.Def.ZoneLinger then

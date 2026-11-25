@@ -310,6 +310,7 @@ function Luni:Update(dt: number)
 				local offset = r.Position - pos
 				if Vector3.new(offset.X, 0, offset.Z).Magnitude <= self.Def.AttackRange + 1 and math.abs(offset.Y) < self.Height then
 					self.LastAttack = now
+					Common.playAttack(self.Model)
 					Common.damage(player, self.Def.Damage)
 					break
 				end

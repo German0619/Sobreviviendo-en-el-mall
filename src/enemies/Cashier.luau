@@ -13,6 +13,7 @@ local Config = require(Shared.Config)
 local Remotes = require(Shared.Remotes)
 local Util = require(Shared.Util)
 local ServerScriptService = game:GetService("ServerScriptService")
+local TweenService = game:GetService("TweenService")
 
 local Server = ServerScriptService:WaitForChild("Server")
 local DefenseService = require(Server:WaitForChild("DefenseService"))
@@ -242,6 +243,46 @@ function Cashier:PickFleePoint(from: Vector3): Vector3?
 	return best
 end
 
+-- Animacion del robo: tus billetes salen volando y se meten por su ranura (con un "ding").
+function Cashier:PlayStealEffect(player: Player)
+	local root = Common.getRoot(player)
+	local slot = self.Model:FindFirstChild("Slot", true) :: BasePart?
+	if not root or not slot then
+		return
+	end
+	local ding = Instance.new("Sound")
+	ding.SoundId = "rbxasset://sounds/electronicpingshort.wav"
+	ding.Volume = 1.5
+	ding.RollOffMaxDistance = 60
+	ding.Parent = slot
+	ding:Play()
+	task.delay(2, function()
+		ding:Destroy()
+	end)
+	for i = 1, 6 do
+		local bill = Common.part({
+			Name = "FlyingBill",
+			Size = Vector3.new(0.55, 0.03, 0.3),
+			CFrame = root.CFrame
+				* CFrame.new((math.random() - 0.5) * 1.6, (math.random() - 0.5) * 1.4, -0.4)
+				* CFrame.Angles(math.random() * 6, math.random() * 6, math.random() * 6),
+			Color = Color3.fromRGB(120, 190, 110),
+			Material = Enum.Material.SmoothPlastic,
+			CanQuery = false,
+		})
+		bill.Parent = self.Ctx.Container
+		task.delay((i - 1) * 0.05, function()
+			local tween = TweenService:Create(bill, TweenInfo.new(0.35, Enum.EasingStyle.Quad, Enum.EasingDirection.In), {
+				CFrame = slot.CFrame,
+				Size = Vector3.new(0.3, 0.02, 0.15),
+			})
+			tween:Play()
+			tween.Completed:Wait()
+			bill:Destroy()
+		end)
+	end
+end
+
 function Cashier:Steal(player: Player)
 	local cash = RunState.GetCash(player)
 	local amount = math.min(cash, math.max(self.Def.StealMin, math.floor(cash * self.Def.StealFraction)))
@@ -249,6 +290,7 @@ function Cashier:Steal(player: Player)
 		return
 	end
 	self.Loot[player] = (self.Loot[player] or 0) + amount
+	self:PlayStealEffect(player)
 	notify(player, string.format("¡El Cajero te robó %s! Atúrdelo antes de que escape.", Util.formatMoney(amount)), "bad")
 	self.State = "Flee"
 	self.FleeUntil = os.clock() + self.Def.FleeSeconds

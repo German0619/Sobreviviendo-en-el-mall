@@ -45,12 +45,17 @@ local ARM_FOLLOWERS = {
 -- RockAngle: si el modelo es de UNA pieza (los maniquies del mapa y las plantillas de
 -- ServerStorage.EnemyTemplates hechas con un MeshPart), todo el cuerpo se balancea de lado
 -- sobre los pies al andar (a tirones con Snap).
+-- Attack: animacion al golpear (Common.playAttack pone el atributo AttackAt en el modelo):
+--   Swipe  zarpazo: levanta los brazos y los baja de golpe (uno tras otro)
+--   Grab   agarre rigido: los brazos saltan al frente y se quedan un momento
+--   Pounce salto: patas delanteras arriba y adelante, las de atras empujan
+--   Raise  patas delanteras arriba y clavadas (el Ducto)
 local STYLES = {
-	Biped = { LegAngle = 32, ArmAngle = 26, Stride = 2.4, Smooth = 10, RockAngle = 5 },
-	Stiff = { LegAngle = 22, ArmAngle = 12, Stride = 3.2, Smooth = 10, Snap = true, RockAngle = 7 },
-	ArmsOnly = { LegAngle = 0, ArmAngle = 18, Stride = 2.6, Smooth = 8, RockAngle = 4 },
-	Quadruped = { LegAngle = 34, ArmAngle = 0, Stride = 2.0, Smooth = 12, RockAngle = 5 },
-	Crawler = { LegAngle = 28, ArmAngle = 0, Stride = 1.6, Smooth = 12, Sideways = true },
+	Biped = { LegAngle = 32, ArmAngle = 26, Stride = 2.4, Smooth = 10, RockAngle = 5, Attack = "Swipe" },
+	Stiff = { LegAngle = 22, ArmAngle = 12, Stride = 3.2, Smooth = 10, Snap = true, RockAngle = 7, Attack = "Grab" },
+	ArmsOnly = { LegAngle = 0, ArmAngle = 18, Stride = 2.6, Smooth = 8, RockAngle = 4, Attack = "Swipe" },
+	Quadruped = { LegAngle = 34, ArmAngle = 0, Stride = 2.0, Smooth = 12, RockAngle = 5, Attack = "Pounce" },
+	Crawler = { LegAngle = 28, ArmAngle = 0, Stride = 1.6, Smooth = 12, Sideways = true, Attack = "Raise" },
 	Wheels = { Smooth = 10 },
 	-- La Estatua (golem de piedra): pasos cortos y pesados; los brazos no se mueven
 	Golem = { LegAngle = 18, ArmAngle = 0, Stride = 3.6, Smooth = 8 },
@@ -65,8 +70,54 @@ local STYLES = {
 		BobSpeed = 1.7, -- rad/s
 		SwaySpeed = 1.2,
 		Lean = 10, -- grados al desplazarse
+		Attack = "Swipe", -- y se abalanza hacia delante
 	},
 }
+
+-- Duracion de la animacion de ataque (s)
+local ATTACK_TIME = 0.45
+
+-- Pose de ataque de una extremidad en el instante t (s desde el golpe): (giro, peso).
+-- peso: cuanto sustituye a la pose de andar (1 = del todo).
+local function attackPose(kind: string?, limb, t: number): (CFrame?, number)
+	local joint = limb.Joint.Position
+	local fade = math.clamp((ATTACK_TIME - t) / 0.12, 0, 1)
+	if kind == "Swipe" or kind == "Grab" then
+		if limb.Kind ~= "Arm" then
+			return nil, 0
+		end
+		-- (solo brazos que cuelgan: el brazo doblado del Gerente sigue con su walkie)
+		if math.abs(limb.Rest.UpVector.Y) < 0.8 then
+			return nil, 0
+		end
+		local k = math.max(0, t - (if joint.X < 0 then 0.05 else 0)) -- uno tras otro
+		local angle
+		if kind == "Grab" then
+			angle = if k < 0.07 then 95 * k / 0.07 elseif k < 0.32 then 95 else 95 * math.max(0, 1 - (k - 0.32) / 0.1)
+		elseif k < 0.12 then
+			angle = 115 * math.sin(k / 0.12 * math.pi / 2) -- arriba
+		elseif k < 0.22 then
+			angle = 115 - 105 * ((k - 0.12) / 0.1) ^ 2 -- zarpazo hacia abajo
+		else
+			angle = 10 * math.max(0, 1 - (k - 0.22) / 0.2)
+		end
+		return CFrame.Angles(math.rad(angle), 0, 0), fade
+	elseif kind == "Pounce" then
+		if limb.Kind ~= "Leg" then
+			return nil, 0
+		end
+		local amount = if t < 0.15 then t / 0.15 elseif t < 0.3 then 1 else math.max(0, 1 - (t - 0.3) / 0.15)
+		return CFrame.Angles(math.rad((if joint.Z < 0 then 60 else -18) * amount), 0, 0), 1
+	elseif kind == "Raise" then
+		if limb.Kind ~= "Leg" or joint.Z >= 0 then
+			return nil, 0
+		end
+		local side = if joint.X < 0 then -1 else 1
+		local angle = if t < 0.15 then 50 * t / 0.15 elseif t < 0.25 then 50 - 65 * (t - 0.15) / 0.1 else -15 * math.max(0, 1 - (t - 0.25) / 0.2)
+		return CFrame.Angles(0, 0, math.rad(side * angle)), 1
+	end
+	return nil, 0
+end
 
 type Limb = {
 	Part: BasePart,
@@ -257,9 +308,15 @@ function Rig:Step(dt: number)
 	-- Cuanto anda (suavizado): quieto vuelve a la pose de reposo
 	local target = if speed > 0.6 then 1 else 0
 	self.Amount += (target - self.Amount) * math.min(1, dt * (style.Smooth or 10))
+	-- Golpe en curso (Common.playAttack): segundos desde el golpe, o nil
+	local now = os.clock()
+	local attackAt = self.Model:GetAttribute("AttackAt")
+	local attackT = if style.Attack and type(attackAt) == "number" and now - attackAt >= 0 and now - attackAt < ATTACK_TIME
+		then now - attackAt
+		else nil
 	-- Quieto y ya en reposo: no tocar las piezas (PivotTo conserva la pose).
-	-- (Los que flotan no paran nunca.)
-	if style.Float then
+	-- (Los que flotan no paran nunca; tampoco mientras golpea.)
+	if style.Float or attackT then
 		self.Settled = false
 	elseif target == 0 and self.Amount < 0.01 then
 		if self.Settled then
@@ -287,12 +344,13 @@ function Rig:Step(dt: number)
 	end
 
 	-- Flotar: todo el cuerpo sube y baja y, al desplazarse, se inclina hacia delante
+	-- (al golpear se abalanza: adelante e inclinado)
 	local floatCF = CFrame.identity
-	local now = os.clock()
 	if style.Float then
+		local lunge = if attackT then math.sin(math.min(attackT / 0.3, 1) * math.pi) else 0
 		-- (sobre FloatLift; el balanceo nunca lo hunde en el suelo)
-		floatCF = CFrame.new(0, self.Lift + style.BobHeight + math.sin(now * style.BobSpeed) * style.BobHeight, 0)
-			* CFrame.Angles(-math.rad(style.Lean) * self.Amount, 0, 0)
+		floatCF = CFrame.new(0, self.Lift + style.BobHeight + math.sin(now * style.BobSpeed) * style.BobHeight, -0.9 * lunge)
+			* CFrame.Angles(-math.rad(style.Lean * self.Amount + 25 * lunge), 0, 0)
 	end
 
 	for _, limb in self.Limbs do
@@ -320,6 +378,13 @@ function Rig:Step(dt: number)
 			local angle = math.rad(maxAngle) * wave * self.Amount
 			-- El reptante mueve las patas hacia los lados; los demas, adelante y atras
 			offset = if style.Sideways then CFrame.Angles(0, angle, 0) else CFrame.Angles(angle, 0, 0)
+		end
+		-- Golpe: la pose de ataque sustituye (del todo o en parte) a la de andar
+		if attackT and limb.Kind ~= "Body" then
+			local pose, weight = attackPose(style.Attack, limb, attackT)
+			if pose then
+				offset = offset:Lerp(pose, weight)
+			end
 		end
 		local transform = floatCF * limb.Joint * offset * limb.Joint:Inverse()
 		table.insert(parts, limb.Part)
