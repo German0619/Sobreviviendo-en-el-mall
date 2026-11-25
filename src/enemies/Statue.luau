@@ -116,7 +116,104 @@ function Statue:SetFrozen(frozen: boolean)
 	if frozen then
 		self.Mover:Clear()
 		self.Steps:Stop()
+		self:CancelSwing()
 	end
+end
+
+----------------------------------------------------------------------
+-- Hachazo: levanta el hacha sobre la cabeza (aviso), la deja caer y la recupera.
+-- El golpe llega al caer, si sigues delante y a su alcance (da tiempo a esquivarlo).
+----------------------------------------------------------------------
+
+local SWING_UP = 150 -- grados: hacha sobre la cabeza
+local SWING_DOWN = 25 -- grados: hacha clavada delante al caer
+local WHOOSH = "rbxasset://sounds/swordslash.wav"
+local THUD = "rbxasset://sounds/action_jump_land.mp3"
+
+local function playSound(parent: Instance, id: string, volume: number, pitch: number)
+	local sound = Instance.new("Sound")
+	sound.SoundId = id
+	sound.Volume = volume
+	sound.PlaybackSpeed = pitch
+	sound.RollOffMinDistance = 12
+	sound.RollOffMaxDistance = 90
+	sound.Parent = parent
+	sound:Play()
+	task.delay(3, function()
+		sound:Destroy()
+	end)
+end
+
+function Statue:StartSwing(target: Player)
+	self.Swing = { Start = os.clock(), Target = target, Hit = false, Whoosh = false }
+	self.Mover:Clear()
+	self.Steps:Stop()
+end
+
+function Statue:CancelSwing()
+	if self.Swing then
+		self.Swing = nil
+		EntityModels.setStatueSwing(self.Model, 0)
+	end
+end
+
+-- El hacha cae: daña a su objetivo si sigue delante y a su alcance.
+function Statue:Strike(target: Player)
+	local pivot = self.Model:GetPivot()
+	playSound(self.Model.PrimaryPart, THUD, 2.5, 0.5)
+	if not Common.isAlive(target) then
+		return
+	end
+	local root = Common.getRoot(target)
+	if not root then
+		return
+	end
+	local offset = root.Position - pivot.Position
+	local flat = Vector3.new(offset.X, 0, offset.Z)
+	local inFront = flat.Magnitude < 2 or pivot.LookVector:Dot(flat.Unit) > 0.2
+	if flat.Magnitude <= self.Def.SwingReach and math.abs(offset.Y) < 8 and inFront then
+		Common.damage(target, self.Def.Damage)
+	end
+end
+
+function Statue:UpdateSwing(now: number)
+	local swing = self.Swing
+	local def = self.Def
+	local t = now - swing.Start
+	local angle
+	if t < def.SwingWindup then
+		-- Sube el hacha (frenando arriba) y se gira hacia su objetivo
+		local k = t / def.SwingWindup
+		angle = SWING_UP * (1 - (1 - k) ^ 2)
+		local root = Common.getRoot(swing.Target)
+		if root then
+			local pos = self.Model:GetPivot().Position
+			local flat = Vector3.new(root.Position.X - pos.X, 0, root.Position.Z - pos.Z)
+			if flat.Magnitude > 0.5 then
+				self.Model:PivotTo(CFrame.lookAt(pos, pos + flat.Unit))
+			end
+		end
+	elseif t < def.SwingWindup + def.SwingStrike then
+		-- Cae acelerando
+		if not swing.Whoosh then
+			swing.Whoosh = true
+			playSound(self.Model.PrimaryPart, WHOOSH, 1.5, 0.6)
+		end
+		local k = (t - def.SwingWindup) / def.SwingStrike
+		angle = SWING_UP + (SWING_DOWN - SWING_UP) * k * k
+	else
+		if not swing.Hit then
+			swing.Hit = true
+			self:Strike(swing.Target)
+		end
+		-- La recupera despacio
+		local k = math.min((t - def.SwingWindup - def.SwingStrike) / def.SwingRecover, 1)
+		angle = SWING_DOWN * (1 - k)
+		if k >= 1 then
+			self.Swing = nil
+		end
+	end
+	EntityModels.setStatueSwing(self.Model, angle)
 end
 
 function Statue:Update(dt: number)
@@ -159,6 +256,12 @@ function Statue:Update(dt: number)
 	end
 	self:SetFrozen(false)
 
+	-- Hachazo en curso: no anda
+	if self.Swing then
+		self:UpdateSwing(now)
+		return
+	end
+
 	-- Siente los pasos a traves de las paredes (salvo dentro de una bengala)
 	local target, root, dist, targetPos = self.Awareness:Update(dt, pos, function(_player, r)
 		return (r.Position - pos).Magnitude <= self.Def.SenseRange and not DefenseService.IsInFlare(r.Position)
@@ -199,7 +302,7 @@ function Statue:Update(dt: number)
 
 	if target and dist <= self.Def.AttackRange + 1 and now - self.LastAttack >= self.Def.AttackCooldown then
 		self.LastAttack = now
-		Common.damage(target, self.Def.Damage)
+		self:StartSwing(target)
 	end
 end
 
@@ -210,6 +313,7 @@ function Statue:OnShove(_player: Player, _direction: Vector3, _strength: any) en
 function Statue:Destroy()
 	self.Mover:Destroy()
 	self.Steps:Destroy()
+	self:CancelSwing() -- (vuelve a la fuente con el hacha en reposo)
 	if self.Home then
 		EntityModels.setStatueAwake(self.Model, false)
 		Common.releaseMapModel(self.Model, self.Home) -- vuelve a la fuente

@@ -15,7 +15,6 @@ local Common = require(script.Parent.Common)
 
 local H = 10.5
 local MOON = Color3.fromRGB(250, 225, 140)
-local SHADE = Color3.fromRGB(70, 55, 110)
 local SUIT = Color3.fromRGB(120, 130, 210)
 local STEPS = "rbxasset://sounds/action_footsteps_plastic.mp3"
 
@@ -52,17 +51,130 @@ local function buildModel(): Model
 		add("Arm", Vector3.new(1.1, 3.2, 1.1), at(side * 2.2, 4.4, 0) * CFrame.Angles(0, 0, side * math.rad(18)), SUIT)
 		add("Glove", Vector3.new(1.3, 1.3, 1.3), at(side * 2.7, 2.7, 0), Color3.fromRGB(245, 245, 245), Enum.Material.SmoothPlastic, Enum.PartType.Ball)
 	end
-	-- Cabeza: una luna con su lado oscuro (creciente)
+	-- Cabeza: una luna llena
 	add("Head", Vector3.new(4.6, 4.6, 4.6), at(0, 8.2, 0), MOON, Enum.Material.SmoothPlastic, Enum.PartType.Ball)
-	add("HeadShade", Vector3.new(4.3, 4.3, 4.3), at(1.35, 8.5, 0.55), SHADE, Enum.Material.SmoothPlastic, Enum.PartType.Ball)
 	-- Cara: ojos enormes y sonrisa
-	for _, x in { -0.8, 0.55 } do
+	for _, x in { -0.75, 0.75 } do
 		add("EyeWhite", Vector3.new(1.05, 1.05, 1.05), at(x, 8.7, -1.95), Color3.fromRGB(250, 250, 250), Enum.Material.SmoothPlastic, Enum.PartType.Ball)
 		add("Pupil", Vector3.new(0.45, 0.45, 0.45), at(x, 8.65, -2.42), Color3.fromRGB(255, 60, 40), Enum.Material.Neon, Enum.PartType.Ball)
 	end
-	add("Smile", Vector3.new(1.8, 0.18, 0.15), at(-0.1, 7.35, -2.2), Color3.fromRGB(30, 20, 30), Enum.Material.SmoothPlastic)
+	add("Smile", Vector3.new(1.8, 0.18, 0.15), at(0, 7.35, -2.2), Color3.fromRGB(30, 20, 30), Enum.Material.SmoothPlastic)
 	for _, side in { -1, 1 } do
-		add("SmileEnd", Vector3.new(0.5, 0.18, 0.15), at(-0.1 + side * 1.05, 7.5, -2.15) * CFrame.Angles(0, 0, side * math.rad(30)), Color3.fromRGB(30, 20, 30), Enum.Material.SmoothPlastic)
+		add("SmileEnd", Vector3.new(0.5, 0.18, 0.15), at(side * 1.05, 7.5, -2.15) * CFrame.Angles(0, 0, side * math.rad(30)), Color3.fromRGB(30, 20, 30), Enum.Material.SmoothPlastic)
+	end
+
+	-- Detalles soldados (Common.prepareModel): a la raiz o, con `follow`, a esa extremidad
+	local function detail(name, size, cf: CFrame, color: Color3, material, shape, follow: string?)
+		local p = add(name, size, cf, color, material or Enum.Material.SmoothPlastic, shape)
+		if follow then
+			p:SetAttribute("Follow", follow)
+		else
+			p:SetAttribute("Detail", true)
+		end
+		return p
+	end
+	-- Pegado a la superficie de la cabeza (x, y desde los pies), mirando hacia fuera
+	local HEAD_Y, HEAD_R = 8.2, 2.3
+	local function onHead(name, x: number, y: number, size: Vector3, color: Color3, roll: number?, material)
+		local dy = y - HEAD_Y
+		local z = -math.sqrt(math.max(HEAD_R ^ 2 - x ^ 2 - dy ^ 2, 0.01))
+		local pos = Vector3.new(x, dy, z * 0.98)
+		local cf = CFrame.lookAt(pos, pos * 2) * CFrame.Angles(0, 0, math.rad(roll or 0))
+		return detail(name, size, at(0, HEAD_Y, 0) * cf, color, material)
+	end
+	local WHITE = Color3.fromRGB(245, 245, 250)
+	local STAR = Color3.fromRGB(255, 215, 80)
+	local INK = Color3.fromRGB(30, 20, 30)
+	local CAP = Color3.fromRGB(70, 80, 170)
+	-- Estrella de 8 puntas (dos cuadrados girados) en `cf`
+	local function star(cf: CFrame, s: number, follow: string?)
+		detail("Star", Vector3.new(s, s, 0.06), cf, STAR, Enum.Material.Fabric, nil, follow)
+		detail("Star", Vector3.new(s, s, 0.06), cf * CFrame.Angles(0, 0, math.rad(45)), STAR, Enum.Material.Fabric, nil, follow)
+	end
+
+	-- Cara de luna: crateres, cejas, brillo en los ojos y la boca abierta con dientes
+	local craters = {
+		{ -1.3, 9.4, 0.55 },
+		{ -1.55, 8.0, 0.4 },
+		{ -0.95, 6.8, 0.3 },
+		{ -0.2, 10.05, 0.32 },
+		{ 1.35, 9.35, 0.48 },
+		{ 1.6, 7.85, 0.38 },
+		{ 1.0, 6.75, 0.26 },
+		{ 0.55, 10.0, 0.25 },
+	}
+	for _, c in craters do
+		-- (disco: cilindro con el eje hacia fuera de la cabeza)
+		local crater = onHead("Crater", c[1], c[2], Vector3.new(0.1, c[3], c[3]), Color3.fromRGB(225, 195, 110))
+		crater.Shape = Enum.PartType.Cylinder
+		crater.CFrame *= CFrame.Angles(0, math.rad(90), 0)
+	end
+	for _, eye in { { -0.75, -18 }, { 0.75, 18 } } do
+		onHead("Brow", eye[1], 9.45, Vector3.new(0.75, 0.16, 0.12), INK, eye[2])
+		detail("Shine", Vector3.new(0.14, 0.14, 0.14), at(eye[1] - 0.1, 8.78, -2.62), WHITE, nil, Enum.PartType.Ball)
+	end
+	detail("MouthOpen", Vector3.new(1.6, 0.42, 0.1), at(0, 7.15, -2.12), Color3.fromRGB(70, 15, 30))
+	for i = 0, 5 do
+		detail("Tooth", Vector3.new(0.22, 0.2, 0.08), at(-0.725 + i * 0.29, 7.24, -2.19), WHITE)
+	end
+	detail("Tongue", Vector3.new(0.6, 0.15, 0.08), at(0.15, 7.0, -2.17), Color3.fromRGB(220, 90, 110))
+
+	-- Gorro de dormir caido hacia un lado, con borde blanco, estrellas y pompon
+	detail("CapTrim", Vector3.new(0.55, 3.6, 3.6), at(-0.2, 9.95, 0.2) * CFrame.Angles(0, 0, math.rad(90 - 12)), WHITE, Enum.Material.Fabric, Enum.PartType.Cylinder)
+	local capParts = { { -0.05, 10.45, 3.2, 0.9 }, { 0.4, 11.05, 2.5, 0.8 }, { 1.0, 11.5, 1.8, 0.7 }, { 1.65, 11.6, 1.1, 0.6 } }
+	for i, c in capParts do
+		detail("Cap", Vector3.new(c[4], c[3], c[3]), at(c[1], c[2], 0.2) * CFrame.Angles(0, 0, math.rad(90 - 12 - i * 22)), CAP, Enum.Material.Fabric, Enum.PartType.Cylinder)
+	end
+	detail("CapEnd", Vector3.new(0.6, 0.7, 0.7), at(2.15, 11.4, 0.2) * CFrame.Angles(0, 0, math.rad(-20)), CAP, Enum.Material.Fabric, Enum.PartType.Cylinder)
+	detail("PomPom", Vector3.new(0.9, 0.9, 0.9), at(2.45, 11.1, 0.2), WHITE, Enum.Material.Fabric, Enum.PartType.Ball)
+	star(at(-0.3, 10.6, -1.42) * CFrame.Angles(math.rad(-20), 0, 0), 0.45)
+	star(at(0.6, 11.15, -1.05) * CFrame.Angles(math.rad(-20), 0, 0), 0.32)
+
+	-- Gorguera de peluche en el cuello
+	for i = 0, 11 do
+		local a = i / 12 * math.pi * 2
+		detail("Ruff", Vector3.new(0.85, 0.85, 0.85), at(math.cos(a) * 1.35, 6.05, math.sin(a) * 1.0), WHITE, Enum.Material.Fabric, Enum.PartType.Ball)
+	end
+	-- Barriga con su nombre y estrellas bordadas; cremallera del disfraz en la espalda
+	local belly = model:FindFirstChild("Belly") :: BasePart
+	local gui = Instance.new("SurfaceGui")
+	gui.Face = Enum.NormalId.Front
+	gui.CanvasSize = Vector2.new(220, 240)
+	gui.LightInfluence = 1
+	gui.Parent = belly
+	local label = Instance.new("TextLabel")
+	label.Size = UDim2.fromScale(1, 0.45)
+	label.Position = UDim2.fromScale(0, 0.08)
+	label.BackgroundTransparency = 1
+	label.Font = Enum.Font.FredokaOne
+	label.TextScaled = true
+	label.TextColor3 = Color3.fromRGB(90, 70, 170)
+	label.Text = "LUNI"
+	label.Parent = gui
+	star(at(-0.5, 3.6, -1.48), 0.45)
+	star(at(0.5, 3.35, -1.48), 0.35)
+	star(at(0.05, 3.05, -1.48), 0.28)
+	for _, side in { -1, 1 } do
+		star(at(side * 1.72, 4.6, -0.4) * CFrame.Angles(0, side * math.rad(-90), 0), 0.5)
+	end
+	detail("Zipper", Vector3.new(0.08, 3.4, 0.06), at(0, 4.3, 1.31), Color3.fromRGB(190, 190, 200), Enum.Material.Metal)
+	detail("ZipperTab", Vector3.new(0.18, 0.35, 0.06), at(0, 5.85, 1.35), Color3.fromRGB(190, 190, 200), Enum.Material.Metal)
+	-- Guantes de dibujo animado: puño, tres dedos y pulgar (siguen al brazo)
+	for _, side in { -1, 1 } do
+		detail("GloveCuff", Vector3.new(0.4, 1.35, 1.35), at(side * 2.55, 3.35, 0) * CFrame.Angles(0, 0, side * math.rad(18) + math.rad(90)), WHITE, nil, Enum.PartType.Cylinder, "Arm")
+		for i = -1, 1 do
+			detail("GloveFinger", Vector3.new(0.5, 0.5, 0.5), at(side * 2.75 + i * 0.33, 2.1, -0.25), WHITE, nil, Enum.PartType.Ball, "Arm")
+		end
+		detail("GloveThumb", Vector3.new(0.45, 0.45, 0.45), at(side * 2.25, 2.85, -0.5), WHITE, nil, Enum.PartType.Ball, "Arm")
+	end
+	-- Zapatones: suela, puntera redonda y cordones (siguen a la pierna)
+	for _, x in { -0.75, 0.75 } do
+		detail("Sole", Vector3.new(1.7, 0.2, 2.1), at(x, 0.1, -0.3), Color3.fromRGB(60, 60, 75), nil, nil, "Leg")
+		detail("ToeCap", Vector3.new(1.2, 1.2, 1.2), at(x, 0.6, -1.1), WHITE, nil, Enum.PartType.Ball, "Leg")
+		for i = 0, 1 do
+			detail("Lace", Vector3.new(0.9, 0.08, 0.1), at(x, 0.72, -0.05 - i * 0.35), Color3.fromRGB(240, 90, 120), nil, nil, "Leg")
+		end
+		star(at(x, 1.9, -0.67), 0.4, "Leg")
 	end
 	local glow = Instance.new("PointLight")
 	glow.Name = "Glow"

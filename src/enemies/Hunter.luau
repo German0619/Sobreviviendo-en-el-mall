@@ -42,22 +42,87 @@ local function buildModel(): Model
 		p.Parent = model
 		return p
 	end
+	-- Detalle soldado (Common.prepareModel): a la raiz o, con `follow`, a esa extremidad
+	local function detail(name, size, cf: CFrame, color: Color3?, material, shape, follow: string?)
+		local p = add(name, size, cf, color, material, shape)
+		if follow then
+			p:SetAttribute("Follow", follow)
+		else
+			p:SetAttribute("Detail", true)
+		end
+		return p
+	end
+	local HAT = Color3.fromRGB(18, 16, 15)
+	local LEATHER = Color3.fromRGB(45, 30, 22)
+	local BRASS = Color3.fromRGB(150, 120, 60)
+	local IRON = Color3.fromRGB(40, 40, 42)
+	local SCARF = Color3.fromRGB(90, 20, 22)
+
 	-- Abrigo largo, piernas flacas, brazos largos
 	add("LeftLeg", Vector3.new(0.5, 2.6, 0.5), CFrame.new(-0.4, -2.45, 0))
 	add("RightLeg", Vector3.new(0.5, 2.6, 0.5), CFrame.new(0.4, -2.45, 0))
+	-- Botas de cuero (siguen a la pierna)
+	for _, x in { -0.4, 0.4 } do
+		add("Shoe", Vector3.new(0.6, 0.45, 0.85), CFrame.new(x, -3.52, -0.15), LEATHER, Enum.Material.Leather)
+		detail("BootCuff", Vector3.new(0.62, 0.2, 0.62), CFrame.new(x, -3.05, 0), LEATHER, Enum.Material.Leather, nil, if x < 0 then "LeftLeg" else "RightLeg")
+	end
 	add("Coat", Vector3.new(1.8, 3.6, 1), CFrame.new(0, 0.2, 0))
 	add("CoatTail", Vector3.new(1.9, 1.4, 1.05), CFrame.new(0, -1.9, 0.05))
+	-- Faldones abiertos delante (dejan ver las piernas) y la abertura de atras
+	for _, side in { -1, 1 } do
+		detail("CoatFlap", Vector3.new(0.55, 1.5, 0.12), CFrame.new(side * 0.68, -1.95, -0.5) * CFrame.Angles(0, side * math.rad(-15), 0))
+		-- Solapas en V
+		detail("Lapel", Vector3.new(0.35, 1.3, 0.08), CFrame.new(side * 0.32, 1.25, -0.53) * CFrame.Angles(0, 0, side * math.rad(-18)), Color3.fromRGB(22, 19, 18))
+		-- Cuello alzado del abrigo, a los lados de la cara
+		detail("Collar", Vector3.new(0.18, 0.9, 0.8), CFrame.new(side * 0.6, 2.25, 0.05) * CFrame.Angles(0, 0, side * math.rad(-12)))
+		-- Hombreras y bolsillos
+		detail("ShoulderPad", Vector3.new(0.75, 0.3, 1.05), CFrame.new(side * 0.95, 1.95, 0))
+		detail("Pocket", Vector3.new(0.5, 0.35, 0.06), CFrame.new(side * 0.5, -0.65, -0.52), Color3.fromRGB(22, 19, 18))
+	end
+	detail("BackSlit", Vector3.new(0.06, 1.4, 0.05), CFrame.new(0, -1.9, 0.6), Color3.fromRGB(12, 10, 10))
+	for i = 0, 2 do
+		detail("Button", Vector3.new(0.14, 0.14, 0.14), CFrame.new(0.12, 1.0 - i * 0.55, -0.52), BRASS, Enum.Material.Metal, Enum.PartType.Ball)
+	end
+	-- Cinturon con hebilla y un gancho de carnicero colgando
+	detail("Belt", Vector3.new(1.85, 0.25, 1.05), CFrame.new(0, -0.35, 0), LEATHER, Enum.Material.Leather)
+	detail("Buckle", Vector3.new(0.35, 0.3, 0.06), CFrame.new(0, -0.35, -0.55), BRASS, Enum.Material.Metal)
+	detail("HookChain", Vector3.new(0.06, 0.7, 0.06), CFrame.new(-0.85, -0.75, -0.3), IRON, Enum.Material.Metal)
+	detail("Hook", Vector3.new(0.08, 0.5, 0.08), CFrame.new(-0.85, -1.25, -0.3), IRON, Enum.Material.Metal)
+	detail("HookTip", Vector3.new(0.08, 0.35, 0.08), CFrame.new(-0.85, -1.45, -0.45) * CFrame.Angles(math.rad(60), 0, 0), IRON, Enum.Material.Metal)
 	add("LeftArm", Vector3.new(0.45, 3.1, 0.45), CFrame.new(-1.15, -0.2, 0))
 	add("RightArm", Vector3.new(0.45, 3.1, 0.45), CFrame.new(1.15, -0.2, -0.3) * CFrame.Angles(math.rad(20), 0, 0))
+	-- Puños del abrigo y manos enguantadas; la izquierda con dedos largos como garras
+	detail("Cuff", Vector3.new(0.55, 0.3, 0.55), CFrame.new(-1.15, -1.55, 0), Color3.fromRGB(22, 19, 18), nil, nil, "LeftArm")
+	add("Hand", Vector3.new(0.45, 0.5, 0.35), CFrame.new(-1.15, -1.95, 0), LEATHER, Enum.Material.Leather)
+	for i = -1, 1 do
+		detail("Finger", Vector3.new(0.09, 0.6, 0.09), CFrame.new(-1.15 + i * 0.12, -2.45, -0.05) * CFrame.Angles(math.rad(10), 0, 0), LEATHER, Enum.Material.Leather, nil, "LeftArm")
+	end
+	detail("Cuff", Vector3.new(0.55, 0.3, 0.55), CFrame.new(1.15, -1.47, -0.76) * CFrame.Angles(math.rad(20), 0, 0), Color3.fromRGB(22, 19, 18), nil, nil, "RightArm")
+	add("Hand", Vector3.new(0.45, 0.45, 0.4), CFrame.new(1.15, -1.82, -0.86), LEATHER, Enum.Material.Leather)
+	-- Cabeza oscura, tapada hasta los ojos por una bufanda
 	add("Head", Vector3.new(0.9, 1.1, 0.9), CFrame.new(0, 2.6, 0), Color3.fromRGB(40, 36, 34), Enum.Material.SmoothPlastic)
-	-- Sombrero de ala ancha
-	add("HatBrim", Vector3.new(0.15, 2.4, 2.4), CFrame.new(0, 3.1, 0) * CFrame.Angles(0, 0, math.rad(90)), Color3.fromRGB(18, 16, 15), Enum.Material.Fabric, Enum.PartType.Cylinder)
-	add("HatTop", Vector3.new(0.8, 1.2, 1.2), CFrame.new(0, 3.55, 0) * CFrame.Angles(0, 0, math.rad(90)), Color3.fromRGB(18, 16, 15), Enum.Material.Fabric, Enum.PartType.Cylinder)
+	detail("Scarf", Vector3.new(1.0, 0.6, 1.0), CFrame.new(0, 2.3, 0), SCARF)
+	detail("ScarfEnd", Vector3.new(0.35, 1.1, 0.1), CFrame.new(-0.3, 1.6, -0.55) * CFrame.Angles(0, 0, math.rad(8)), SCARF)
+	-- Sombrero de ala ancha con su cinta
+	add("HatBrim", Vector3.new(0.15, 2.4, 2.4), CFrame.new(0, 3.1, 0) * CFrame.Angles(0, 0, math.rad(90)), HAT, Enum.Material.Fabric, Enum.PartType.Cylinder)
+	add("HatTop", Vector3.new(0.6, 1.2, 1.2), CFrame.new(0, 3.45, 0) * CFrame.Angles(0, 0, math.rad(90)), HAT, Enum.Material.Fabric, Enum.PartType.Cylinder)
+	detail("HatBand", Vector3.new(0.16, 1.24, 1.24), CFrame.new(0, 3.26, 0) * CFrame.Angles(0, 0, math.rad(90)), SCARF, Enum.Material.Fabric, Enum.PartType.Cylinder)
+	detail("HatDent", Vector3.new(0.6, 0.08, 0.25), CFrame.new(0, 3.71, 0), Color3.fromRGB(10, 9, 8))
 	for _, x in { -0.2, 0.2 } do
 		add("Eye", Vector3.new(0.16, 0.08, 0.05), CFrame.new(x, 2.65, -0.46), LANTERN, Enum.Material.Neon)
 	end
-	-- Farol rojo en la mano derecha: se le ve venir de lejos
-	local lantern = add("Lantern", Vector3.new(0.5, 0.7, 0.5), CFrame.new(1.15, -2.0, -0.85), LANTERN, Enum.Material.Neon)
+	-- Farol rojo en la mano derecha: se le ve venir de lejos (marco de hierro, tapa y asa)
+	local lantern = add("Lantern", Vector3.new(0.38, 0.55, 0.38), CFrame.new(1.15, -2.55, -1.0), LANTERN, Enum.Material.Neon)
+	detail("LanternGlass", Vector3.new(0.5, 0.62, 0.5), CFrame.new(1.15, -2.55, -1.0), Color3.fromRGB(255, 120, 100), Enum.Material.Glass, nil, "Lantern").Transparency = 0.6
+	for _, dx in { -0.25, 0.25 } do
+		for _, dz in { -0.25, 0.25 } do
+			detail("LanternPost", Vector3.new(0.07, 0.66, 0.07), CFrame.new(1.15 + dx, -2.55, -1.0 + dz), IRON, Enum.Material.Metal, nil, "Lantern")
+		end
+	end
+	detail("LanternBase", Vector3.new(0.6, 0.1, 0.6), CFrame.new(1.15, -2.9, -1.0), IRON, Enum.Material.Metal, nil, "Lantern")
+	detail("LanternCap", Vector3.new(0.55, 0.15, 0.55), CFrame.new(1.15, -2.17, -1.0), IRON, Enum.Material.Metal, nil, "Lantern")
+	detail("LanternCap", Vector3.new(0.3, 0.12, 0.3), CFrame.new(1.15, -2.05, -1.0), IRON, Enum.Material.Metal, nil, "Lantern")
+	detail("LanternHandle", Vector3.new(0.06, 0.06, 0.4), CFrame.new(1.15, -1.98, -0.96) * CFrame.Angles(math.rad(-20), 0, 0), IRON, Enum.Material.Metal, nil, "Lantern")
 	local light = Instance.new("PointLight")
 	light.Name = "LanternLight"
 	light.Color = LANTERN

@@ -36,34 +36,144 @@ local function buildModel(): Model
 		for k, v in props or {} do
 			p[k] = v
 		end
+		-- Todo va soldado a la raiz salvo las ruedas, que giran (EnemyAnimator); el buje y
+		-- el radio van soldados a su rueda (Follow)
+		if name ~= "Wheel" and p:GetAttribute("Follow") == nil then
+			p:SetAttribute("Detail", true)
+		end
 		p.Parent = model
 		return p
 	end
-	-- Cesta (paredes finas, se ve "hueca")
+	-- Barra de a hasta b
+	local function beam(name: string, a: Vector3, b: Vector3, thickness: number, props)
+		return add(name, Vector3.new(thickness, thickness, (b - a).Magnitude), CFrame.lookAt((a + b) / 2, b), props)
+	end
+	local RUST = { Material = Enum.Material.CorrodedMetal, Color = Color3.fromRGB(150, 110, 80) }
+	local RED = Color3.fromRGB(200, 40, 40)
+
+	-- Cesta de rejilla: fondo, paneles casi transparentes y barras (se ve "hueca")
 	local basketY = 0.3
-	add("Bottom", Vector3.new(2.4, 0.15, 3.4), CFrame.new(0, basketY - 0.8, 0))
-	add("Left", Vector3.new(0.12, 1.6, 3.4), CFrame.new(-1.2, basketY, 0), { Transparency = 0.35 })
-	add("Right", Vector3.new(0.12, 1.6, 3.4), CFrame.new(1.2, basketY, 0), { Transparency = 0.35 })
-	add("Front", Vector3.new(2.4, 1.6, 0.12), CFrame.new(0, basketY, -1.7), { Transparency = 0.35 })
-	add("Back", Vector3.new(2.4, 1.6, 0.12), CFrame.new(0, basketY, 1.7), { Transparency = 0.35 })
-	-- Asa
-	add("Handle", Vector3.new(2.6, 0.2, 0.2), CFrame.new(0, basketY + 1.1, 2.1), { Color = Color3.fromRGB(200, 40, 40), Material = Enum.Material.SmoothPlastic })
-	-- Patas y ruedas
+	local top, low = basketY + 0.8, basketY - 0.8
+	add("Bottom", Vector3.new(2.4, 0.12, 3.4), CFrame.new(0, low, 0), { Transparency = 0.25, Material = Enum.Material.DiamondPlate })
+	add("Left", Vector3.new(0.05, 1.6, 3.4), CFrame.new(-1.2, basketY, 0), { Transparency = 0.8 })
+	add("Right", Vector3.new(0.05, 1.6, 3.4), CFrame.new(1.2, basketY, 0), { Transparency = 0.8 })
+	add("Front", Vector3.new(2.4, 1.6, 0.05), CFrame.new(0, basketY, -1.7), { Transparency = 0.8 })
+	add("Back", Vector3.new(2.4, 1.6, 0.05), CFrame.new(0, basketY, 1.7), { Transparency = 0.8 })
+	-- Raíles: borde de arriba, uno a media altura y el de abajo
+	for _, y in { top, basketY, low + 0.05 } do
+		local t = if y == top then 0.14 else 0.07
+		for _, x in { -1.2, 1.2 } do
+			add("Rail", Vector3.new(t, t, 3.5), CFrame.new(x, y, 0), if y == basketY and x > 0 then RUST else nil)
+		end
+		for _, z in { -1.72, 1.72 } do
+			add("Rail", Vector3.new(2.5, t, t), CFrame.new(0, y, z))
+		end
+	end
+	-- Barras verticales de la rejilla
+	for i = 0, 8 do
+		local z = -1.5 + i * 0.375
+		for _, x in { -1.2, 1.2 } do
+			add("Bar", Vector3.new(0.05, 1.6, 0.05), CFrame.new(x, basketY, z), if (i + (if x > 0 then 1 else 0)) % 5 == 0 then RUST else nil)
+		end
+	end
+	for i = 0, 6 do
+		local x = -1.0 + i * (2 / 6)
+		for _, z in { -1.72, 1.72 } do
+			add("Bar", Vector3.new(0.05, 1.6, 0.05), CFrame.new(x, basketY, z))
+		end
+	end
+	-- Esquinas mas gruesas
+	for _, x in { -1.2, 1.2 } do
+		for _, z in { -1.72, 1.72 } do
+			add("Post", Vector3.new(0.12, 1.7, 0.12), CFrame.new(x, basketY, z))
+		end
+	end
+	-- Asiento de niño plegado contra la pared de atras (plastico rojo)
+	add("ChildSeat", Vector3.new(2.1, 1.1, 0.06), CFrame.new(0, basketY + 0.2, 1.55) * CFrame.Angles(math.rad(-12), 0, 0), {
+		Color = RED,
+		Material = Enum.Material.SmoothPlastic,
+		Transparency = 0.15,
+	})
+	-- Asa: dos brazos desde el borde de atras y la barra roja con su placa
+	for _, x in { -1.2, 1.2 } do
+		beam("HandleArm", Vector3.new(x, top, 1.72), Vector3.new(x * 1.05, top + 0.3, 2.1), 0.1)
+	end
+	add("Handle", Vector3.new(2.6, 0.2, 0.2), CFrame.new(0, top + 0.3, 2.1), { Color = RED, Material = Enum.Material.SmoothPlastic })
+	local plate = add("AdPlate", Vector3.new(1.2, 0.32, 0.04), CFrame.new(0, top + 0.12, 2.0) * CFrame.Angles(math.rad(-20), 0, 0), {
+		Color = Color3.fromRGB(240, 240, 235),
+		Material = Enum.Material.SmoothPlastic,
+	})
+	local gui = Instance.new("SurfaceGui")
+	gui.Face = Enum.NormalId.Back -- mira hacia atras (hacia quien empuja)
+	gui.CanvasSize = Vector2.new(240, 64)
+	gui.LightInfluence = 1
+	gui.Parent = plate
+	local text = Instance.new("TextLabel")
+	text.Size = UDim2.fromScale(1, 1)
+	text.BackgroundTransparency = 1
+	text.Font = Enum.Font.GothamBlack
+	text.TextScaled = true
+	text.TextColor3 = RED
+	text.Text = "PLAZA LUNA"
+	text.Parent = gui
+	-- Chasis: dos largueros, la bandeja de abajo y los soportes de las ruedas
+	for _, x in { -0.9, 0.9 } do
+		add("Frame", Vector3.new(0.12, 0.12, 3.6), CFrame.new(x, -1.0, 0.1))
+	end
+	add("Tray", Vector3.new(2.0, 0.06, 2.6), CFrame.new(0, -1.05, 0.3), { Transparency = 0.3, Material = Enum.Material.DiamondPlate })
 	for _, x in { -1, 1 } do
 		for _, z in { -1.4, 1.4 } do
-			add("Leg", Vector3.new(0.12, 1.1, 0.12), CFrame.new(x, -1.05, z))
+			add("Leg", Vector3.new(0.12, 0.8, 0.12), CFrame.new(x, -0.9, z))
+			add("Caster", Vector3.new(0.4, 0.1, 0.36), CFrame.new(x, -1.3, z), { Color = Color3.fromRGB(110, 115, 120) })
+			for _, side in { -1, 1 } do
+				add("Fork", Vector3.new(0.04, 0.32, 0.28), CFrame.new(x + side * 0.19, -1.47, z), { Color = Color3.fromRGB(110, 115, 120) })
+			end
 			add("Wheel", Vector3.new(0.3, 0.45, 0.45), CFrame.new(x, -1.55, z), {
 				Shape = Enum.PartType.Cylinder,
 				Color = Color3.fromRGB(30, 30, 30),
 				Material = Enum.Material.SmoothPlastic,
 			})
+			-- Buje y radio (giran con la rueda)
+			local hub = add("Hub", Vector3.new(0.32, 0.2, 0.2), CFrame.new(x, -1.55, z), {
+				Shape = Enum.PartType.Cylinder,
+				Color = Color3.fromRGB(200, 200, 205),
+			})
+			hub:SetAttribute("Follow", "Wheel")
+			local spoke = add("Spoke", Vector3.new(0.31, 0.4, 0.07), CFrame.new(x, -1.55, z), { Color = Color3.fromRGB(200, 200, 205) })
+			spoke:SetAttribute("Follow", "Wheel")
 		end
 	end
-	-- "Ojos" dentro de la cesta: lo delatan en la oscuridad
+	-- Compras abandonadas al fondo de la cesta
+	add("Cereal", Vector3.new(0.7, 1.0, 0.25), CFrame.new(-0.5, low + 0.55, 0.9) * CFrame.Angles(math.rad(-15), math.rad(20), 0), {
+		Color = Color3.fromRGB(240, 190, 40),
+		Material = Enum.Material.SmoothPlastic,
+	})
+	add("Milk", Vector3.new(0.75, 0.4, 0.4), CFrame.new(0.55, low + 0.42, 0.7) * CFrame.Angles(0, 0, math.rad(90)), {
+		Shape = Enum.PartType.Cylinder,
+		Color = Color3.fromRGB(245, 245, 245),
+		Material = Enum.Material.SmoothPlastic,
+	})
+	add("MilkCap", Vector3.new(0.12, 0.2, 0.2), CFrame.new(0.55, low + 0.86, 0.7) * CFrame.Angles(0, 0, math.rad(90)), {
+		Shape = Enum.PartType.Cylinder,
+		Color = Color3.fromRGB(40, 110, 220),
+		Material = Enum.Material.SmoothPlastic,
+	})
+	add("Can", Vector3.new(0.45, 0.3, 0.3), CFrame.new(0.1, low + 0.2, 1.3) * CFrame.Angles(0, math.rad(70), 0), {
+		Shape = Enum.PartType.Cylinder,
+		Color = Color3.fromRGB(180, 30, 40),
+	})
+	-- "Cara" fantasma dentro de la cesta: ojos y una boca dentada; lo delatan a oscuras
 	for _, x in { -0.4, 0.4 } do
 		add("Eye", Vector3.new(0.3, 0.3, 0.1), CFrame.new(x, basketY + 0.2, -1.6), {
 			Color = GHOST_COLOR,
 			Material = Enum.Material.Neon,
+		})
+	end
+	for i = -2, 2 do
+		add("Mouth", Vector3.new(0.14, 0.14, 0.06), CFrame.new(i * 0.16, basketY - 0.25 + (i % 2) * 0.07, -1.6) * CFrame.Angles(0, 0, math.rad(45)), {
+			Color = GHOST_COLOR,
+			Material = Enum.Material.Neon,
+			Transparency = 0.2,
 		})
 	end
 	local glow = Instance.new("PointLight")

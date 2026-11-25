@@ -53,22 +53,79 @@ local function buildModel(): Model
 		p.Parent = model
 		return p
 	end
+	-- Detalle de la silueta (se desvanece con ella): soldado a la raiz o a `follow`
+	local function detail(name: string, size: Vector3, cf: CFrame, follow: string?, props)
+		local p = add(name, size, Vector3.zero)
+		p.CFrame = cf
+		if follow then
+			p:SetAttribute("Follow", follow)
+		else
+			p:SetAttribute("Detail", true)
+		end
+		for k, v in props or {} do
+			p[k] = v
+		end
+		return p
+	end
+	local SHARD = { Color = Color3.fromRGB(150, 165, 185), Material = Enum.Material.Glass, Reflectance = 0.4 }
+
 	-- Silueta humana alargada (un poco mas alta y delgada que un jugador)
-	add("LeftLeg", Vector3.new(0.6, 2.2, 0.6), Vector3.new(-0.4, -1.65, 0))
-	add("RightLeg", Vector3.new(0.6, 2.2, 0.6), Vector3.new(0.4, -1.65, 0))
-	add("Torso", Vector3.new(1.6, 2.1, 0.7), Vector3.new(0, 0.5, 0))
-	add("LeftArm", Vector3.new(0.45, 2.6, 0.45), Vector3.new(-1.05, 0.1, 0))
-	add("RightArm", Vector3.new(0.45, 2.6, 0.45), Vector3.new(1.05, 0.1, 0))
-	add("Head", Vector3.new(1, 1.2, 1), Vector3.new(0, HEAD_OFFSET, 0))
-	for _, x in { -0.22, 0.22 } do
-		local eye = Common.part({
-			Name = "Eye",
-			Size = Vector3.new(0.18, 0.1, 0.05),
-			CFrame = CFrame.new(x, HEAD_OFFSET + 0.1, -0.51),
+	add("LeftLeg", Vector3.new(0.5, 2.2, 0.5), Vector3.new(-0.38, -1.65, 0))
+	add("RightLeg", Vector3.new(0.5, 2.2, 0.5), Vector3.new(0.38, -1.65, 0))
+	add("Torso", Vector3.new(1.5, 2.1, 0.65), Vector3.new(0, 0.5, 0))
+	add("LeftArm", Vector3.new(0.4, 2.6, 0.4), Vector3.new(-1.0, 0.1, 0))
+	add("RightArm", Vector3.new(0.4, 2.6, 0.4), Vector3.new(1.0, 0.1, 0))
+	add("Head", Vector3.new(0.9, 1.2, 0.95), Vector3.new(0, HEAD_OFFSET, 0))
+	-- Cuello largo, hombros caidos y cintura estrecha
+	detail("Neck", Vector3.new(0.35, 0.45, 0.35), CFrame.new(0, 1.35, 0))
+	for _, side in { -1, 1 } do
+		detail("Shoulder", Vector3.new(0.6, 0.6, 0.6), CFrame.new(side * 0.85, 1.35, 0), nil, { Shape = Enum.PartType.Ball })
+		-- Pies en punta (siguen a la pierna)
+		detail("Foot", Vector3.new(0.4, 0.2, 0.9), CFrame.new(side * 0.38, -2.65, -0.25), if side < 0 then "LeftLeg" else "RightLeg")
+		-- Manos con dedos larguisimos, por debajo de las rodillas
+		local armName = if side < 0 then "LeftArm" else "RightArm"
+		detail("Palm", Vector3.new(0.38, 0.4, 0.2), CFrame.new(side * 1.0, -1.35, 0), armName)
+		for i = -1, 1 do
+			detail("Finger", Vector3.new(0.07, 0.85, 0.07), CFrame.new(side * 1.0 + i * 0.11, -1.95, -0.02) * CFrame.Angles(0, 0, math.rad(i * 4)), armName)
+		end
+		detail("Thumb", Vector3.new(0.07, 0.45, 0.07), CFrame.new(side * 0.83, -1.55, -0.05) * CFrame.Angles(0, 0, side * math.rad(25)), armName)
+	end
+	detail("Waist", Vector3.new(1.1, 0.4, 0.55), CFrame.new(0, -0.7, 0))
+	-- Pelo largo y lacio cayendo por la espalda y a los lados de la cara
+	for i, x in { -0.45, -0.25, 0, 0.25, 0.45 } do
+		local length = 1.3 + (i % 2) * 0.4
+		detail("Hair", Vector3.new(0.18, length, 0.1), CFrame.new(x, HEAD_OFFSET + 0.45 - length / 2, 0.48) * CFrame.Angles(math.rad(-6), 0, 0))
+	end
+	for _, side in { -1, 1 } do
+		detail("Hair", Vector3.new(0.1, 1.5, 0.3), CFrame.new(side * 0.47, HEAD_OFFSET - 0.25, -0.15))
+	end
+	detail("HairTop", Vector3.new(0.95, 0.25, 1.0), CFrame.new(0, HEAD_OFFSET + 0.62, 0.02))
+	-- Trozos de espejo clavados (sale de los cristales)
+	detail("Shard", Vector3.new(0.3, 0.45, 0.05), CFrame.new(0.4, 0.9, -0.34) * CFrame.Angles(0, 0, math.rad(25)), nil, SHARD)
+	detail("Shard", Vector3.new(0.2, 0.35, 0.05), CFrame.new(-0.35, 0.2, -0.34) * CFrame.Angles(0, 0, math.rad(-35)), nil, SHARD)
+	detail("Shard", Vector3.new(0.25, 0.3, 0.05), CFrame.new(-0.2, 1.2, 0.34) * CFrame.Angles(0, 0, math.rad(60)), nil, SHARD)
+	detail("Shard", Vector3.new(0.05, 0.3, 0.2), CFrame.new(1.21, 0.4, 0) * CFrame.Angles(math.rad(20), 0, 0), "RightArm", SHARD)
+	detail("Shard", Vector3.new(0.18, 0.28, 0.05), CFrame.new(-0.25, HEAD_OFFSET + 0.35, -0.48) * CFrame.Angles(0, 0, math.rad(15)), nil, SHARD)
+	-- Ojos y una sonrisa palida demasiado ancha: brillan juntos (atributo Glow)
+	local function glow(name: string, size: Vector3, cf: CFrame)
+		local p = Common.part({
+			Name = name,
+			Size = size,
+			CFrame = cf,
 			Color = EYE_COLOR,
 			Material = Enum.Material.Neon,
 		})
-		eye.Parent = model
+		p:SetAttribute("Detail", true)
+		p:SetAttribute("Glow", true)
+		p.Parent = model
+		return p
+	end
+	for _, x in { -0.2, 0.2 } do
+		glow("Eye", Vector3.new(0.18, 0.1, 0.05), CFrame.new(x, HEAD_OFFSET + 0.1, -0.48))
+	end
+	for i = -3, 3 do
+		local x = i * 0.1
+		glow("Grin", Vector3.new(0.11, 0.04, 0.04), CFrame.new(x, HEAD_OFFSET - 0.28 + (x * x) * 0.6, -0.48) * CFrame.Angles(0, 0, math.rad(x * 70)))
 	end
 	return model
 end
@@ -108,7 +165,7 @@ function Reflection.new(_spawnPosition: Vector3, ctx)
 	end
 	self.Eyes = {}
 	for _, d in model:GetDescendants() do
-		if d:IsA("BasePart") and d.Name == "Eye" then
+		if d:IsA("BasePart") and (d.Name == "Eye" or d:GetAttribute("Glow")) then
 			table.insert(self.Eyes, d)
 		end
 	end

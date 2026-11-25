@@ -192,17 +192,69 @@ function Common.newModel(name: string, height: number): (Model, Part)
 	return model, root
 end
 
+-- Pieza a la que se suelda un detalle con Follow = `wanted`: la mas cercana con ese
+-- nombre, o del tipo "Arm" / "Leg" (como las reconoce EnemyAnimator).
+local function followTarget(parts: { BasePart }, detail: BasePart, wanted: string): BasePart?
+	local best, bestDist = nil, math.huge
+	for _, p in parts do
+		local name = p.Name
+		local matches = name == wanted
+			or (wanted == "Arm" and string.find(name, "Arm") ~= nil)
+			or (wanted == "Leg" and string.find(name, "Leg") ~= nil and name ~= "LowerLeg")
+		if matches then
+			local d = (p.Position - detail.Position).Magnitude
+			if d < bestDist then
+				best, bestDist = p, d
+			end
+		end
+	end
+	return best
+end
+
 -- Ancla y prepara todas las partes; los caminantes no bloquean su propio pathfinding.
+--
+-- Detalles (botones, dedos, costuras...): las piezas con el atributo Detail = true o
+-- Follow = "<pieza>" | "Arm" | "Leg" NO se anclan: se sueldan a la raiz (Detail) o a esa
+-- pieza (Follow) y se mueven con ella. Asi el servidor solo mueve (y la red solo envia)
+-- las piezas principales, aunque el modelo tenga muchos detalles.
 function Common.prepareModel(model: Model)
+	local main: { BasePart } = {}
+	local details: { BasePart } = {}
 	for _, d in model:GetDescendants() do
 		if d:IsA("BasePart") then
-			d.Anchored = true
 			d.CanTouch = false
+			if d:GetAttribute("Detail") == true or type(d:GetAttribute("Follow")) == "string" then
+				table.insert(details, d)
+			else
+				d.Anchored = true
+				table.insert(main, d)
+			end
 			if not d:FindFirstChildOfClass("PathfindingModifier") then
 				local modifier = Instance.new("PathfindingModifier")
 				modifier.PassThrough = true
 				modifier.Parent = d
 			end
+		end
+	end
+	local root = model.PrimaryPart
+	for _, d in details do
+		if d:FindFirstChild("DetailWeld") then
+			continue -- ya soldado (un modelo del mapa que vuelve a cobrar vida)
+		end
+		local follow = d:GetAttribute("Follow")
+		local target = if type(follow) == "string" then followTarget(main, d, follow) else root
+		target = target or root
+		if target then
+			d.Anchored = false
+			d.Massless = true
+			d.CanCollide = false
+			local weld = Instance.new("WeldConstraint")
+			weld.Name = "DetailWeld"
+			weld.Part0 = target
+			weld.Part1 = d
+			weld.Parent = d
+		else
+			d.Anchored = true
 		end
 	end
 end
@@ -268,9 +320,13 @@ function Common.getTemplate(name: string): Model?
 	return nil
 end
 
+-- "Alto" para el Mover: el doble de la distancia del pivote a lo mas bajo del modelo
+-- (el Mover pone el pivote a Height/2 sobre el suelo). Asi lo que sobresale por arriba
+-- (un sombrero, una antena) no hace flotar al enemigo.
 function Common.getHeight(model: Model): number
-	local _, size = model:GetBoundingBox()
-	return size.Y
+	local cf, size = model:GetBoundingBox()
+	local bottom = cf.Position.Y - size.Y / 2
+	return 2 * (model:GetPivot().Position.Y - bottom)
 end
 
 ----------------------------------------------------------------------
@@ -284,6 +340,10 @@ Mover.__index = Mover
 local OTHER_FLOOR = 8
 -- Caida maxima que un caminante acepta al avanzar (evita tirarse por el atrio).
 local MAX_DROP = 4
+-- Subida maxima de un paso (los escalones miden ~1.1). Mas alto es un obstaculo: sin esto,
+-- los altos (la Estatua) "pisaban" el techo de un puesto bajo al pasar por encima y se
+-- quedaban arriba sin poder bajar.
+local MAX_STEP = 1.8
 -- Velocidad vertical de los fantasmas al cambiar de piso (studs/s).
 local GHOST_CLIMB_SPEED = 7
 
@@ -441,12 +501,13 @@ function Mover:Step(dt: number): boolean
 			return Workspace:Raycast(p + Vector3.new(0, 1, 0), Vector3.new(0, -(self.Height + 6), 0), params)
 		end
 		local function safe(h: RaycastResult?): boolean
-			return h ~= nil and feetY - h.Position.Y <= MAX_DROP
+			return h ~= nil and feetY - h.Position.Y <= MAX_DROP and h.Position.Y - feetY <= MAX_STEP
 		end
 		local hit = ground(newPos)
 		if not safe(hit) then
-			-- Delante hay un vacio (el atrio, el borde de una escalera): probar a deslizarse
-			-- por un solo eje (las rutas rozan los extremos de los barandales)
+			-- Delante hay un vacio (el atrio, el borde de una escalera) o algo demasiado alto para
+			-- subirlo de un paso (un puesto, un mostrador): probar a deslizarse por un solo eje
+			-- (las rutas rozan los extremos de los barandales); si no, ruta para rodearlo
 			local slid = false
 			for _, alt in { Vector3.new(newPos.X, pos.Y, pos.Z), Vector3.new(pos.X, pos.Y, newPos.Z) } do
 				if (alt - pos).Magnitude > 0.01 then

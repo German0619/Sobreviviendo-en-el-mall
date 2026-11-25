@@ -35,50 +35,98 @@ local COLORS = {
 local Balloon = {}
 Balloon.__index = Balloon
 
+local INK = Color3.fromRGB(22, 18, 20)
+local BODY_CENTER = Vector3.new(0, 1, 0)
+local BODY_RADIUS = 1.4
+
 local function buildModel(): Model
 	local model, _root = Common.newModel("Balloon", HEIGHT)
 	local color = COLORS[math.random(1, #COLORS)]
-	local body = Common.part({
-		Name = "Body",
+	local function add(name: string, size: Vector3, cf: CFrame, props)
+		local p = Common.part({
+			Name = name,
+			Size = size,
+			CFrame = cf,
+			Color = color,
+			Material = Enum.Material.SmoothPlastic,
+		})
+		for k, v in props or {} do
+			p[k] = v
+		end
+		if name ~= "Body" then
+			p:SetAttribute("Detail", true) -- soldado a la raiz (Common.prepareModel)
+		end
+		p.Parent = model
+		return p
+	end
+	-- Pintado sobre la goma: (x, y) en el frente del globo; la pieza se apoya en la superficie
+	local function paint(name: string, x: number, y: number, size: Vector3, roll: number, props)
+		local z = -math.sqrt(math.max(BODY_RADIUS ^ 2 - x ^ 2 - (y - BODY_CENTER.Y) ^ 2, 0.01))
+		local pos = Vector3.new(x, y, z * 0.97)
+		local normal = (pos - BODY_CENTER).Unit
+		return add(name, size, CFrame.lookAt(pos, pos + normal) * CFrame.Angles(0, 0, math.rad(roll)), props)
+	end
+
+	-- Goma en forma de gota: esfera grande arriba y otra menor abajo
+	add("Body", Vector3.new(2.8, 2.8, 2.8), CFrame.new(BODY_CENTER), {
 		Shape = Enum.PartType.Ball,
-		Size = Vector3.new(2.8, 2.8, 2.8),
-		CFrame = CFrame.new(0, 1, 0),
-		Color = color,
-		Material = Enum.Material.SmoothPlastic,
 		Reflectance = 0.15,
 		CanQuery = true, -- el taser y la vista lo detectan
 	})
-	body.Parent = model
-	local knot = Common.part({
-		Name = "Knot",
-		Size = Vector3.new(0.35, 0.35, 0.35),
-		CFrame = CFrame.new(0, -0.5, 0),
-		Color = color,
-		Material = Enum.Material.SmoothPlastic,
+	add("BodyLow", Vector3.new(2, 2, 2), CFrame.new(0, 0.3, 0), { Shape = Enum.PartType.Ball, Reflectance = 0.15 })
+	add("Neck", Vector3.new(0.9, 0.9, 0.9), CFrame.new(0, -0.45, 0), { Shape = Enum.PartType.Ball, Reflectance = 0.15 })
+	-- Brillo del plastico (arriba a la izquierda)
+	add("Shine", Vector3.new(0.55, 0.55, 0.55), CFrame.new(-0.55, 1.85, -0.95), {
+		Shape = Enum.PartType.Ball,
+		Color = Color3.fromRGB(255, 255, 255),
+		Transparency = 0.45,
 	})
-	knot.Parent = model
-	local string_ = Common.part({
-		Name = "String",
-		Size = Vector3.new(0.05, 2, 0.05),
-		CFrame = CFrame.new(0, -1.6, 0),
-		Color = Color3.fromRGB(240, 240, 240),
-		Material = Enum.Material.SmoothPlastic,
+	add("ShineSmall", Vector3.new(0.25, 0.25, 0.25), CFrame.new(-0.85, 1.45, -1.02), {
+		Shape = Enum.PartType.Ball,
+		Color = Color3.fromRGB(255, 255, 255),
+		Transparency = 0.55,
 	})
-	string_.Parent = model
-	-- Cara pintada (mira hacia -Z, la parte de delante)
-	local face = Instance.new("SurfaceGui")
-	face.Face = Enum.NormalId.Front
-	face.CanvasSize = Vector2.new(100, 100)
-	face.LightInfluence = 1
-	face.Parent = body
-	local label = Instance.new("TextLabel")
-	label.Size = UDim2.fromScale(1, 1)
-	label.BackgroundTransparency = 1
-	label.Font = Enum.Font.GothamBlack
-	label.TextScaled = true
-	label.TextColor3 = Color3.fromRGB(20, 20, 20)
-	label.Text = ":)"
-	label.Parent = face
+	-- Nudo con su "labio" y el cordel rizado
+	add("Knot", Vector3.new(0.4, 0.3, 0.4), CFrame.new(0, -0.95, 0), { Shape = Enum.PartType.Ball })
+	add("KnotLip", Vector3.new(0.12, 0.55, 0.55), CFrame.new(0, -1.1, 0) * CFrame.Angles(0, 0, math.rad(90)), {
+		Shape = Enum.PartType.Cylinder,
+	})
+	local white = Color3.fromRGB(240, 240, 240)
+	local y = -1.25
+	for i = 1, 5 do
+		local lean = if i % 2 == 0 then 18 else -18
+		add("String", Vector3.new(0.05, 0.23, 0.05), CFrame.new(math.sin(i * 1.3) * 0.08, y - 0.1, 0) * CFrame.Angles(0, 0, math.rad(lean)), {
+			Color = white,
+		})
+		y -= 0.2
+	end
+	add("String", Vector3.new(0.05, 0.28, 0.05), CFrame.new(0.03, y - 0.14, 0), { Color = white })
+
+	-- Cara pintada (frente = -Z): ojos ovalados con brillo, cejas y sonrisa torcida
+	for _, side in { -1, 1 } do
+		paint("FaceEye", side * 0.45, 1.4, Vector3.new(0.32, 0.5, 0.06), 0, { Color = INK })
+		paint("FaceEyeShine", side * 0.45 - 0.06, 1.52, Vector3.new(0.1, 0.12, 0.07), 0, { Color = Color3.fromRGB(255, 255, 255) })
+		paint("FaceBrow", side * 0.48, 1.85, Vector3.new(0.4, 0.07, 0.06), side * -14, { Color = INK })
+		paint("FaceCheek", side * 0.85, 1.0, Vector3.new(0.3, 0.2, 0.05), 0, {
+			Color = Color3.fromRGB(255, 120, 140),
+			Transparency = 0.35,
+		})
+	end
+	-- Sonrisa: arco de trazos (un poco mas alta de un lado: inquietante)
+	local segments = 7
+	for i = 0, segments - 1 do
+		local t = math.rad(205 + i * (130 / (segments - 1)))
+		local x = math.cos(t) * 0.7
+		local yy = 1.05 + math.sin(t) * 0.45 + (i / segments) * 0.1
+		local tangent = math.deg(math.atan2(math.cos(t) * 0.45, -math.sin(t) * 0.7))
+		paint("FaceSmile", x, yy, Vector3.new(0.26, 0.08, 0.06), -tangent, { Color = INK })
+	end
+	-- Dientes pintados dentro de la sonrisa
+	for i = -2, 2 do
+		paint("FaceTooth", i * 0.17, 0.72 + math.abs(i) * 0.04, Vector3.new(0.12, 0.13, 0.055), 0, {
+			Color = Color3.fromRGB(245, 245, 235),
+		})
+	end
 	return model
 end
 

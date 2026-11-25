@@ -23,21 +23,75 @@ local FLARE_SEARCH = 40 -- studs extra sobre el radio de la bengala para notarla
 local Moth = {}
 Moth.__index = Moth
 
+local WING_EDGE = Color3.fromRGB(165, 145, 110)
+local MOTH_BODY = Color3.fromRGB(120, 100, 75)
+local WING_SPOT = Color3.fromRGB(60, 45, 35)
+
+-- Una polilla en `cf` (frente = -Z), con las alas abiertas `flap` grados.
+local function buildMoth(model: Model, cf: CFrame, scale: number, flap: number)
+	local function add(name: string, size: Vector3, offset: CFrame, color: Color3, props)
+		local p = Common.part({
+			Name = name,
+			Size = size * scale,
+			CFrame = cf * (offset - offset.Position + offset.Position * scale),
+			Color = color,
+			Material = Enum.Material.Fabric,
+		})
+		for k, v in props or {} do
+			p[k] = v
+		end
+		p:SetAttribute("Detail", true) -- soldada a la raiz: solo se mueve la raiz
+		p.Parent = model
+		return p
+	end
+	-- Cuerpo peludo: torax, abdomen a rayas y cabeza con ojos negros
+	add("MothThorax", Vector3.new(0.16, 0.16, 0.18), CFrame.new(0, 0, -0.06), MOTH_BODY, { Shape = Enum.PartType.Ball })
+	add("MothAbdomen", Vector3.new(0.13, 0.12, 0.32), CFrame.new(0, -0.01, 0.15), MOTH_BODY)
+	add("MothStripe", Vector3.new(0.14, 0.13, 0.04), CFrame.new(0, -0.01, 0.17), WING_SPOT)
+	add("MothHead", Vector3.new(0.11, 0.11, 0.11), CFrame.new(0, 0.01, -0.19), MOTH_BODY, { Shape = Enum.PartType.Ball })
+	for _, side in { -1, 1 } do
+		add("MothEye", Vector3.new(0.05, 0.05, 0.05), CFrame.new(side * 0.045, 0.02, -0.23), Color3.fromRGB(10, 10, 10), {
+			Shape = Enum.PartType.Ball,
+			Material = Enum.Material.SmoothPlastic,
+			Reflectance = 0.3,
+		})
+		-- Antenas plumosas hacia delante
+		add("MothAntenna", Vector3.new(0.02, 0.02, 0.24), CFrame.new(side * 0.06, 0.07, -0.33) * CFrame.Angles(math.rad(25), side * math.rad(-25), 0), WING_SPOT)
+		-- Alas: articuladas en el costado del torax, abiertas en V
+		local hinge = CFrame.new(side * 0.06, 0.02, -0.04) * CFrame.Angles(0, 0, side * math.rad(flap))
+		add("MothWing", Vector3.new(0.48, 0.025, 0.3), hinge * CFrame.new(side * 0.26, 0, -0.02) * CFrame.Angles(0, side * math.rad(12), 0), MOTH_COLOR)
+		add("MothWingEdge", Vector3.new(0.12, 0.03, 0.31), hinge * CFrame.new(side * 0.47, 0, -0.03) * CFrame.Angles(0, side * math.rad(12), 0), WING_EDGE)
+		add("MothWingSpot", Vector3.new(0.09, 0.032, 0.09), hinge * CFrame.new(side * 0.3, 0, -0.03) * CFrame.Angles(0, math.rad(45), 0), WING_SPOT)
+		add("MothHindWing", Vector3.new(0.32, 0.022, 0.22), hinge * CFrame.new(side * 0.18, -0.005, 0.2) * CFrame.Angles(0, side * math.rad(-20), 0), WING_EDGE)
+	end
+end
+
 local function buildModel(): Model
 	local model, root = Common.newModel("Moth", HEIGHT)
-	-- Unas cuantas polillas fijas (se ven aunque las particulas esten desactivadas)
-	for i = 1, 6 do
-		local angle = i / 6 * math.pi * 2
-		local moth = Common.part({
-			Name = "Moth",
-			Size = Vector3.new(0.5, 0.08, 0.35),
-			CFrame = CFrame.new(math.cos(angle) * 1.1, math.sin(angle * 2) * 0.6, math.sin(angle) * 1.1)
-				* CFrame.Angles(0, angle, math.rad(25)),
-			Color = MOTH_COLOR,
-			Material = Enum.Material.SmoothPlastic,
-		})
-		moth.Parent = model
+	-- Unas cuantas polillas fijas (se ven aunque las particulas esten desactivadas), cada
+	-- una en otra fase del aleteo y mirando hacia fuera del enjambre
+	local count = 5
+	for i = 1, count do
+		local angle = i / count * math.pi * 2
+		local radius = 0.9 + (i % 2) * 0.35
+		local pos = Vector3.new(math.cos(angle) * radius, math.sin(angle * 2) * 0.5, math.sin(angle) * radius)
+		-- Vuelan en circulo (tangente al enjambre), un poco inclinadas
+		local cf = CFrame.lookAt(pos, pos + Vector3.new(-math.sin(angle), 0.15 * math.cos(angle * 3), math.cos(angle)))
+			* CFrame.Angles(0, 0, math.rad(math.sin(i * 2.1) * 12))
+		buildMoth(model, cf, 1.6 + (i % 2) * 0.3, ({ 10, 35, -5, 50, 20 })[i])
 	end
+	-- Pelusa luminosa en el centro (las polillas rodean "algo")
+	local dust = Common.part({
+		Name = "MothDust",
+		Size = Vector3.new(0.6, 0.6, 0.6),
+		Shape = Enum.PartType.Ball,
+		CFrame = CFrame.new(),
+		Color = Color3.fromRGB(255, 240, 190),
+		Material = Enum.Material.Neon,
+		Transparency = 0.75,
+	})
+	dust:SetAttribute("Detail", true)
+	dust.Parent = model
 	local swarm = Instance.new("ParticleEmitter")
 	swarm.Name = "Swarm"
 	swarm.Color = ColorSequence.new(MOTH_COLOR)

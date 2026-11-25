@@ -43,28 +43,47 @@ local function buildModel(): Model
 	-- El pivote queda delante del frente: el destello, la UV y el taser apuntan ahi
 	-- (el centro de la maquina esta tapado por su propia caja de colision)
 	root.PivotOffset = CFrame.new(0, 0, PIVOT_Z)
-	-- Dientes arriba y abajo de la vitrina (cuñas que apuntan hacia dentro)
-	local count = 7
+	-- Pieza oculta que aparece al enseñar los dientes. row: se cierra con esa fila al morder.
+	local function hidden(name: string, size: Vector3, cf: CFrame, color: Color3, material: Enum.Material?, row: number?)
+		local p = Common.part({
+			Name = name,
+			Size = size,
+			CFrame = cf,
+			Color = color,
+			Material = material or Enum.Material.SmoothPlastic,
+			Transparency = 1,
+		})
+		if row then
+			p:SetAttribute("Row", row)
+		else
+			p:SetAttribute("Reveal", true)
+		end
+		p.Parent = model
+		return p
+	end
+	-- Dientes arriba y abajo de la vitrina (cuñas que apuntan hacia dentro), de tamaños
+	-- distintos y con dos colmillos largos en cada fila, sobre una encia oscura
+	local count = 9
+	local GUM = Color3.fromRGB(110, 25, 35)
 	for row = 0, 1 do
-		local y = if row == 0 then WIN_H / 2 - 0.25 else -WIN_H / 2 + 0.25
+		local edge = if row == 0 then WIN_H / 2 else -WIN_H / 2
+		local inward = if row == 0 then -1 else 1
+		hidden("Gum", Vector3.new(WIN_W, 0.3, 0.1), CFrame.new(WIN_X, edge + inward * 0.1, FRONT_Z + 0.04), GUM, nil, row)
 		for i = 0, count - 1 do
 			local x = WIN_X - WIN_W / 2 + (i + 0.5) * WIN_W / count
-			local tooth = Common.part({
-				Name = "Tooth",
-				Size = Vector3.new(0.3, 0.5, 0.12),
-				CFrame = CFrame.new(x, y, FRONT_Z) * CFrame.Angles(0, 0, if row == 0 then math.rad(180) else 0),
-				Color = TOOTH_COLOR,
-				Material = Enum.Material.SmoothPlastic,
-				Transparency = 1,
-			})
-			tooth:SetAttribute("Row", row)
+			local fang = i == 1 or i == count - 2
+			local length = if fang then 0.85 else 0.4 + ((i * 7) % 3) * 0.08
+			local tooth = hidden("Tooth", Vector3.new(0.24, length, 0.12), CFrame.new(x, edge + inward * (0.2 + length / 2), FRONT_Z) * CFrame.Angles(0, 0, if row == 0 then math.rad(180) else 0), TOOTH_COLOR, nil, row)
+			tooth.Color = if fang then Color3.fromRGB(250, 248, 235) else TOOTH_COLOR:Lerp(Color3.fromRGB(200, 180, 120), ((i * 5) % 4) / 10)
 			local mesh = Instance.new("SpecialMesh")
 			mesh.MeshType = Enum.MeshType.Wedge
 			mesh.Parent = tooth
-			tooth.Parent = model
 		end
 	end
-	-- Ojos detras del vidrio
+	-- Lengua que cuelga por la bandeja
+	hidden("Tongue", Vector3.new(0.9, 0.12, 1.0), CFrame.new(WIN_X, -WIN_H / 2 + 0.15, FRONT_Z - 0.4) * CFrame.Angles(math.rad(-35), 0, 0), Color3.fromRGB(200, 80, 100))
+	hidden("TongueTip", Vector3.new(0.6, 0.12, 0.4), CFrame.new(WIN_X, -WIN_H / 2 - 0.25, FRONT_Z - 0.95) * CFrame.Angles(math.rad(-65), 0, 0), Color3.fromRGB(200, 80, 100))
+	-- Ojos detras del vidrio, con pupila rasgada
 	for _, x in { WIN_X - 0.6, WIN_X + 0.6 } do
 		local eye = Common.part({
 			Name = "Eye",
@@ -75,6 +94,7 @@ local function buildModel(): Model
 			Transparency = 1,
 		})
 		eye.Parent = model
+		hidden("Pupil", Vector3.new(0.06, 0.2, 0.02), CFrame.new(x, 1.3, FRONT_Z + 0.04), Color3.fromRGB(10, 5, 5))
 	end
 	-- Babas por la bandeja
 	local drool = Instance.new("ParticleEmitter")
@@ -125,11 +145,15 @@ function Mimic.new(spawnPosition: Vector3, ctx)
 	self.RelocateAt = 0
 	self.Warned = false
 	self.Teeth, self.Eyes = {}, {}
+	-- Teeth: se ven y se cierran al morder (dientes y encias, atributo Row).
+	-- Eyes: solo se ven (ojos, pupilas, lengua: atributo Reveal).
 	for _, d in model:GetDescendants() do
-		if d.Name == "Tooth" then
-			table.insert(self.Teeth, d)
-		elseif d.Name == "Eye" then
-			table.insert(self.Eyes, d)
+		if d:IsA("BasePart") then
+			if d:GetAttribute("Row") ~= nil then
+				table.insert(self.Teeth, d)
+			elseif d.Name == "Eye" or d:GetAttribute("Reveal") then
+				table.insert(self.Eyes, d)
+			end
 		end
 	end
 	self.Drool = model:FindFirstChild("Drool", true) :: ParticleEmitter?

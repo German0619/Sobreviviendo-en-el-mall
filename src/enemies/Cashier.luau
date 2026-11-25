@@ -41,20 +41,105 @@ local function buildModel(): Model
 		for k, v in props or {} do
 			p[k] = v
 		end
+		-- Detalles soldados (Common.prepareModel); el cuerpo, las patas y los pies se mueven solos
+		if name ~= "Body" and name ~= "Leg" and name ~= "Foot" and p:GetAttribute("Follow") == nil then
+			p:SetAttribute("Detail", true)
+		end
 		p.Parent = model
 		return p
 	end
-	-- Cuerpo del cajero (frente = -Z)
+	local function text(part: BasePart, face: Enum.NormalId, canvas: Vector2, str: string, color: Color3, font: Enum.Font?)
+		local gui = Instance.new("SurfaceGui")
+		gui.Name = "SignGui"
+		gui.Face = face
+		gui.CanvasSize = canvas
+		gui.LightInfluence = 0.6
+		gui.Parent = part
+		local t = Instance.new("TextLabel")
+		t.Name = "SignText"
+		t.Size = UDim2.fromScale(1, 1)
+		t.BackgroundTransparency = 1
+		t.Font = font or Enum.Font.GothamBlack
+		t.TextScaled = true
+		t.TextColor3 = color
+		t.Text = str
+		t.Parent = gui
+	end
+	local DARK = Color3.fromRGB(32, 34, 38)
+	local STEEL = Color3.fromRGB(175, 180, 188)
+	local BLUE = Color3.fromRGB(40, 90, 160)
+
+	-- Cuerpo del cajero (frente = -Z) con cantos oscuros
 	add("Body", Vector3.new(2.6, 3.4, 1.8), CFrame.new(0, 0.9, 0), BODY_COLOR, Enum.Material.Metal, { CanQuery = true })
-	add("Top", Vector3.new(2.8, 0.5, 2), CFrame.new(0, 2.85, -0.05), Color3.fromRGB(40, 90, 160), Enum.Material.SmoothPlastic)
+	for _, x in { -1.27, 1.27 } do
+		add("Trim", Vector3.new(0.12, 3.4, 0.12), CFrame.new(x, 0.9, -0.9), DARK)
+		add("Trim", Vector3.new(0.12, 3.4, 0.12), CFrame.new(x, 0.9, 0.9), DARK)
+	end
+	add("Plinth", Vector3.new(2.7, 0.25, 1.9), CFrame.new(0, -0.7, 0), DARK)
+	-- Letrero luminoso de arriba
+	local top = add("Top", Vector3.new(2.8, 0.4, 2), CFrame.new(0, 2.8, -0.05), BLUE, Enum.Material.SmoothPlastic)
+	text(top, Enum.NormalId.Front, Vector2.new(280, 40), "CAJERO 24H", Color3.fromRGB(255, 255, 255))
+	add("TopStripe", Vector3.new(2.82, 0.06, 2.02), CFrame.new(0, 2.62, -0.05), Color3.fromRGB(240, 190, 40), Enum.Material.SmoothPlastic)
+	-- Pantalla con marco y visera
 	local screen = add("Screen", Vector3.new(1.6, 1, 0.08), CFrame.new(0, 1.7, -0.92), SCREEN_COLOR, Enum.Material.Neon)
-	add("Keypad", Vector3.new(1.2, 0.5, 0.35), CFrame.new(0, 0.85, -1) * CFrame.Angles(math.rad(-25), 0, 0), Color3.fromRGB(50, 52, 56))
-	-- Ranura de billetes: su "boca"
+	add("Bezel", Vector3.new(1.85, 1.25, 0.05), CFrame.new(0, 1.7, -0.9), DARK, Enum.Material.SmoothPlastic)
+	add("Hood", Vector3.new(2.0, 0.08, 0.45), CFrame.new(0, 2.36, -1.12), DARK)
+	for _, x in { -0.97, 0.97 } do
+		add("Hood", Vector3.new(0.08, 1.3, 0.45), CFrame.new(x, 1.72, -1.12), DARK)
+	end
+	-- Camara espia sobre la pantalla (un ojo que te sigue)
+	add("Lens", Vector3.new(0.22, 0.22, 0.22), CFrame.new(0, 2.5, -0.93), Color3.fromRGB(10, 10, 12), Enum.Material.Glass, { Shape = Enum.PartType.Ball, Reflectance = 0.4 })
+	add("LensLed", Vector3.new(0.06, 0.06, 0.04), CFrame.new(0.22, 2.5, -0.92), GREED_COLOR, Enum.Material.Neon)
+	-- Teclado inclinado con sus botones (la ultima columna: rojo, amarillo y verde)
+	local keypadCF = CFrame.new(0, 0.85, -1) * CFrame.Angles(math.rad(-25), 0, 0)
+	add("Keypad", Vector3.new(1.2, 0.5, 0.35), keypadCF, Color3.fromRGB(50, 52, 56))
+	local keyColors = { Color3.fromRGB(220, 50, 50), Color3.fromRGB(240, 200, 50), Color3.fromRGB(60, 190, 80) }
+	for col = 0, 3 do
+		for row = 0, 2 do
+			local color = if col == 3 then keyColors[row + 1] else Color3.fromRGB(200, 200, 205)
+			add("Key", Vector3.new(0.2, 0.05, 0.08), keypadCF * CFrame.new(-0.42 + col * 0.28, 0.26, -0.11 + row * 0.11), color, Enum.Material.SmoothPlastic)
+		end
+	end
+	-- Ranuras: tarjeta (con su luz) y recibo
+	add("CardSlot", Vector3.new(0.42, 0.12, 0.06), CFrame.new(0.75, 1.15, -0.92), Color3.fromRGB(12, 12, 12), Enum.Material.SmoothPlastic)
+	add("CardLed", Vector3.new(0.08, 0.08, 0.04), CFrame.new(0.75, 1.27, -0.92), SCREEN_COLOR, Enum.Material.Neon)
+	add("ReceiptSlot", Vector3.new(0.45, 0.06, 0.06), CFrame.new(-0.75, 1.15, -0.92), Color3.fromRGB(12, 12, 12), Enum.Material.SmoothPlastic)
+	add("Receipt", Vector3.new(0.35, 0.02, 0.5), CFrame.new(-0.75, 1.05, -1.1) * CFrame.Angles(math.rad(-60), 0, 0), Color3.fromRGB(245, 245, 235), Enum.Material.SmoothPlastic)
+	-- Ranura de billetes: su "boca", con dientes de metal y billetes asomando
 	add("Slot", Vector3.new(1.4, 0.15, 0.1), CFrame.new(0, 0.2, -0.92), Color3.fromRGB(15, 15, 15), Enum.Material.SmoothPlastic)
-	-- Patas largas y delgadas
+	add("SlotFrame", Vector3.new(1.6, 0.4, 0.05), CFrame.new(0, 0.2, -0.9), STEEL)
+	for i = 0, 5 do
+		local x = -0.6 + i * 0.24
+		-- (cuña girada: el triangulo se ve de frente; arriba apuntan hacia abajo)
+		local sideways = CFrame.Angles(0, math.rad(90), 0)
+		add("Tooth", Vector3.new(0.05, 0.16, 0.14), CFrame.new(x, 0.33, -0.97) * sideways * CFrame.Angles(math.rad(180), 0, 0), Color3.fromRGB(230, 225, 210), Enum.Material.SmoothPlastic, { Shape = Enum.PartType.Wedge })
+		add("Tooth", Vector3.new(0.05, 0.13, 0.14), CFrame.new(x + 0.12, 0.08, -0.97) * sideways, Color3.fromRGB(230, 225, 210), Enum.Material.SmoothPlastic, { Shape = Enum.PartType.Wedge })
+	end
+	local BILL = Color3.fromRGB(120, 190, 110)
+	add("Bill", Vector3.new(0.55, 0.02, 0.45), CFrame.new(-0.25, 0.17, -1.12) * CFrame.Angles(math.rad(-10), math.rad(8), 0), BILL, Enum.Material.SmoothPlastic)
+	add("Bill", Vector3.new(0.55, 0.02, 0.35), CFrame.new(0.3, 0.2, -1.08) * CFrame.Angles(math.rad(12), math.rad(-15), 0), BILL, Enum.Material.SmoothPlastic)
+	-- Rejillas de ventilacion a los lados
+	for _, x in { -1.31, 1.31 } do
+		for i = 0, 4 do
+			add("Vent", Vector3.new(0.04, 0.07, 1.1), CFrame.new(x, -0.1 + i * 0.16, 0.1), DARK)
+		end
+	end
+	-- Pegatina vieja de "FUERA DE SERVICIO" (torcida)
+	local sticker = add("Sticker", Vector3.new(0.75, 0.38, 0.02), CFrame.new(-0.8, -0.3, -0.91) * CFrame.Angles(0, 0, math.rad(9)), Color3.fromRGB(250, 220, 60), Enum.Material.SmoothPlastic)
+	text(sticker, Enum.NormalId.Front, Vector2.new(150, 76), "FUERA DE\nSERVICIO", Color3.fromRGB(30, 30, 30), Enum.Font.GothamBold)
+	-- Caderas, patas largas con rodilla y piston, y pies con garras
 	for _, x in { -0.8, 0.8 } do
+		add("Hip", Vector3.new(0.65, 0.35, 0.65), CFrame.new(x, -0.82, 0), DARK)
 		add("Leg", Vector3.new(0.35, 2.6, 0.35), CFrame.new(x, -1.7, 0), Color3.fromRGB(60, 62, 66))
+		local knee = add("Knee", Vector3.new(0.5, 0.5, 0.5), CFrame.new(x, -1.75, 0), DARK, Enum.Material.Metal, { Shape = Enum.PartType.Ball })
+		knee:SetAttribute("Follow", "Leg")
+		local piston = add("Piston", Vector3.new(0.12, 1.3, 0.12), CFrame.new(x, -1.2, 0.24), STEEL)
+		piston:SetAttribute("Follow", "Leg")
 		add("Foot", Vector3.new(0.6, 0.2, 0.9), CFrame.new(x, -2.9, -0.15), Color3.fromRGB(40, 40, 42))
+		for _, toe in { -0.18, 0.18 } do
+			local claw = add("Claw", Vector3.new(0.14, 0.14, 0.3), CFrame.new(x + toe, -2.93, -0.7), STEEL, Enum.Material.Metal, { Shape = Enum.PartType.Wedge })
+			claw:SetAttribute("Follow", "Leg")
+		end
 	end
 	-- Pantalla con el simbolo de dinero
 	local gui = Instance.new("SurfaceGui")

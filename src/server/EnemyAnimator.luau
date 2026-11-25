@@ -8,6 +8,8 @@
 -- * Las extremidades se reconocen por el NOMBRE de la pieza (LeftLeg, Arm, Wheel...) y
 --   el lado por su posicion; lo que llevan (zapatos, guantes, linterna, walkie) sigue a
 --   la extremidad mas cercana.
+-- * Los detalles (atributos Detail / Follow: botones, dedos, tapacubos...) no se tocan:
+--   Common.prepareModel los suelda sin anclar a su pieza y se mueven con ella.
 -- * El paso va con lo que el enemigo avanza de verdad: quieto, se queda quieto (da mas
 --   miedo, y el Maniqui y la Estatua dependen de eso).
 -- * Estilos por tipo de enemigo en Config.EnemyAnimation:
@@ -50,7 +52,9 @@ local STYLES = {
 	Quadruped = { LegAngle = 34, ArmAngle = 0, Stride = 2.0, Smooth = 12, RockAngle = 5 },
 	Crawler = { LegAngle = 28, ArmAngle = 0, Stride = 1.6, Smooth = 12, Sideways = true },
 	Wheels = { Smooth = 10 },
-	-- Fantasmas que flotan (Eco, Apagon): SIEMPRE se mecen arriba y abajo, los brazos
+	-- La Estatua (golem de piedra): pasos cortos y pesados; los brazos no se mueven
+	Golem = { LegAngle = 18, ArmAngle = 0, Stride = 3.6, Smooth = 8 },
+	-- Fantasmas que flotan (el Apagon): SIEMPRE se mecen arriba y abajo, los brazos
 	-- cuelgan y se balancean despacio, y al desplazarse se inclinan hacia delante.
 	Float = {
 		LegAngle = 6,
@@ -101,7 +105,8 @@ function EnemyAnimator.attach(model: Model, enemyType: string)
 	local floating: { BasePart } = {} -- Float: piezas que no son extremidades (torso, ojos...)
 
 	for _, d in model:GetDescendants() do
-		if d:IsA("BasePart") and d ~= root then
+		-- (solo piezas ancladas: los detalles soldados van con su pieza)
+		if d:IsA("BasePart") and d ~= root and d.Anchored then
 			local rest = rootCF:ToObjectSpace(d.CFrame)
 			local kind = nil
 			if styleName == "Wheels" then
@@ -152,7 +157,7 @@ function EnemyAnimator.attach(model: Model, enemyType: string)
 		local body: BasePart? = nil
 		local others = {}
 		for _, d in model:GetDescendants() do
-			if d:IsA("BasePart") and d ~= root then
+			if d:IsA("BasePart") and d ~= root and d.Anchored then
 				if not body or d.Size.Magnitude > body.Size.Magnitude then
 					if body then
 						table.insert(others, body)

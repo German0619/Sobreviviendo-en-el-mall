@@ -139,7 +139,7 @@ local function setupCharacter(player: Player, character: Model)
 end
 
 -- La Estatua de la fuente (la misma que despierta en el mall) sobre el plato de la
--- fuente de la plaza, sosteniendo la luna con los brazos en alto.
+-- fuente de la plaza, con la luna flotando sobre su casco.
 local function placeFountainStatue()
 	local lobby = workspace:FindFirstChild("Lobby")
 	local fountain = lobby and lobby:FindFirstChild("Fountain", true)
@@ -162,10 +162,10 @@ local function placeFountainStatue()
 	EntityModels.placeAt(statue, CFrame.lookAt(feet, lookAt), fountain)
 	CollectionService:AddTag(statue, Tags.FountainStatue)
 
-	-- La luna (y su sombra) sube hasta las manos de la estatua
+	-- La luna (y su sombra) flota sobre el casco de la estatua
 	local moon = fountain:FindFirstChild("Moon")
 	if moon and moon:IsA("BasePart") then
-		local target = feet + Vector3.new(0, EntityModels.STATUE_HANDS_Y + moon.Size.Y * 0.45, 0)
+		local target = feet + Vector3.new(0, EntityModels.STATUE_TOP_Y + moon.Size.Y * 0.5, 0)
 		local delta = target - moon.Position
 		for _, name in { "Moon", "MoonShade" } do
 			local p = fountain:FindFirstChild(name)

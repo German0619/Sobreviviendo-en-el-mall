@@ -1242,13 +1242,13 @@ Config.Threat = {
 --   ArmsOnly: solo los brazos · Quadruped: cuatro patas en diagonal
 --   Crawler: patas de araña por turnos · Wheels: ruedas que giran
 --   Float: fantasmas que flotan (siempre se mecen; brazos colgando; se inclinan al ir)
--- Sin animacion: Estatua, Globo, Polillas, Megafonia, Mimico, Camaras.
+--   Golem: solo las piernas, pasos pesados (la Estatua: los brazos sostienen el hacha)
+-- Sin animacion: Globo, Polillas, Megafonia, Mimico, Camaras.
 -- (Las plantillas de ServerStorage.EnemyTemplates del mall estan separadas en piezas
 -- con nombre: Torso, LeftArm, RightArm, LeftLeg, RightLeg, FrontLeftLeg...)
 Config.EnemyAnimation = {
 	Mannequin = "Stiff",
 	Converted = "Stiff", -- (los maniquies del Coleccionista)
-	Echo = "Float",
 	Blackout = "Float",
 	Hunter = "Biped",
 	Manager = "Biped",
@@ -1260,6 +1260,7 @@ Config.EnemyAnimation = {
 	Tracker = "Quadruped",
 	Duct = "Crawler",
 	Cart = "Wheels",
+	Statue = "Golem", -- solo las piernas: los brazos sostienen el hacha
 } :: { [string]: string }
 
 Config.Enemies = {
@@ -1344,8 +1345,9 @@ Config.Enemies = {
 		ScatterSeconds = 15, -- dispersas tras un destello
 		Hint = "Nuevo: las Polillas siguen tu linterna y le chupan la batería. Apágala o lánzales una bengala.",
 	},
-	-- Eco: se hace pasar por un companero (nombre, linterna y pasos). Alumbrarlo lo revela y lo hace
-	-- desaparecer; el destello lo hace al instante. Si te alcanza, golpea y se esfuma.
+	-- Eco: se hace pasar por un companero: copia el avatar y el nombre de otro jugador (jugando solo,
+	-- el tuyo), linterna y pasos. Alumbrarlo lo revela y lo hace desaparecer; el destello lo hace al
+	-- instante. Si te alcanza, golpea y se esfuma. (Anda con las animaciones de Roblox, no EnemyAnimator.)
 	Echo = {
 		DisplayName = "Eco",
 		UnlockNight = 3,
@@ -1361,8 +1363,7 @@ Config.Enemies = {
 		ExposureToVanish = 1, -- segundos alumbrado para desaparecer
 		VanishSeconds = 10, -- tiempo desaparecido antes de volver
 		ReappearMinDistance = 35, -- vuelve lejos de los jugadores
-		FloatLift = 0.4, -- flota a ras del suelo (solo de aspecto: EnemyAnimator)
-		Hint = "Nuevo: el Eco imita a tus compañeros. Si un \"compañero\" se te acerca, alúmbralo con la linterna.",
+		Hint = "Nuevo: el Eco copia el aspecto de tus compañeros (o el tuyo). Si un \"compañero\" se te acerca, alúmbralo con la linterna.",
 	},
 	-- Reflejo: acecha dentro de los vidrios y espejos (tag ReflectiveSurface). Si lo miras fijamente,
 	-- sale y te persigue un rato. La linterna UV lo marca; el destello lo devuelve al cristal.
@@ -1472,6 +1473,12 @@ Config.Enemies = {
 		Damage = 50,
 		AttackRange = 4.5,
 		AttackCooldown = 2,
+		-- Hachazo: levanta el hacha (aviso), la deja caer (el golpe, si sigues a su alcance)
+		-- y la recupera. Mientras tanto no anda.
+		SwingWindup = 0.5,
+		SwingStrike = 0.15,
+		SwingRecover = 0.5,
+		SwingReach = 6.5, -- alcance del hachazo al caer (studs)
 		WakeSeconds = 2.5, -- tiembla en la fuente antes de bajar
 		FlareMargin = 3, -- se detiene a esta distancia del borde de la luz de una bengala
 		Hint = "Nuevo: la Estatua de la fuente ha despertado. Nada la detiene, salvo la luz de una bengala.",

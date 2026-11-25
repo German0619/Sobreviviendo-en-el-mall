@@ -36,7 +36,7 @@ Duct.__index = Duct
 
 local function buildModel(): Model
 	local model, root = Common.newModel("Duct", HEIGHT)
-	local function add(name, size, cf: CFrame, color: Color3?, material)
+	local function add(name, size, cf: CFrame, color: Color3?, material, shape: Enum.PartType?)
 		local p = Common.part({
 			Name = name,
 			Size = size,
@@ -44,21 +44,64 @@ local function buildModel(): Model
 			Color = color or SKIN,
 			Material = material or Enum.Material.SmoothPlastic,
 		})
+		if shape then
+			p.Shape = shape
+		end
+		-- Detalles soldados (Common.prepareModel); las patas se mueven solas (EnemyAnimator)
+		if name ~= "UpperLeg" and name ~= "LowerLeg" then
+			p:SetAttribute("Detail", true)
+		end
 		p.Parent = model
 		return p
 	end
-	-- Cuerpo bajo y alargado (frente = -Z), cabeza adelantada
-	add("Body", Vector3.new(1.4, 0.9, 3.2), CFrame.new(0, 0.1, 0.2))
-	add("Head", Vector3.new(1, 0.8, 1), CFrame.new(0, 0.35, -1.75))
-	for _, x in { -0.25, 0.25 } do
-		add("Eye", Vector3.new(0.16, 0.16, 0.05), CFrame.new(x, 0.45, -2.26), EYE_COLOR, Enum.Material.Neon)
+	local BONE = Color3.fromRGB(34, 33, 38) -- costillas y vertebras: un poco mas claras
+	local TOOTH = Color3.fromRGB(190, 180, 160)
+	local sideways = CFrame.Angles(0, math.rad(90), 0) -- cuña con el triangulo de frente
+
+	-- Cuerpo bajo y alargado (frente = -Z): torax, cintura de avispa y abdomen caido
+	add("Body", Vector3.new(1.3, 0.85, 1.5), CFrame.new(0, 0.15, -0.55))
+	add("Waist", Vector3.new(0.7, 0.55, 0.7), CFrame.new(0, 0.12, 0.45))
+	add("Abdomen", Vector3.new(1.15, 0.75, 1.6), CFrame.new(0, 0.02, 1.5) * CFrame.Angles(math.rad(6), 0, 0))
+	for i, z in { 2.45, 2.85, 3.15 } do
+		local s = 0.42 - i * 0.1
+		add("Tail", Vector3.new(s, s, 0.45), CFrame.new(0, -0.05 - i * 0.08, z) * CFrame.Angles(math.rad(10 * i), 0, 0))
 	end
-	-- Cuatro patas largas dobladas como una arana
-	for _, z in { -0.9, 1.2 } do
+	-- Columna (vertebras salientes) y costillas marcadas
+	for i = 0, 7 do
+		local z = -1.15 + i * 0.4
+		local y = if z < 0.1 then 0.62 elseif z < 0.8 then 0.43 else 0.43 - (z - 0.8) * 0.06
+		add("Vertebra", Vector3.new(0.28, 0.18, 0.22), CFrame.new(0, y, z) * CFrame.Angles(math.rad(45), 0, 0), BONE)
+	end
+	for _, side in { -1, 1 } do
+		for i = 0, 2 do
+			add("Rib", Vector3.new(0.08, 0.7, 0.12), CFrame.new(side * 0.66, 0.12, -1.05 + i * 0.4) * CFrame.Angles(0, 0, math.rad(side * 10)), BONE)
+		end
+	end
+	-- Craneo alargado, mandibula entreabierta con dientes y seis ojos
+	add("Head", Vector3.new(0.95, 0.65, 1.15), CFrame.new(0, 0.4, -1.85))
+	add("Brow", Vector3.new(1.0, 0.18, 0.35), CFrame.new(0, 0.66, -2.25), BONE)
+	add("Jaw", Vector3.new(0.8, 0.22, 0.95), CFrame.new(0, -0.02, -1.95) * CFrame.Angles(math.rad(-14), 0, 0), BONE)
+	for i = -2, 2 do
+		add("Tooth", Vector3.new(0.04, 0.2, 0.12), CFrame.new(i * 0.16, 0.0, -2.42) * sideways * CFrame.Angles(math.rad(180), 0, 0), TOOTH, nil, Enum.PartType.Wedge)
+		add("Tooth", Vector3.new(0.04, 0.13, 0.1), CFrame.new(i * 0.16 + 0.08, -0.1, -2.38) * sideways, TOOTH, nil, Enum.PartType.Wedge)
+	end
+	for _, eye in { { 0.25, 0.5, 0.17 }, { 0.12, 0.33, 0.1 }, { 0.38, 0.32, 0.09 } } do
+		for _, side in { -1, 1 } do
+			add("Eye", Vector3.new(eye[3], eye[3], 0.05), CFrame.new(side * eye[1], eye[2], -2.44), EYE_COLOR, Enum.Material.Neon)
+		end
+	end
+	-- Seis patas largas dobladas como una araña, con garras
+	for _, z in { -1.0, 0.25, 1.35 } do
 		for _, side in { -1, 1 } do
 			add("UpperLeg", Vector3.new(1.6, 0.22, 0.22), CFrame.new(side * 1.3, 0.55, z) * CFrame.Angles(0, 0, math.rad(side * -25)))
 			add("LowerLeg", Vector3.new(0.22, 1.8, 0.22), CFrame.new(side * 2.05, -0.55, z) * CFrame.Angles(0, 0, math.rad(side * 12)))
+			add("Knee", Vector3.new(0.34, 0.34, 0.34), CFrame.new(side * 2.0, 0.3, z), BONE, nil, Enum.PartType.Ball):SetAttribute("Follow", "UpperLeg")
+			add("Claw", Vector3.new(0.12, 0.14, 0.32), CFrame.new(side * 2.24, -1.4, z - 0.12), TOOTH, nil, Enum.PartType.Wedge):SetAttribute("Follow", "UpperLeg")
 		end
+	end
+	-- Telarañas y polvo del conducto colgando del cuerpo
+	for _, spot in { { -0.5, -0.4 }, { 0.45, 0.9 }, { -0.3, 1.9 } } do
+		add("Cobweb", Vector3.new(0.03, 0.55, 0.03), CFrame.new(spot[1], -0.5, spot[2]) * CFrame.Angles(0, 0, math.rad(8)), Color3.fromRGB(150, 150, 145), Enum.Material.Fabric)
 	end
 	-- Brillo de los ojos (se ve venir a oscuras)
 	local glow = Instance.new("PointLight")
