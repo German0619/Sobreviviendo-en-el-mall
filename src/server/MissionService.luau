@@ -25,6 +25,7 @@ local GameState = require(Shared.GameState)
 
 local DataService = require(script.Parent.DataService)
 local LightService = require(script.Parent.LightService)
+local SfxService = require(script.Parent.SfxService)
 
 local MissionsFolder = script.Parent:WaitForChild("Missions")
 
@@ -134,6 +135,7 @@ local function endMission(mission, player: Player?, silent: boolean?)
 		teamEarnings += reward
 		doneCount += 1
 		GameState.Folder:SetAttribute("MissionsDone", doneCount)
+		SfxService.PlayForAll("MissionDone")
 		DataService.Update(player, function(d)
 			d.Lifetime.MissionsCompleted += 1
 		end)

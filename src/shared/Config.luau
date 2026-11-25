@@ -1856,8 +1856,8 @@ Config.Bosses = {
 	-- que se sobreviven (25, 30...), estos diamantes para cada uno.
 	PostBossDiamonds = 300,
 	-- Musica de la noche de jefe: un SoundId de audio (rbxassetid://...). Vacio = un latido
-	-- grave de los sonidos de Roblox.
-	MusicSoundId = "",
+	-- grave de los sonidos de Roblox. ("A Wrathful Spirit", DistroKid)
+	MusicSoundId = "rbxassetid://106712288593501",
 	Manager = {
 		DisplayName = "El Gerente",
 		Objective = "Destruyan sus {n} radios repartidas por el mall.", -- {n} = Radios (con el refuerzo)
@@ -2149,6 +2149,132 @@ Config.Leaderboards = {
 			Format = "%d jefes",
 			Empty = "Aún nadie ha vencido a un jefe.",
 		},
+	},
+}
+
+----------------------------------------------------------------------
+-- Iluminacion de terror (server/LightService)
+----------------------------------------------------------------------
+Config.Lighting = {
+	-- El mall se va pudriendo: en la noche 1 la luz es la normal (blanca, BaseGrade, sin
+	-- tubos que fallen) y va cambiando poco a poco hasta el aspecto de abajo, completo
+	-- desde la noche FullFromNight. (Todo lo de abajo se aplica en proporcion.)
+	FullFromNight = 7,
+	-- Luz enfermiza: las lamparas (tag Light) se tiñen hacia un fluorescente amarillo
+	-- verdoso y alumbran menos. TintAmount 0 = como estaban; 1 = del todo.
+	LampColor = Color3.fromRGB(215, 230, 160), -- color del tubo (la pieza de neon)
+	LightColor = Color3.fromRGB(225, 240, 175), -- color de la luz que da
+	TintAmount = 0.55,
+	LampBrightness = 0.7, -- multiplica el brillo de cada luz
+	-- Postprocesado de pantalla (ColorCorrection "MallGrade"): de BaseGrade (noche 1) a
+	-- Grade (FullFromNight): mas contraste, menos color, un toque verdoso
+	BaseGrade = {
+		Brightness = 0.02,
+		Contrast = 0.12,
+		Saturation = -0.12,
+		Tint = Color3.fromRGB(238, 242, 255),
+	},
+	Grade = {
+		Brightness = -0.02,
+		Contrast = 0.22,
+		Saturation = -0.3,
+		Tint = Color3.fromRGB(232, 245, 222),
+	},
+	-- Tubos que fallan (solo de noche; en proporcion: en la noche 1 ninguno)
+	DeadFraction = 0.07, -- lamparas muertas toda la noche (se eligen al empezar cada noche)
+	FlickerEvery = { 3, 8 }, -- segundos entre parpadeos (siempre una lampara cerca de alguien)
+	FlickerSeconds = { 0.6, 2.5 }, -- cuanto dura un parpadeo
+	FlickerNearPlayers = 70, -- studs: solo parpadean lamparas a esta distancia de un jugador
+	FlickerDieChance = 0.15, -- probabilidad de que el tubo se muera al terminar de parpadear
+}
+
+----------------------------------------------------------------------
+-- Sonido y ambientacion
+----------------------------------------------------------------------
+-- Todos los audios del juego en un sitio, para cambiarlos facilmente. Son gratuitos de la
+-- Creator Store con licencia para cualquier experiencia (APM Music, Pro Sound Effects,
+-- DistroKid) o sonidos incluidos en Roblox (rbxasset://sounds/...).
+--   Musica: client/Audio (cambia con un fundido segun la fase; el jefe: BossAlert)
+--   Ambiente: client/Audio (bucles suaves y sonidos sueltos al azar alrededor)
+--   Sfx: sonidos de acciones. El servidor los toca en 3D (SfxService.PlayAt) o solo
+--        para un jugador (SfxService.PlayFor -> remote PlaySfx)
+--   Enemies: server/EnemySounds (bucle, voz al azar y golpe de cada enemigo)
+-- Cada sonido: { Id, Volume, Pitch? }. Volume 0 = apagado.
+local function snd(id: string, volume: number, pitch: number?)
+	return { Id = id, Volume = volume, Pitch = pitch or 1 }
+end
+
+Config.Sounds = {
+	FadeSeconds = 2, -- fundido entre pistas de musica
+	Music = {
+		Lobby = snd("rbxassetid://135587479626467", 0.35), -- "Rooftop Isolation" (DistroKid)
+		Preparation = snd("rbxassetid://139053896078359", 0.18), -- "Eerie Music Box" (APM)
+		Night = snd("rbxassetid://138890398994853", 0.35), -- "Horror Cinematic Dark Scary Ambience" (DistroKid)
+		LateNight = snd("rbxassetid://102615842265981", 0.35), -- desde LateNightFrom
+		Results = snd("rbxassetid://131480789539493", 0.3), -- "Eerie Music Box" (otra version, APM)
+		GameOver = snd("rbxasset://sounds/HalloweenGhost.wav", 0.8, 0.5), -- golpe, no se repite
+	},
+	LateNightFrom = 10, -- noche desde la que suena la musica LateNight
+	Ambience = {
+		-- Bucles 2D suaves (Preparation y Night)
+		Hum = snd("rbxassetid://9112823813", 0.08), -- zumbido de fluorescentes
+		Interior = snd("rbxassetid://9114872242", 0.12), -- nave grande con eco (solo de noche)
+		-- Sueltos 3D al azar a tu alrededor durante la noche
+		Random = {
+			snd("rbxassetid://9114226496", 0.6), -- goteo con eco
+			snd("rbxassetid://9114226523", 0.6),
+			snd("rbxassetid://9116549258", 0.7), -- metal crujiendo a lo lejos
+			snd("rbxassetid://9116502193", 0.5, 0.8), -- golpe de bidon metalico
+			snd("rbxassetid://9120829478", 0.5, 0.8), -- crujido de madera
+			snd("rbxassetid://9125712159", 0.25), -- voces de pesadilla (raro, largo)
+		},
+		RandomEvery = { 7, 18 }, -- segundos entre sueltos (al azar)
+		RandomDistance = { 18, 45 }, -- studs a los que suenan
+	},
+	Sfx = {
+		Buy = snd("rbxassetid://91609406292294", 0.6), -- caja registradora
+		Use = snd("rbxasset://sounds/button.wav", 0.6), -- usar un objeto (generico)
+		Heal = snd("rbxasset://sounds/victory.wav", 0.4, 1.4),
+		Battery = snd("rbxasset://sounds/unsheath.wav", 0.6, 1.3), -- pila nueva
+		Soda = snd("rbxasset://sounds/snap.wav", 0.8, 0.8), -- lata abierta
+		Pickup = snd("rbxassetid://135007011020313", 0.6), -- recoger dinero u objetos
+		MissionDone = snd("rbxasset://sounds/electronicpingshort.wav", 0.7, 1.3),
+		NightStart = snd("rbxassetid://119445319966378", 0.6), -- campanas
+		NightEnd = snd("rbxasset://sounds/victory.wav", 0.6), -- las 6 AM
+		Death = snd("rbxasset://sounds/HalloweenGhost.wav", 0.8, 0.7),
+		Revive = snd("rbxasset://sounds/victory.wav", 0.5, 0.8),
+		Hide = snd("rbxassetid://9119632719", 0.7, 1.2), -- taquilla de metal
+		Flash = snd("rbxasset://sounds/flashbulb.wav", 0.9),
+		Flare = snd("rbxasset://sounds/Rocket whoosh 01.wav", 0.4, 1.6), -- bengala encendida
+		Firecracker = snd("rbxassetid://137000765623636", 1), -- explosion del petardo
+		Smoke = snd("rbxassetid://118575157735306", 0.7, 0.8),
+		Shove = snd("rbxasset://sounds/swordlunge.wav", 0.8, 0.8), -- porrazo del Guardia
+		Taser = snd("rbxassetid://9114238222", 0.8),
+		Extinguisher = snd("rbxassetid://118575157735306", 0.8),
+		Mop = snd("rbxasset://sounds/swordslash.wav", 0.8, 0.7),
+		WetFloorSign = snd("rbxasset://sounds/action_jump_land.mp3", 1, 0.8),
+		UV = snd("rbxasset://sounds/clickfast.wav", 0.7),
+		TubeFlicker = snd("rbxassetid://9114238222", 0.35, 1.4), -- chispazo de un tubo que falla
+	},
+	-- Enemigos. Loop: suena en bucle (Moving = solo mientras anda). Voice: uno al azar
+	-- cada VoiceEvery segundos. Attack: al golpear (Common.playAttack).
+	Enemies = {
+		Default = { Attack = snd("rbxasset://sounds/swordlunge.wav", 0.7, 0.7) },
+		Mannequin = { Loop = snd("rbxassetid://9120829478", 0.5, 1.2), Moving = true, Attack = snd("rbxasset://sounds/swordlunge.wav", 0.7, 0.9) },
+		Blackout = { Loop = snd("rbxassetid://9112889082", 0.45) }, -- zumbido electrico
+		Cart = { Loop = snd("rbxassetid://9120264358", 0.8), Moving = true },
+		Balloon = { Voice = { snd("rbxassetid://9120184209", 0.5, 0.7) }, VoiceEvery = { 8, 16 } },
+		Moth = { Loop = snd("rbxassetid://9113978349", 0.5) }, -- aleteo
+		Reflection = { Loop = snd("rbxassetid://9125711735", 0.25) }, -- susurros
+		Duct = { Attack = snd("rbxassetid://9113980319", 0.9) },
+		Cashier = { Voice = { snd("rbxasset://sounds/electronicpingshort.wav", 0.35, 0.6) }, VoiceEvery = { 5, 10 } },
+		Tracker = { Voice = { snd("rbxassetid://9113980319", 0.5, 1.3) }, VoiceEvery = { 6, 12 }, Attack = snd("rbxassetid://9113980319", 0.9, 1.1) },
+		Statue = { Loop = snd("rbxassetid://9125883538", 0.5, 0.7), Moving = true }, -- piedra arrastrandose
+		Hunter = { Voice = { snd("rbxassetid://9113760225", 0.6, 0.8) }, VoiceEvery = { 2, 4 } }, -- cadena del farol
+		Watcher = { Voice = { snd("rbxassetid://9119015572", 0.6) }, VoiceEvery = { 4, 9 } }, -- servo de la camara
+		Manager = { Voice = { snd("rbxassetid://9113734085", 0.35) }, VoiceEvery = { 10, 20 } }, -- walkie
+		Collector = { Loop = snd("rbxassetid://139053896078359", 0.35, 0.9) }, -- caja de musica
+		Luni = { Attack = snd("rbxasset://sounds/bass.mp3", 1, 0.6) },
 	},
 }
 

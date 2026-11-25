@@ -33,6 +33,7 @@ local Remotes = require(Shared.Remotes)
 
 local DefenseService = require(script.Parent.DefenseService)
 local FlashlightService = require(script.Parent.FlashlightService)
+local SfxService = require(script.Parent.SfxService)
 
 local WeaponService = {}
 
@@ -596,6 +597,15 @@ local USES = {
 	Mop = useMop,
 }
 
+-- Sonido de cada arma al usarla (Config.Sounds.Sfx), en 3D desde quien la usa
+local USE_SOUNDS = {
+	Taser = "Taser",
+	Extinguisher = "Extinguisher",
+	WetFloorSign = "WetFloorSign",
+	UVFlashlight = "UV",
+	Mop = "Mop",
+}
+
 -- weaponId: la de la herramienta que se uso; nil = la activa ([R]).
 function WeaponService.Use(player: Player, weaponId: string?)
 	weaponId = weaponId or WeaponService.Get(player)
@@ -618,6 +628,11 @@ function WeaponService.Use(player: Player, weaponId: string?)
 	if not ok then
 		warn("[WeaponService] Error usando", weaponId, used)
 		return
+	end
+	-- (la UV suena tambien al apagarla)
+	local root = getRoot(player)
+	if root and USE_SOUNDS[weaponId] and (used or weaponId == "UVFlashlight") then
+		SfxService.PlayAt(USE_SOUNDS[weaponId], root)
 	end
 	if used then
 		consume(player, weaponId)

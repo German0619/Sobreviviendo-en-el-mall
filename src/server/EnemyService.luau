@@ -27,6 +27,7 @@ local EnemiesFolder = ServerScriptService:WaitForChild("Enemies")
 local Common = require(EnemiesFolder.Common)
 local SecurityCamera = require(EnemiesFolder.SecurityCamera)
 local EnemyAnimator = require(script.Parent.EnemyAnimator)
+local EnemySounds = require(script.Parent.EnemySounds)
 
 -- Tipos de enemigo (cada uno con su modulo en src/enemies)
 local enemyModules = {
@@ -56,14 +57,21 @@ local EnemyService = {}
 
 local activeEnemies = {}
 local rigs = setmetatable({}, { __mode = "k" }) -- [enemigo] = esqueleto de EnemyAnimator
+local sounds = setmetatable({}, { __mode = "k" }) -- [enemigo] = sus sonidos (EnemySounds)
 
 -- Brazos y piernas a su pose de reposo (antes de quitar al enemigo: el Maniqui y la
--- Estatua vuelven a su sitio del mapa y no deben quedarse a media zancada).
+-- Estatua vuelven a su sitio del mapa y no deben quedarse a media zancada). Tambien
+-- borra sus sonidos (el modelo del mapa vuelve sin ellos).
 local function resetRig(enemy)
 	local rig = rigs[enemy]
 	rigs[enemy] = nil
 	if rig then
 		pcall(rig.Reset, rig)
+	end
+	local enemySounds = sounds[enemy]
+	sounds[enemy] = nil
+	if enemySounds then
+		pcall(enemySounds.Destroy, enemySounds)
 	end
 end
 local threat = {} -- [missionType] = misiones falladas esta noche
@@ -200,6 +208,13 @@ local function spawnEnemy(enemyType: string, ctx, floor: number?, at: Vector3?)
 		else
 			warn("[EnemyService] Error animando", enemyType, rig)
 		end
+		-- Sus sonidos (bucle, voz y golpe): Config.Sounds.Enemies
+		local soundOk, enemySounds = pcall(EnemySounds.attach, enemy.Model, enemyType)
+		if soundOk then
+			sounds[enemy] = enemySounds
+		else
+			warn("[EnemyService] Error con los sonidos de", enemyType, enemySounds)
+		end
 	end
 	table.insert(activeEnemies, enemy)
 
@@ -290,6 +305,14 @@ function EnemyService.StartNight(night: number, options: { BudgetMultiplier: num
 				if not animOk then
 					rigs[enemy] = nil
 					warn("[EnemyService] Error en la animacion:", animErr)
+				end
+			end
+			local enemySounds = sounds[enemy]
+			if enemySounds then
+				local soundOk, soundErr = pcall(enemySounds.Step, enemySounds, dt)
+				if not soundOk then
+					sounds[enemy] = nil
+					warn("[EnemyService] Error en los sonidos:", soundErr)
 				end
 			end
 		end

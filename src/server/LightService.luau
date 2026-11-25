@@ -6,6 +6,7 @@
 
 local CollectionService = game:GetService("CollectionService")
 local Lighting = game:GetService("Lighting")
+local Players = game:GetService("Players")
 local ReplicatedStorage = game:GetService("ReplicatedStorage")
 local TweenService = game:GetService("TweenService")
 
@@ -15,10 +16,13 @@ local Tags = require(Shared.Tags)
 local GameState = require(Shared.GameState)
 local Util = require(Shared.Util)
 
+local SfxService = require(script.Parent.SfxService)
+
 local OFF_COLOR = Color3.fromRGB(40, 40, 40)
 
 local LightService = {}
 
+local tintEntry -- (definida mas abajo: luz enfermiza)
 local lightsByZone = {} -- [zone] = { entry }
 local zoneParts = {} -- [zone] = BasePart
 local reasons = {} -- [zone] = { [reason] = true }
@@ -45,27 +49,79 @@ local function applyZone(zone: string)
 	end
 	local on = not LightService.IsZoneDark(zone)
 	for _, entry in lightsByZone[zone] or {} do
-		applyEntry(entry, on)
+		-- (un tubo muerto sigue apagado; uno que parpadea termina su parpadeo)
+		if not entry.Flickering then
+			applyEntry(entry, on and not entry.Dead)
+		end
 	end
 	-- El HUD lo usa para avisar "zona sin luz"
 	GameState.Folder:SetAttribute("Dark_" .. Util.attributeKey(zone), not on)
+end
+
+----------------------------------------------------------------------
+-- Luz enfermiza: crece de la noche 1 a Config.Lighting.FullFromNight
+----------------------------------------------------------------------
+
+local lookAmount = 0 -- 0 = luz normal (noche 1) .. 1 = enfermiza del todo
+local gradeEffect: ColorCorrectionEffect? = nil
+
+local function lookForNight(night: number): number
+	local L = Config.Lighting
+	local full = (L and L.FullFromNight) or 1
+	if full <= 1 then
+		return 1
+	end
+	return math.clamp((night - 1) / (full - 1), 0, 1)
+end
+
+-- Color del tubo y de su luz, y brillo, segun lookAmount (sobre los originales).
+function tintEntry(entry)
+	local L = Config.Lighting
+	if not L then
+		return
+	end
+	local k = L.TintAmount * lookAmount
+	entry.Color = entry.BaseColor:Lerp(L.LampColor, k)
+	local brightness = 1 + (L.LampBrightness - 1) * lookAmount
+	for light, base in entry.LightBase do
+		light.Color = base.Color:Lerp(L.LightColor, k)
+		light.Brightness = base.Brightness * brightness
+	end
+end
+
+local function applyGrade()
+	local L = Config.Lighting
+	local grade = gradeEffect
+	if not L or not grade or not L.BaseGrade or not L.Grade then
+		return
+	end
+	local a, b, t = L.BaseGrade, L.Grade, lookAmount
+	grade.Brightness = a.Brightness + (b.Brightness - a.Brightness) * t
+	grade.Contrast = a.Contrast + (b.Contrast - a.Contrast) * t
+	grade.Saturation = a.Saturation + (b.Saturation - a.Saturation) * t
+	grade.TintColor = a.Tint:Lerp(b.Tint, t)
 end
 
 local function registerLight(inst: Instance)
 	if not inst:IsA("BasePart") then
 		return
 	end
+	-- (Color y brillo originales: la luz enfermiza se aplica sobre ellos segun la noche)
 	local entry = {
 		Part = inst,
 		Lights = {},
+		LightBase = {},
 		Material = inst.Material,
 		Color = inst.Color,
+		BaseColor = inst.Color,
 	}
 	for _, d in inst:GetDescendants() do
 		if d:IsA("Light") then
 			table.insert(entry.Lights, d)
+			entry.LightBase[d] = { Color = d.Color, Brightness = d.Brightness }
 		end
 	end
+	tintEntry(entry)
 	local zone = zoneOf(inst)
 	lightsByZone[zone] = lightsByZone[zone] or {}
 	table.insert(lightsByZone[zone], entry)
@@ -130,7 +186,7 @@ function LightService.Flicker(zone: string, duration: number)
 		while os.clock() < endAt do
 			on = not on
 			for _, entry in lightsByZone[zone] or {} do
-				applyEntry(entry, on)
+				applyEntry(entry, on and not entry.Dead)
 			end
 			task.wait(math.random(4, 18) / 100)
 		end
@@ -255,6 +311,103 @@ function LightService.IsDarkAt(position: Vector3): boolean
 end
 
 ----------------------------------------------------------------------
+-- Tubos que fallan (de noche): unas pocas lamparas muertas toda la noche y, cada pocos
+-- segundos, una lampara cerca de algun jugador parpadea con un chispazo (y a veces se
+-- muere). Config.Lighting.
+----------------------------------------------------------------------
+
+local rng = Random.new()
+local failToken = 0
+
+local function nearPlayer(position: Vector3, range: number): boolean
+	for _, player in Players:GetPlayers() do
+		local character = player.Character
+		local root = character and character:FindFirstChild("HumanoidRootPart") :: BasePart?
+		if root and (root.Position - position).Magnitude <= range then
+			return true
+		end
+	end
+	return false
+end
+
+-- Una lampara sola parpadea; al acabar vuelve a su estado real (o se queda muerta).
+local function flickerEntry(zone: string, entry, duration: number)
+	local L = Config.Lighting
+	entry.Flickering = true
+	SfxService.PlayAt("TubeFlicker", entry.Part)
+	task.spawn(function()
+		local endAt = os.clock() + duration
+		local on = true
+		while os.clock() < endAt and entry.Part.Parent do
+			on = not on
+			applyEntry(entry, on)
+			task.wait(rng:NextNumber(0.03, if on then 0.25 else 0.12))
+		end
+		entry.Flickering = nil
+		if rng:NextNumber() < L.FlickerDieChance then
+			entry.Dead = true
+		end
+		if not flickering[zone] and entry.Part.Parent then
+			applyEntry(entry, not LightService.IsZoneDark(zone) and not entry.Dead)
+		end
+	end)
+end
+
+local function startFailingTubes()
+	local L = Config.Lighting
+	if not L then
+		return
+	end
+	failToken += 1
+	local token = failToken
+	-- Lamparas muertas esta noche (en proporcion a la noche: en la 1, ninguna)
+	for zone, list in lightsByZone do
+		for _, entry in list do
+			entry.Dead = rng:NextNumber() < L.DeadFraction * lookAmount or nil
+		end
+		applyZone(zone)
+	end
+	task.spawn(function()
+		while failToken == token do
+			task.wait(rng:NextNumber(L.FlickerEvery[1], L.FlickerEvery[2]))
+			if failToken ~= token then
+				break
+			end
+			-- (en las primeras noches casi nunca: un parpadeo solo con probabilidad lookAmount)
+			if rng:NextNumber() >= lookAmount then
+				continue
+			end
+			-- Una lampara encendida cerca de alguien (si no, nadie lo veria)
+			local candidates = {}
+			for zone, list in lightsByZone do
+				if not flickering[zone] and not LightService.IsZoneDark(zone) then
+					for _, entry in list do
+						if not entry.Dead and not entry.Flickering and entry.Part.Parent
+							and nearPlayer(entry.Part.Position, L.FlickerNearPlayers) then
+							table.insert(candidates, { Zone = zone, Entry = entry })
+						end
+					end
+				end
+			end
+			if #candidates > 0 then
+				local pick = candidates[rng:NextInteger(1, #candidates)]
+				flickerEntry(pick.Zone, pick.Entry, rng:NextNumber(L.FlickerSeconds[1], L.FlickerSeconds[2]))
+			end
+		end
+	end)
+end
+
+local function stopFailingTubes()
+	failToken += 1
+	for zone, list in lightsByZone do
+		for _, entry in list do
+			entry.Dead = nil
+		end
+		applyZone(zone)
+	end
+end
+
+----------------------------------------------------------------------
 -- Arranque
 ----------------------------------------------------------------------
 
@@ -292,11 +445,14 @@ local function setupAmbience()
 		end
 		return e
 	end
+	-- (Config.Lighting: de BaseGrade en la noche 1 a Grade, mas contraste y menos color)
 	local grade = effect("ColorCorrectionEffect", "MallGrade") :: ColorCorrectionEffect
 	grade.Brightness = 0.02
 	grade.Contrast = 0.12
 	grade.Saturation = -0.12
 	grade.TintColor = Color3.fromRGB(238, 242, 255)
+	gradeEffect = grade
+	applyGrade()
 	local bloom = Lighting:FindFirstChildOfClass("BloomEffect") or effect("BloomEffect", "Bloom")
 	local b = bloom :: BloomEffect
 	b.Intensity = 0.55
@@ -327,6 +483,31 @@ function LightService.Start()
 	for _, zone in Config.DarkZones or {} do
 		applyZone(zone)
 	end
+
+	-- Luz enfermiza segun la noche (de la 1 a Config.Lighting.FullFromNight)
+	local function onNight()
+		local night = GameState.Folder:GetAttribute("Night")
+		lookAmount = lookForNight(if type(night) == "number" then night else 1)
+		for zone, list in lightsByZone do
+			for _, entry in list do
+				tintEntry(entry)
+			end
+			applyZone(zone)
+		end
+		applyGrade()
+	end
+	GameState.Folder:GetAttributeChangedSignal("Night"):Connect(onNight)
+	onNight()
+
+	-- Tubos que fallan: solo durante la noche
+	local function onPhase()
+		if GameState.Folder:GetAttribute("Phase") == "Night" then
+			startFailingTubes()
+		else
+			stopFailingTubes()
+		end
+	end
+	GameState.Folder:GetAttributeChangedSignal("Phase"):Connect(onPhase)
 end
 
 return LightService

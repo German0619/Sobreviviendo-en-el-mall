@@ -22,9 +22,18 @@ local FlashlightService = require(script.Parent.FlashlightService)
 local DefenseService = require(script.Parent.DefenseService)
 local WeaponService = require(script.Parent.WeaponService)
 local VendingService = require(script.Parent.VendingService)
+local SfxService = require(script.Parent.SfxService)
 local Workspace = game:GetService("Workspace")
 
 local ShopService = {}
+
+-- Sonido al usar cada tipo de objeto (Config.Sounds.Sfx)
+local USE_SOUNDS = {
+	RechargeBattery = "Battery",
+	LithiumBattery = "Battery",
+	Heal = "Heal",
+	MysterySoda = "Soda",
+}
 
 local lastAction = {} -- [Player] = os.clock() (anti-spam)
 local inventories = {} -- [Player] = { [itemId] = cantidad }
@@ -165,6 +174,7 @@ function ShopService.Purchase(player: Player, itemId: any): (boolean, string)
 			player:SetAttribute(buysAttr, buys + 1)
 		end
 		WeaponService.Equip(player, itemId)
+		SfxService.PlayFor(player, "Buy")
 		return true, "Compraste: " .. item.DisplayName .. " (en tu mochila)"
 	end
 
@@ -186,6 +196,7 @@ function ShopService.Purchase(player: Player, itemId: any): (boolean, string)
 	if itemId == "FlashlightPro" then
 		FlashlightService.Refresh(player)
 	end
+	SfxService.PlayFor(player, "Buy")
 	return true, "Compraste: " .. item.DisplayName
 end
 
@@ -248,6 +259,11 @@ function ShopService.UseItem(player: Player, itemId: any)
 		return
 	end
 
+	-- Sonido del objeto (la bengala, el petardo y el humo suenan donde caen: DefenseService)
+	local useSound = USE_SOUNDS[item.Use]
+	if useSound then
+		SfxService.PlayFor(player, useSound)
+	end
 	setCount(player, itemId, ShopService.GetCount(player, itemId) - 1)
 end
 

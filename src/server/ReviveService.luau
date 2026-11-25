@@ -26,6 +26,7 @@ local GameState = require(Shared.GameState)
 
 local DataService = require(script.Parent.DataService)
 local PlayerStats = require(script.Parent.PlayerStats)
+local SfxService = require(script.Parent.SfxService)
 
 local Signal = require(Shared.Signal)
 
@@ -115,6 +116,7 @@ local function revive(player: Player, by: Player, paid: boolean?)
 		player.Character:PivotTo(CFrame.new(position + Vector3.new(0, 3, 0)))
 	end
 	player:SetAttribute("Alive", true)
+	SfxService.PlayAt("Revive", position)
 	-- Revivir pagando conserva los objetos y armas que llevaba al caer; gratis, no.
 	-- (ShopService se carga aqui: ReviveService arranca antes)
 	local ShopService = require(script.Parent.ShopService) :: any

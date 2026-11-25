@@ -14,6 +14,7 @@ local LightService = require(Server.LightService)
 local MissionService = require(Server.MissionService)
 local PlayerStats = require(Server.PlayerStats)
 local RunState = require(Server.RunState)
+local SfxService = require(Server.SfxService)
 local MissionsCommon = require(Server.Missions.Common)
 local EventUtil = require(script.Parent.EventUtil)
 
@@ -124,6 +125,7 @@ return {
 		local function deliver(player: Player)
 			release()
 			RunState.AddCash(player, reward)
+			SfxService.PlayFor(player, "Pickup")
 			Remotes.event("Notify"):FireAllClients(
 				string.format("%s entregó el maletín perdido: +%s.", player.DisplayName, Util.formatMoney(reward)),
 				"good"

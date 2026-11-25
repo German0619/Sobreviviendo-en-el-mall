@@ -36,6 +36,7 @@ local EVENTS = {
 	"UseWeapon", -- cliente -> servidor (mall): usar el arma equipada [R]
 	"RequestEquipSkin", -- cliente -> servidor (lobby): (objeto, skin | nil) equipar o quitar una skin
 	"CosmeticResult", -- servidor -> cliente (lobby): (objeto, skin, repetida) resultado de un giro con Robux
+	"PlaySfx", -- servidor -> cliente: (nombre en Config.Sounds.Sfx) sonido solo para ese jugador
 }
 
 local FUNCTIONS = {

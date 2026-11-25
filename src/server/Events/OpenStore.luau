@@ -11,6 +11,7 @@ local Server = script.Parent.Parent
 local LightService = require(Server.LightService)
 local DefenseService = require(Server.DefenseService)
 local RunState = require(Server.RunState)
+local SfxService = require(Server.SfxService)
 local MissionsCommon = require(Server.Missions.Common)
 local EventUtil = require(script.Parent.EventUtil)
 
@@ -94,6 +95,7 @@ return {
 					end
 					bag:Destroy()
 					RunState.AddCash(player, value)
+					SfxService.PlayFor(player, "Pickup")
 					Remotes.event("Notify"):FireClient(player, string.format("+%s del botín de %s.", Util.formatMoney(value), zone), "good")
 				end)
 			end

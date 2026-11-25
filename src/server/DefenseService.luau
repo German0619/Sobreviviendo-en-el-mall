@@ -33,6 +33,7 @@ local Signal = require(Shared.Signal)
 
 local FlashlightService = require(script.Parent.FlashlightService)
 local PlayerStats = require(script.Parent.PlayerStats)
+local SfxService = require(script.Parent.SfxService)
 
 local DefenseService = {}
 
@@ -295,6 +296,10 @@ function DefenseService.Flash(player: Player)
 	local cooldown = Def.Flash.Cooldown * (PlayerStats.GetPerk(player, "FlashCooldownMultiplier") or 1)
 	player:SetAttribute("FlashReadyAt", now + cooldown)
 	FlashlightService.Burst(player, 0.25)
+	local flashRoot = getRoot(player)
+	if flashRoot then
+		SfxService.PlayAt("Flash", flashRoot)
+	end
 
 	local range = Config.Flashlight.Range * Def.Flash.RangeMultiplier
 	for _, enemy in enemyProvider() do
@@ -386,6 +391,7 @@ function DefenseService.UseClassAbility(player: Player)
 		return
 	end
 	player:SetAttribute("AbilityReadyAt", now + Def.Shove.Cooldown)
+	SfxService.PlayAt("Shove", getRoot(player) :: BasePart)
 	if DefenseService.Push(player, Def.Shove.Range, Def.Shove) == 0 then
 		notify(player, "El porrazo no alcanzó a nadie.")
 	end
@@ -457,6 +463,7 @@ function DefenseService.ThrowFlare(player: Player, options: { Duration: number?,
 		end
 		local flare: Flare = { Position = ground, ExpiresAt = os.clock() + duration, Part = part, Radius = radius }
 		table.insert(flares, flare)
+		SfxService.PlayAt("Flare", part)
 
 		-- Parpadeo suave y apagado gradual en los ultimos 2 segundos
 		while part.Parent and os.clock() < flare.ExpiresAt do
@@ -559,6 +566,9 @@ function DefenseService.ThrowFirecracker(player: Player, options: { Duration: nu
 		task.wait(Def.Firecracker.Fuse)
 		-- Traqueteo: destellos y chispas hasta que se acaba
 		fuse.Rate = 0
+		if part.Parent then
+			SfxService.PlayAt("Firecracker", part.Position)
+		end
 		local burst = Instance.new("ParticleEmitter")
 		burst.Color = ColorSequence.new(Color3.fromRGB(255, 230, 150), Color3.fromRGB(255, 120, 40))
 		burst.LightEmission = 1
@@ -593,6 +603,7 @@ function DefenseService.SmokeBomb(player: Player, radius: number, duration: numb
 		return false
 	end
 	local center = root.Position
+	SfxService.PlayAt("Smoke", center)
 	local cloud = prop({
 		Name = "SmokeBomb",
 		Size = Vector3.new(1, 1, 1),
@@ -723,6 +734,7 @@ function DefenseService.Hide(player: Player, spot: BasePart)
 	spot:SetAttribute("Occupied", true)
 
 	FlashlightService.SetOn(player, false)
+	SfxService.PlayAt("Hide", spot)
 	root.AssemblyLinearVelocity = Vector3.zero
 	root.Anchored = true
 	character:PivotTo(spot.CFrame * CFrame.new(0, -spot.Size.Y / 2 + 3, 0))

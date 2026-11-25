@@ -13,6 +13,7 @@ local Server = script.Parent.Parent
 local LightService = require(Server.LightService)
 local RunState = require(Server.RunState)
 local ShopService = require(Server.ShopService)
+local SfxService = require(Server.SfxService)
 local FlashlightService = require(Server.FlashlightService)
 local WeaponService = require(Server.WeaponService)
 local MissionsCommon = require(Server.Missions.Common)
@@ -169,6 +170,7 @@ return {
 					WeaponService.Equip(player, itemId, offer.Uses)
 				else
 					ShopService.GiveItem(player, itemId, offer.Amount)
+					SfxService.PlayFor(player, "Buy")
 					if itemId == "FlashlightPro" then
 						FlashlightService.Refresh(player)
 					end

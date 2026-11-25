@@ -12,6 +12,7 @@ local Remotes = require(Shared.Remotes)
 local Server = script.Parent.Parent
 local MissionService = require(Server.MissionService)
 local ShopService = require(Server.ShopService)
+local SfxService = require(Server.SfxService)
 local MissionsCommon = require(Server.Missions.Common)
 local EnemyCommon = require(ServerScriptService:WaitForChild("Enemies"):WaitForChild("Common"))
 
@@ -99,6 +100,7 @@ return {
 				for itemId, amount in def.Items do
 					local given = ShopService.GiveItem(player, itemId, amount)
 					if given > 0 then
+						SfxService.PlayFor(player, "Pickup")
 						table.insert(got, string.format("%s x%d", Config.ShopItems[itemId].DisplayName, given))
 					end
 				end
