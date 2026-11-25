@@ -26,6 +26,7 @@ local SpawnDirector = require(script.Parent.SpawnDirector)
 local EnemiesFolder = ServerScriptService:WaitForChild("Enemies")
 local Common = require(EnemiesFolder.Common)
 local SecurityCamera = require(EnemiesFolder.SecurityCamera)
+local EnemyAnimator = require(script.Parent.EnemyAnimator)
 
 -- Tipos de enemigo (cada uno con su modulo en src/enemies)
 local enemyModules = {
@@ -54,6 +55,17 @@ local enemyModules = {
 local EnemyService = {}
 
 local activeEnemies = {}
+local rigs = setmetatable({}, { __mode = "k" }) -- [enemigo] = esqueleto de EnemyAnimator
+
+-- Brazos y piernas a su pose de reposo (antes de quitar al enemigo: el Maniqui y la
+-- Estatua vuelven a su sitio del mapa y no deben quedarse a media zancada).
+local function resetRig(enemy)
+	local rig = rigs[enemy]
+	rigs[enemy] = nil
+	if rig then
+		pcall(rig.Reset, rig)
+	end
+end
 local threat = {} -- [missionType] = misiones falladas esta noche
 local heartbeatConn: RBXScriptConnection? = nil
 local nightToken = 0 -- invalida las apariciones escalonadas de una noche anterior
@@ -181,6 +193,13 @@ local function spawnEnemy(enemyType: string, ctx, floor: number?, at: Vector3?)
 	enemy.EnemyType = enemyType -- lo usan las armas (nivel del enemigo)
 	if enemy.Model then
 		enemy.Model:SetAttribute("EnemyType", enemyType)
+		-- Animacion de movimiento (piernas, brazos, ruedas): Config.EnemyAnimation
+		local rigOk, rig = pcall(EnemyAnimator.attach, enemy.Model, enemyType)
+		if rigOk then
+			rigs[enemy] = rig
+		else
+			warn("[EnemyService] Error animando", enemyType, rig)
+		end
 	end
 	table.insert(activeEnemies, enemy)
 
@@ -264,6 +283,15 @@ function EnemyService.StartNight(night: number, options: { BudgetMultiplier: num
 				errored[enemy] = true -- avisar una sola vez por enemigo
 				warn("[EnemyService] Error en Update:", err)
 			end
+			-- Despues de moverse: brazos y piernas
+			local rig = rigs[enemy]
+			if rig then
+				local animOk, animErr = pcall(rig.Step, rig, dt)
+				if not animOk then
+					rigs[enemy] = nil
+					warn("[EnemyService] Error en la animacion:", animErr)
+				end
+			end
 		end
 	end)
 end
@@ -297,6 +325,7 @@ function EnemyService.RemoveEnemy(enemy)
 	local index = table.find(activeEnemies, enemy)
 	if index then
 		table.remove(activeEnemies, index)
+		resetRig(enemy)
 		pcall(enemy.Destroy, enemy)
 	end
 end
@@ -383,6 +412,7 @@ function EnemyService.StopNight()
 		heartbeatConn = nil
 	end
 	for _, enemy in activeEnemies do
+		resetRig(enemy)
 		pcall(enemy.Destroy, enemy)
 	end
 	activeEnemies = {}
@@ -397,6 +427,23 @@ function EnemyService.Start()
 	MissionService.Failed:Connect(function(mission)
 		threat[mission.Type] = (threat[mission.Type] or 0) + 1
 	end)
+
+	-- SOLO en Studio: ServerStorage.DebugSpawnEnemy:Invoke(tipo, punto) hace aparecer un
+	-- enemigo durante la noche (para probar desde la barra de comandos o el MCP).
+	if RunService:IsStudio() then
+		local debugSpawn = Instance.new("BindableFunction")
+		debugSpawn.Name = "DebugSpawnEnemy"
+		debugSpawn.OnInvoke = function(enemyType: string, at: Vector3?): boolean
+			if not currentCtx then
+				return false -- (solo durante la noche)
+			end
+			local floor = if at then Config.getFloor(at.Y) else nil
+			local enemy = EnemyService.SpawnTemporary(enemyType, floor, 900, at)
+			print(string.format("[EnemyService] (debug) %s %s", enemyType, if enemy then "creado" else "no se pudo crear"))
+			return enemy ~= nil
+		end
+		debugSpawn.Parent = game:GetService("ServerStorage")
+	end
 end
 
 return EnemyService

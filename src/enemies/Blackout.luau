@@ -83,15 +83,16 @@ function Blackout.new(spawnPosition: Vector3, ctx)
 	Common.prepareModel(model)
 	for _, d in model:GetDescendants() do
 		if d:IsA("BasePart") then
-			d.CanCollide = false -- es un fantasma
+			d.CanCollide = false
 		end
 	end
 
-	-- Es un fantasma: la clase Medium lo ve a traves de las paredes
+	-- Es un fantasma para el Medium (lo ve a traves de las paredes). Desde el 2026-11-24 no
+	-- las atraviesa ni vuela: va por los pasillos y flota a FloatLift del suelo solo de
+	-- aspecto (EnemyAnimator, estilo Float, Config.Enemies.Blackout.FloatLift).
 	model:SetAttribute("Ghost", true)
 
-	local hoverY = spawnPosition.Y + def.HoverHeight
-	model:PivotTo(CFrame.new(Vector3.new(spawnPosition.X, hoverY, spawnPosition.Z)))
+	model:PivotTo(CFrame.new(spawnPosition + Vector3.new(0, height / 2, 0)))
 	model.Parent = ctx.Container
 
 	idCounter += 1
@@ -100,12 +101,12 @@ function Blackout.new(spawnPosition: Vector3, ctx)
 	self.Ctx = ctx
 	self.Model = model
 	self.ReasonKey = "Blackout_" .. idCounter
+	-- Busca el camino por los pasillos (y las escaleras para cambiar de planta).
+	-- AgentHeight 5: es alto, pero pasa por las puertas
 	self.Mover = Common.newMover(model, {
 		Speed = def.Speed,
 		Height = height,
-		Ghost = true,
-		HoverY = hoverY,
-		HoverOffset = def.HoverHeight, -- sigue el piso de su destino (2 plantas)
+		AgentHeight = 5,
 	})
 	self.State = "Roam"
 	self.Zone = nil
@@ -118,6 +119,13 @@ function Blackout.new(spawnPosition: Vector3, ctx)
 	self.RepelFrom = nil :: Vector3?
 	self.Awareness = Common.newAwareness(ctx)
 	return self
+end
+
+-- El centro de una zona esta a media altura (el centro de su caja): para buscar el
+-- camino hace falta el punto del suelo debajo.
+local function onFloor(point: Vector3): Vector3
+	local floorY = Common.floorBelow(point + Vector3.new(0, 2, 0))
+	return if floorY then Vector3.new(point.X, floorY, point.Z) else point
 end
 
 function Blackout:GetPower(): number
@@ -179,7 +187,7 @@ function Blackout:Flee()
 	self:SetState("Flee")
 	local center = self.Zone and LightService.GetZoneCenter(self.Zone)
 	if center then
-		self.Mover:MoveTowards(center)
+		self.Mover:MoveTowards(onFloor(center))
 	end
 end
 
@@ -258,10 +266,11 @@ function Blackout:Update(dt: number)
 			self.Zone = self:ChooseZone(self.Zone)
 			return
 		end
-		self.Mover:MoveTowards(center)
+		self.Mover:MoveTowards(onFloor(center))
 		self.Mover:Step(dt)
+		-- (yendo a pie puede no llegar justo al centro si hay muebles: basta con acercarse)
 		local flat = Vector3.new(center.X - position.X, 0, center.Z - position.Z)
-		if flat.Magnitude < 4 then
+		if flat.Magnitude < 7 then
 			LightService.Flicker(self.Zone, self.Def.DarkenDelay)
 			self:SetState("Darken")
 		end

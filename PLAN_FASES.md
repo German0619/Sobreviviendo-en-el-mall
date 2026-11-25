@@ -393,7 +393,13 @@ Que toda la interfaz use las herramientas nativas de Roblox para adaptarse a cad
 **Fase 13: pulido** (la última; es el punto 10 de `plan sobreviviendo en el mall.txt`).
 - Sonido, ambientación, balance y pruebas con varios jugadores.
 - Mejorar el diseño del Globo y de las Polillas (ahora son modelos simples hechos con piezas).
-- Animaciones de movimiento para todas las entidades que no las tienen, como el Maniquí.
+- [PROGRAMADO, falta probar] Animaciones de movimiento para todas las entidades que no las tienen, como el Maniquí. (2026-11-24, `src/server/EnemyAnimator.luau`, `Config.EnemyAnimation`.)
+  - En el servidor (los enemigos son modelos anclados), después de que cada enemigo se mueve: extremidades reconocidas por el nombre de la pieza, giradas sobre su articulación según lo que avanza; quietos no se mueven.
+  - Bípedos (Eco, Cazador, Gerente, Reflejo, Vigilante, Luni, Cajero) con brazos y piernas alternos; lo que llevan en la mano o los pies (walkie, linterna, guantes, zapatos) sigue a su extremidad. Maniquí rígido y a tirones. Coleccionista solo brazos. Rastro a cuatro patas, Ducto patas de araña, Carrito ruedas.
+  - Las plantillas de una sola pieza del mall (`ServerStorage.EnemyTemplates`: Eco, Apagón, Maniquí, Vigilante, Rastro) se separaron en piezas con `segment_mesh` (IA de Studio): Torso, LeftArm, RightArm, LeftLeg, RightLeg (el Rastro, FrontLeftLeg…; el Apagón, LowerBody). Las originales quedan en `ServerStorage.EnemyTemplatesBackup`. **Hay que guardar el place del mall** para conservarlas.
+  - Eco y Apagón: estilo Flotante (siempre se mecen ±0,3 studs, brazos colgando que se balancean y se inclinan al desplazarse).
+  - Si un modelo sigue siendo de una pieza (p. ej. un maniquí del mapa), el cuerpo entero se balancea sobre los pies al andar.
+  - Al acabar la noche las piezas vuelven a su pose de reposo (los maniquíes y la estatua vuelven al mapa).
 - [HECHO] Ruleta de clases: el resultado aparece en el slot antes de que la ruleta se pare. Debe mostrarse solo cuando termine el giro. (`ClassPanel` muestra la clase anterior en slots y carrete hasta que termina la animación, también en el tiro afortunado.)
 - Mejorar el diseño del lobby.
 - Mejorar el diseño de la ruleta de clases (el usuario pasará imágenes de referencia cuando toque).

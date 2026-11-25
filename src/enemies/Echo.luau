@@ -108,10 +108,13 @@ function Echo.new(spawnPosition: Vector3, ctx)
 	Common.prepareModel(model)
 	for _, d in model:GetDescendants() do
 		if d:IsA("BasePart") then
-			d.CanCollide = false -- atraviesa paredes
+			d.CanCollide = false
 		end
 	end
-	model:SetAttribute("Ghost", true) -- el Medium lo ve a traves de las paredes
+	-- (Sigue siendo un fantasma para el Medium, que lo ve a traves de las paredes; pero desde
+	-- el 2026-11-24 no las atraviesa: va por los pasillos como el compañero al que imita.
+	-- Flota a ras del suelo solo de aspecto: EnemyAnimator, estilo Float.)
+	model:SetAttribute("Ghost", true)
 
 	local hoverY = spawnPosition.Y + height / 2
 	model:PivotTo(CFrame.new(Vector3.new(spawnPosition.X, hoverY, spawnPosition.Z)))
@@ -134,7 +137,8 @@ function Echo.new(spawnPosition: Vector3, ctx)
 	self.Model = model
 	self.Height = height
 	self.Steps = steps
-	self.Mover = Common.newMover(model, { Speed = def.Speed, Height = height, Ghost = true, HoverY = hoverY })
+	-- Camina por los pasillos (busca el camino); AgentHeight 5: pasa por las puertas
+	self.Mover = Common.newMover(model, { Speed = def.Speed, Height = height, AgentHeight = 5 })
 	self.Awareness = Common.newAwareness(ctx)
 	self.State = "Stalk"
 	self.ReappearAt = 0
@@ -223,7 +227,7 @@ function Echo:Reappear(): boolean
 		return false
 	end
 	local y = best.Y + self.Height / 2
-	self.Mover.HoverY = y
+	self.Mover:Clear()
 	self.Model:PivotTo(CFrame.new(best.X, y, best.Z))
 	self.State = "Stalk"
 	self.PatrolPoint = nil
@@ -231,8 +235,7 @@ function Echo:Reappear(): boolean
 end
 
 -- Avanza con el sonido de pasos.
-function Echo:Walk(dt: number, target: Vector3, speed: number, groundY: number)
-	self.Mover.HoverY = groundY + self.Height / 2
+function Echo:Walk(dt: number, target: Vector3, speed: number, _groundY: number)
 	self.Mover.Speed = speed
 	self.Mover:MoveTowards(target)
 	if self.Mover:Step(dt) then

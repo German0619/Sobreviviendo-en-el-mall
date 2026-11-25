@@ -18,8 +18,8 @@ Config.Debug = {
 	BuildTestMap = true, -- construye el mall (MallBuilder) o el lobby si el place no tiene uno propio
 	-- true = la partida empieza sola en cuanto hay alguien (sin esperar a que el anfitrion pulse Iniciar)
 	AutoStart = false,
-	StartNight = 1, -- pon 2 (Apagon), 3 (Eco), 5 (Rastro) o 7 (Vigilante) para probarlos desde el inicio
-	OnlyEnemies = nil :: { string }?, -- ej. { "Echo" }: solo salen esos tipos (para probar uno)
+	StartNight = 12, -- pon 2 (Apagon), 3 (Eco), 5 (Rastro) o 7 (Vigilante) para probarlos desde el inicio
+	OnlyEnemies = { "Mannequin", "Watcher", "Tracker", "Echo", "Blackout" } :: { string }?, -- ej. { "Echo" }: solo salen esos tipos (para probar uno)
 	Tier3MaxOverride = nil :: number?, -- ej. 3: permite varios de nivel 3 a la vez (para probarlos)
 	MissionGoalOverride = nil :: number?, -- ej. 2: tareas necesarias para pasar la noche (para probar)
 	OnlyEvents = nil :: { string }?, -- ej. { "Fog" }: solo salen esos eventos (para probarlos)
@@ -1236,6 +1236,32 @@ Config.Threat = {
 -- UnlockNight: primera noche en que puede salir. Tier: nivel de peligro (1-3, ver su coste).
 -- MaxPerFloor: tope de ese tipo en cada planta.
 -- Hint: aviso con su contramedida la primera vez que aparece en la partida.
+-- Animacion de movimiento de cada enemigo (server/EnemyAnimator). Las extremidades se
+-- reconocen por el nombre de la pieza; solo se mueven al andar (quietos, quietos).
+--   Biped: piernas y brazos alternados · Stiff: igual pero rigido y a tirones
+--   ArmsOnly: solo los brazos · Quadruped: cuatro patas en diagonal
+--   Crawler: patas de araña por turnos · Wheels: ruedas que giran
+--   Float: fantasmas que flotan (siempre se mecen; brazos colgando; se inclinan al ir)
+-- Sin animacion: Estatua, Globo, Polillas, Megafonia, Mimico, Camaras.
+-- (Las plantillas de ServerStorage.EnemyTemplates del mall estan separadas en piezas
+-- con nombre: Torso, LeftArm, RightArm, LeftLeg, RightLeg, FrontLeftLeg...)
+Config.EnemyAnimation = {
+	Mannequin = "Stiff",
+	Converted = "Stiff", -- (los maniquies del Coleccionista)
+	Echo = "Float",
+	Blackout = "Float",
+	Hunter = "Biped",
+	Manager = "Biped",
+	Reflection = "Biped",
+	Watcher = "Biped",
+	Luni = "Biped",
+	Cashier = "Biped",
+	Collector = "ArmsOnly",
+	Tracker = "Quadruped",
+	Duct = "Crawler",
+	Cart = "Wheels",
+} :: { [string]: string }
+
 Config.Enemies = {
 	Mannequin = {
 		DisplayName = "Maniqui",
@@ -1259,7 +1285,7 @@ Config.Enemies = {
 		Damage = 25,
 		AttackRange = 4,
 		AttackCooldown = 1.5,
-		HoverHeight = 4.5,
+		FloatLift = 1.5, -- flota a esta altura sobre el suelo (solo de aspecto: EnemyAnimator)
 		DarkenDelay = 2.5, -- parpadeo antes de apagar la zona
 		ExposureToFlee = 2.5, -- segundos de linterna para hacerlo huir
 		FleeCooldown = 12,
@@ -1335,6 +1361,7 @@ Config.Enemies = {
 		ExposureToVanish = 1, -- segundos alumbrado para desaparecer
 		VanishSeconds = 10, -- tiempo desaparecido antes de volver
 		ReappearMinDistance = 35, -- vuelve lejos de los jugadores
+		FloatLift = 0.4, -- flota a ras del suelo (solo de aspecto: EnemyAnimator)
 		Hint = "Nuevo: el Eco imita a tus compañeros. Si un \"compañero\" se te acerca, alúmbralo con la linterna.",
 	},
 	-- Reflejo: acecha dentro de los vidrios y espejos (tag ReflectiveSurface). Si lo miras fijamente,
