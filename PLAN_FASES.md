@@ -300,6 +300,9 @@ Las cuatro ideas se usan, **cada una en su propia tienda**. Todas con paneles na
    - Consumibles comprados con diamantes que se entregan al empezar la próxima partida y se gastan al usarlos.
    - Datos: `data.Locker[itemId] = cantidad`. El mall los entrega al iniciar la partida y los descuenta.
    - No tiene azar.
+   - [HECHO] (`LockerService`, `src/client/LockerPanel.luau`, `Config.Locker`; puesto `LockerStand` en x=−55, z=−60, frente a la CAJA). Decidido el 2026-11-24:
+     - Solo objetos normales: batería 15 💎, petardo 15 💎, bengala 20 💎, botiquín 25 💎; hasta 10 guardados de cada uno. Los exclusivos del mercader no se venden.
+     - Al empezar cada partida se entrega 1 de cada objeto guardado (si cabe en la mochila); el resto espera a la siguiente.
 4. **Caja de cosméticos** (puesto nuevo, junto con la Fase 11):
    - Solo estética, sin ventaja de juego.
    - Es un objeto aleatorio: probabilidades siempre visibles y respetar `PaidRandomItemsRestricted`, igual que la ruleta.

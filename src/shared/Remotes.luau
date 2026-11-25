@@ -57,6 +57,7 @@ local FUNCTIONS = {
 	"RequestCosmeticSpin", -- () -> (ok, mensaje, objeto, skin, repetida). Caja de cosmeticos con diamantes
 	"RequestBuySkin", -- (objeto, skin) -> (ok, mensaje). Compra directa con diamantes
 	"RequestBuyPermanent", -- (mejora) -> (ok, mensaje). Siguiente nivel de una mejora permanente (lobby)
+	"RequestBuyLocker", -- (objeto) -> (ok, mensaje). Guarda un consumible en la taquilla del conserje (lobby)
 }
 
 local IS_SERVER = RunService:IsServer()

@@ -63,6 +63,7 @@ export type PlayerData = {
 	PermanentUpgrades: { [string]: number },
 	UpgradePoints: number,
 	ClassMastery: { [string]: number },
+	Locker: { [string]: number },
 	Lifetime: LifetimeStats,
 	SessionLock: SessionLock?,
 }

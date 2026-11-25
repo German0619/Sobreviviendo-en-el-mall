@@ -114,6 +114,10 @@ local function pushAttributes(player: Player, data: PlayerData)
 	for className in Config.Classes do
 		player:SetAttribute("Mastery_" .. className, (data.ClassMastery or {})[className] or 0)
 	end
+	-- Taquilla del conserje: cantidad guardada de cada objeto (Locker_<objeto>)
+	for itemId in Config.Locker.Items do
+		player:SetAttribute("Locker_" .. itemId, (data.Locker or {})[itemId] or 0)
+	end
 end
 
 local function sanitize(data: PlayerData)
@@ -179,6 +183,16 @@ local function sanitize(data: PlayerData)
 		end
 	end
 	data.ClassMastery = mastery
+
+	-- Taquilla: solo objetos que se venden en ella, sin pasar su maximo
+	local locker = {}
+	for itemId, count in data.Locker do
+		local entry = Config.Locker.Items[itemId]
+		if entry and type(count) == "number" and count > 0 then
+			locker[itemId] = math.min(math.floor(count), entry.Max)
+		end
+	end
+	data.Locker = locker
 end
 
 -- Devuelve (ok, data). ok=false significa error real de DataStore.

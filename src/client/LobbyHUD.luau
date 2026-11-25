@@ -22,6 +22,7 @@ local ShopPanel = require(script.Parent.ShopPanel)
 local AchievementsPanel = require(script.Parent.AchievementsPanel)
 local CosmeticsPanel = require(script.Parent.CosmeticsPanel)
 local PermanentPanel = require(script.Parent.PermanentPanel)
+local LockerPanel = require(script.Parent.LockerPanel)
 
 local LobbyHUD = {}
 
@@ -209,10 +210,15 @@ function LobbyHUD.Start()
 		AchievementsPanel.Close()
 		CosmeticsPanel.Close()
 		PermanentPanel.Close()
+		LockerPanel.Close()
 	end
 	LobbyPanels.register("Upgrades", function()
 		closeAll()
 		PermanentPanel.Open() -- puesto MEJORAS: mejoras permanentes
+	end)
+	LobbyPanels.register("Locker", function()
+		closeAll()
+		LockerPanel.Open() -- puesto TAQUILLA: consumibles para la proxima partida
 	end)
 	LobbyPanels.register("Cosmetics", function()
 		closeAll()

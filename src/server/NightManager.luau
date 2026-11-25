@@ -38,6 +38,7 @@ local RunState = require(script.Parent.RunState)
 local RoomService = require(script.Parent.RoomService)
 local PassService = require(script.Parent.PassService)
 local PermanentUpgradeService = require(script.Parent.PermanentUpgradeService)
+local LockerService = require(script.Parent.LockerService)
 
 local NightManager = {}
 
@@ -392,6 +393,8 @@ local function runGame()
 		end)
 		-- Mejoras permanentes: billetes extra y kit de inicio
 		PermanentUpgradeService.GrantRunStart(player)
+		-- Taquilla del conserje: 1 de cada objeto guardado
+		LockerService.GrantRunStart(player)
 	end
 
 	while #Players:GetPlayers() > 0 do

@@ -910,6 +910,23 @@ function Config.getPermanentEffectText(upgradeId: string, level: number): string
 	return ""
 end
 
+----------------------------------------------------------------------
+-- Taquilla del conserje (puesto TAQUILLA del lobby; LockerService)
+----------------------------------------------------------------------
+-- Consumibles que se compran con diamantes y se guardan en tu taquilla
+-- (data.Locker[objeto] = cantidad). Al empezar cada partida en el mall se entrega
+-- 1 de cada objeto guardado (si cabe en la mochila); el resto espera. Sin azar.
+Config.Locker = {
+	PerRun = 1, -- de cada objeto, al empezar cada partida
+	Items = {
+		Battery = { Price = 15, Max = 10 },
+		Firecracker = { Price = 15, Max = 10 },
+		Flare = { Price = 20, Max = 10 },
+		Medkit = { Price = 25, Max = 10 },
+	} :: { [string]: { Price: number, Max: number } },
+	Order = { "Battery", "Firecracker", "Flare", "Medkit" },
+}
+
 -- Orden de los exclusivos del Mercader en la mochila (despues de los de ShopOrder)
 Config.MerchantOrder = {
 	"BigMedkit",
@@ -1987,6 +2004,7 @@ Config.DefaultData = {
 	PermanentUpgrades = {}, -- [mejora] = nivel (Config.PermanentUpgrades, puesto MEJORAS)
 	UpgradePoints = 0, -- puntos de mejora (del reinicio con Robux); se gastan antes que los diamantes
 	ClassMastery = {}, -- [clase] = noches sobrevividas con ella equipada (Config.ClassMastery)
+	Locker = {}, -- [objeto] = cantidad guardada en la taquilla del conserje (Config.Locker)
 	Lifetime = {
 		NightsSurvived = 0,
 		MissionsCompleted = 0,

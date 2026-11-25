@@ -18,6 +18,7 @@ local LOBBY_MODULES = {
 	AchievementsPanel = true, -- logros y bono diario VIP (boton LOGROS)
 	CosmeticsPanel = true, -- skins: caja, compra y equipar (puesto COSMETICOS)
 	PermanentPanel = true, -- mejoras permanentes (puesto MEJORAS)
+	LockerPanel = true, -- taquilla del conserje (puesto TAQUILLA)
 	VipChat = true, -- [VIP] en el chat (tambien en el mall)
 	Movement = true,
 }
@@ -34,6 +35,7 @@ local LOBBY_ONLY = {
 	AchievementsPanel = true,
 	CosmeticsPanel = true,
 	PermanentPanel = true,
+	LockerPanel = true,
 	LobbyUI = true,
 	StoreUI = true,
 }
