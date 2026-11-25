@@ -58,6 +58,8 @@ export type PlayerData = {
 	Achievements: { [string]: boolean },
 	ClaimedAchievements: { [string]: boolean },
 	VipDailyDay: number,
+	Skins: { [string]: boolean },
+	EquippedSkins: { [string]: string },
 	Lifetime: LifetimeStats,
 	SessionLock: SessionLock?,
 }

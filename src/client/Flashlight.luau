@@ -19,8 +19,9 @@ local player = Players.LocalPlayer
 local Flashlight = {}
 
 local ATTACHMENT_NAME = "FlashlightAttachment"
--- Posicion de la linterna: delante del pecho (en horizontal), a la derecha y un poco abajo
-local HOLD_FORWARD, HOLD_RIGHT, HOLD_DOWN = 1.3, 0.5, 0.6
+-- Posicion del foco: delante del pecho (en horizontal), a la IZQUIERDA (la linterna va en la
+-- mano izquierda: la derecha es para lo que lleves de la mochila) y un poco abajo
+local HOLD_FORWARD, HOLD_RIGHT, HOLD_DOWN = 1.3, -0.5, 0.6
 
 local lastToggle = 0
 

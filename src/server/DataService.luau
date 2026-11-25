@@ -91,6 +91,20 @@ local function pushAttributes(player: Player, data: PlayerData)
 	end
 	player:SetAttribute("VipDailyDay", data.VipDailyDay)
 	player:SetAttribute("BossesDefeated", data.Lifetime.BossesDefeated or 0) -- tabla "Jefes vencidos"
+	-- Skins: la equipada de cada objeto (Skin_<objeto>, la usa el mall) y las que tienes
+	-- (OwnedSkins: "Taser:Gold,Mop:Camo", para el panel de cosmeticos)
+	local owned = {}
+	for key, has in data.Skins or {} do
+		if has then
+			table.insert(owned, key)
+		end
+	end
+	table.sort(owned)
+	player:SetAttribute("OwnedSkins", table.concat(owned, ","))
+	for _, itemId in Config.Cosmetics.Items do
+		local skin = (data.EquippedSkins or {})[itemId]
+		player:SetAttribute("Skin_" .. itemId, if skin and Config.Skins[skin] then skin else nil)
+	end
 end
 
 local function sanitize(data: PlayerData)

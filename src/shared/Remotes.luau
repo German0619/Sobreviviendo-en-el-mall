@@ -34,6 +34,8 @@ local EVENTS = {
 	"SpinResult", -- servidor -> cliente (lobby): (clase, mensaje) resultado de un tiro afortunado (Robux)
 	"RequestLeavePad", -- cliente -> servidor (lobby): salto dentro de un cuadro = salir de la sala y del cuadro
 	"UseWeapon", -- cliente -> servidor (mall): usar el arma equipada [R]
+	"RequestEquipSkin", -- cliente -> servidor (lobby): (objeto, skin | nil) equipar o quitar una skin
+	"CosmeticResult", -- servidor -> cliente (lobby): (objeto, skin, repetida) resultado de un giro con Robux
 }
 
 local FUNCTIONS = {
@@ -52,6 +54,8 @@ local FUNCTIONS = {
 	"RequestPadCreate", -- (esPublica) -> (ok, mensaje). Quien eligio en su cuadro libre
 	"RequestClaimAchievement", -- (idLogro) -> (ok, mensaje). Da los diamantes de un logro desbloqueado
 	"RequestClaimVipDaily", -- () -> (ok, mensaje). Bono diario VIP
+	"RequestCosmeticSpin", -- () -> (ok, mensaje, objeto, skin, repetida). Caja de cosmeticos con diamantes
+	"RequestBuySkin", -- (objeto, skin) -> (ok, mensaje). Compra directa con diamantes
 }
 
 local IS_SERVER = RunService:IsServer()

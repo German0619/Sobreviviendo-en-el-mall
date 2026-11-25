@@ -656,6 +656,100 @@ Config.ShopItems = {
 	},
 }
 
+-- Skins (solo esteticas) de lo que se lleva en la mano (HeldModels). Cada una pinta las
+-- piezas marcadas: Body (cuerpo), Accent (detalles), Glow (luces del arma) y Lens.
+-- Rarity: Config.Rarities (probabilidad en la caja y precio de compra directa).
+-- Gold: tambien la linterna del pase Linterna Premium.
+Config.Skins = {
+	Camo = {
+		DisplayName = "Camuflaje",
+		Rarity = "Common",
+		Body = { Color = Color3.fromRGB(85, 100, 60), Material = Enum.Material.Fabric },
+		Accent = { Color = Color3.fromRGB(110, 85, 55), Material = Enum.Material.Fabric },
+	},
+	Ice = {
+		DisplayName = "Blanco hielo",
+		Rarity = "Common",
+		Body = { Color = Color3.fromRGB(235, 245, 255), Material = Enum.Material.SmoothPlastic, Reflectance = 0.1 },
+		Accent = { Color = Color3.fromRGB(150, 200, 235), Material = Enum.Material.Glass },
+		Glow = { Color = Color3.fromRGB(170, 230, 255) },
+	},
+	Crimson = {
+		DisplayName = "Carmesí",
+		Rarity = "Rare",
+		Body = { Color = Color3.fromRGB(150, 15, 30), Material = Enum.Material.SmoothPlastic, Reflectance = 0.1 },
+		Accent = { Color = Color3.fromRGB(25, 20, 22), Material = Enum.Material.Metal },
+		Glow = { Color = Color3.fromRGB(255, 60, 60) },
+	},
+	Neon = {
+		DisplayName = "Neón",
+		Rarity = "Rare",
+		Body = { Color = Color3.fromRGB(20, 20, 26), Material = Enum.Material.SmoothPlastic },
+		Accent = { Color = Color3.fromRGB(0, 255, 200), Material = Enum.Material.Neon },
+		Glow = { Color = Color3.fromRGB(0, 255, 200) },
+	},
+	Gold = {
+		DisplayName = "Dorado",
+		Rarity = "Epic",
+		Body = { Color = Color3.fromRGB(230, 180, 50), Material = Enum.Material.Foil, Reflectance = 0.25 },
+		Accent = { Color = Color3.fromRGB(150, 110, 30), Material = Enum.Material.Metal },
+	},
+	Luna = {
+		DisplayName = "Luna",
+		Rarity = "Legendary",
+		Body = { Color = Color3.fromRGB(60, 40, 120), Material = Enum.Material.Glass, Reflectance = 0.2 },
+		Accent = { Color = Color3.fromRGB(250, 225, 140), Material = Enum.Material.Neon },
+		Glow = { Color = Color3.fromRGB(200, 160, 255) },
+	},
+}
+Config.SkinOrder = { "Camo", "Ice", "Crimson", "Neon", "Gold", "Luna" }
+
+-- Cosmeticos (puesto COSMETICOS del lobby, CosmeticsService). Una skin es de un objeto
+-- concreto: la clave es "<objeto>:<skin>" (p. ej. "Taser:Gold"). Se equipa una por objeto.
+Config.Cosmetics = {
+	-- Objetos con skins (el orden de la coleccion) y su nombre
+	Items = { "Flashlight", "Taser", "Extinguisher", "WetFloorSign", "UVFlashlight", "Mop" },
+	ItemNames = {
+		Flashlight = "Linterna",
+		Taser = "Taser",
+		Extinguisher = "Extintor",
+		WetFloorSign = "Cartel",
+		UVFlashlight = "Linterna UV",
+		Mop = "Trapeador",
+	},
+	-- Caja: 250 diamantes por giro (o el producto CosmeticSpin con Robux). Primero se
+	-- sortea la rareza (RarityOdds, %) y luego un objeto y una skin de esa rareza al azar.
+	SpinCost = 250,
+	RarityOdds = { Common = 55, Rare = 30, Epic = 12, Legendary = 3 },
+	DuplicateRefund = 100, -- si sale una que ya tienes, devuelve estos diamantes
+	-- Compra directa (sin azar), por rareza
+	DirectPrice = { Common = 300, Rare = 600, Epic = 1200, Legendary = 2500 },
+}
+
+-- Probabilidad (%) de que la caja de una skin concreta (de cualquier objeto) y de cada
+-- rareza. Se muestran en el puesto COSMETICOS.
+function Config.getSkinOdds(): ({ [string]: number }, { [string]: number })
+	local C = Config.Cosmetics
+	local total = 0
+	for _, w in C.RarityOdds do
+		total += w
+	end
+	local perRarity = {}
+	for _, skinId in Config.SkinOrder do
+		local rarity = Config.Skins[skinId].Rarity
+		perRarity[rarity] = (perRarity[rarity] or 0) + 1
+	end
+	local bySkin, byRarity = {}, {}
+	for rarity, w in C.RarityOdds do
+		byRarity[rarity] = w / total * 100
+	end
+	for _, skinId in Config.SkinOrder do
+		local rarity = Config.Skins[skinId].Rarity
+		bySkin[skinId] = (byRarity[rarity] or 0) / perRarity[rarity]
+	end
+	return bySkin, byRarity
+end
+
 -- Orden de los exclusivos del Mercader en la mochila (despues de los de ShopOrder)
 Config.MerchantOrder = {
 	"BigMedkit",
@@ -1644,6 +1738,8 @@ Config.GamePasses = {
 	DoubleMoney = 2098534334,
 	PremiumFlashlight = 2100340312,
 	VIP = 2100244294,
+	InfiniteTaser = 2099530964, -- (199) creado el 2026-11-24
+	Fumigator = 2098846971, -- (350) creado el 2026-11-24
 }
 
 -- Lo que se muestra en la tienda del lobby para cada pase (orden = Config.GamePassOrder)
@@ -1660,8 +1756,29 @@ Config.GamePassInfo = {
 		DisplayName = "VIP",
 		Description = "50 💎 gratis cada día, ruleta 20% más barata, [VIP] en el chat y nombre dorado.",
 	},
+	InfiniteTaser = {
+		DisplayName = "Taser infinito",
+		Description = "El taser que compres en el mall no se gasta nunca. Mismo efecto y enfriamiento.",
+	},
+	Fumigator = {
+		DisplayName = "Fumigador de entidades",
+		Description = "Una vez por noche, elimina a un enemigo de cerca hasta el final de la noche. No sirve con jefes.",
+	},
 }
-Config.GamePassOrder = { "DoubleMoney", "PremiumFlashlight", "VIP" }
+Config.GamePassOrder = { "DoubleMoney", "PremiumFlashlight", "VIP", "InfiniteTaser", "Fumigator" }
+
+-- Fumigador de entidades (pase Fumigator): una vez por noche, elimina al enemigo que
+-- tengas delante (cerca) si lo rocias sin moverte ni recibir dano. No sirve con jefes.
+-- El enemigo no vuelve en toda la noche (el director no lo repone); la noche siguiente si.
+Config.Fumigator = {
+	Range = 10, -- distancia maxima al enemigo
+	HalfAngle = 30, -- grados: tiene que estar delante
+	ChannelSeconds = { 2, 4, 8 }, -- segun el nivel del enemigo (1, 2, 3)
+	MoveTolerance = 2, -- si te mueves mas de esto, se cancela
+	ReplaceSeconds = 0, -- 0 = no se repone (si se pone > 0, otro del mismo tipo a esos segundos)
+	-- No se pueden fumigar: jefes y lo que no tiene cuerpo
+	Immune = { Luni = true, Manager = true, Collector = true, Intercom = true },
+}
 
 -- Developer Products (se crean en create.roblox.com -> tu experiencia -> Monetization).
 -- El precio en Robux se define alli; aqui solo va el ID.
@@ -1671,6 +1788,9 @@ Config.DevProducts = {
 	ClassSlot = 3735454585, -- (99) +1 slot de clase (hasta Config.Roulette.MaxSlots)
 	PremiumSoda = 3735454715, -- (15) soda a eleccion (Config.ChoiceSoda)
 	LuckySpin = 3735454677, -- (49) tiro afortunado: garantiza clase Epica o superior (lobby)
+	TaserRecharge = 3735754732, -- (15) +10 usos al taser que llevas (mall). Creado el 2026-11-24
+	TaserRechargeUses = 10,
+	CosmeticSpin = 3735759341, -- (79) un giro de la caja de cosmeticos (lobby). Creado el 2026-11-24
 	DiamondPacks = {
 		{ Id = 3735454464, Amount = 100 }, -- (49)
 		{ Id = 3735454548, Amount = 550 }, -- (199)
@@ -1701,6 +1821,8 @@ Config.DefaultData = {
 	Achievements = {}, -- [id] = true: desbloqueado
 	ClaimedAchievements = {}, -- [id] = true: ya se cobraron sus diamantes
 	VipDailyDay = 0, -- dia (UTC, os.time() // 86400) del ultimo bono diario VIP
+	Skins = {}, -- ["<objeto>:<skin>"] = true: skins que tienes (Config.Cosmetics)
+	EquippedSkins = {}, -- [objeto] = skin equipada
 	Lifetime = {
 		NightsSurvived = 0,
 		MissionsCompleted = 0,

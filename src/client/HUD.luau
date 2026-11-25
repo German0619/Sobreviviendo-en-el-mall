@@ -777,6 +777,12 @@ local function update()
 		end
 		zoneBad = dark
 	end
+	-- Fumigando (pase Fumigador): no te muevas
+	local fumigateEnds = player:GetAttribute("FumigateEndsAt")
+	if type(fumigateEnds) == "number" and fumigateEnds > now then
+		local text = string.format('<font color="#8CFF8C">FUMIGANDO %.1fs · no te muevas</font>', fumigateEnds - now)
+		zoneText = if zoneText ~= "" then zoneText .. "  ·  " .. text else text
+	end
 	-- Escudo al revivir pagando: los enemigos te ignoran (ReviveService)
 	local protectedUntil = player:GetAttribute("ProtectedUntil")
 	if type(protectedUntil) == "number" and protectedUntil > now then

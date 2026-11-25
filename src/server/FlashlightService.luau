@@ -11,10 +11,12 @@ local Workspace = game:GetService("Workspace")
 local Shared = ReplicatedStorage:WaitForChild("Shared")
 local Config = require(Shared.Config)
 local Remotes = require(Shared.Remotes)
+local HeldModels = require(Shared.HeldModels)
 
 local FlashlightService = {}
 
 local ATTACHMENT_NAME = "FlashlightAttachment"
+local HELD_NAME = "HeldFlashlight" -- modelo de la linterna en la mano (HeldModels)
 local drainMultiplier = 1 -- evento Baterias debiles (EventDirector)
 local COS_DETECT = math.cos(math.rad(Config.Flashlight.DetectHalfAngle))
 local COS_DETECT_PRO = math.cos(math.rad(Config.Flashlight.DetectHalfAngle + Config.FlashlightPro.ExtraDetectAngle))
@@ -72,6 +74,7 @@ function FlashlightService.SetOn(player: Player, on: boolean)
 	if light then
 		light.Enabled = on
 	end
+	FlashlightService.Refresh(player)
 end
 
 -- Multiplica el consumo de todas las linternas (1 = normal).
@@ -91,6 +94,12 @@ function FlashlightService.Refresh(player: Player)
 	if light then
 		light.Angle = Config.Flashlight.Angle + (if hasPro(player) then Config.FlashlightPro.ExtraAngle else 0)
 		light.Color = beamColor(player)
+	end
+	-- Lente del modelo de la mano: encendida (del color del haz) o apagada
+	local character = player.Character
+	local held = character and character:FindFirstChild(HELD_NAME)
+	if held and held:IsA("Model") then
+		HeldModels.setLit(held, FlashlightService.IsOn(player), beamColor(player))
 	end
 end
 
@@ -217,6 +226,20 @@ local function onCharacterAdded(player: Player, character: Model)
 	light.Parent = att
 
 	player:SetAttribute("FlashlightOn", false)
+
+	-- Linterna en la mano izquierda (la ven los demas; tu la ves con el ViewModel)
+	local hand = character:WaitForChild("LeftHand", 5) or character:FindFirstChild("Left Arm")
+	if hand and hand:IsA("BasePart") then
+		-- Skin equipada en el lobby; si no tiene, la dorada del pase Linterna Premium
+		local skin = player:GetAttribute("Skin_Flashlight")
+		local model = HeldModels.build("Flashlight", if type(skin) == "string" then skin elseif hasPremiumPass(player) then "Gold" else nil)
+		if model then
+			model.Name = HELD_NAME
+			-- Apuntando hacia delante desde la mano (el brazo cuelga: la lente mira abajo)
+			HeldModels.attach(model, hand, CFrame.new(0, -0.35, -0.1) * CFrame.Angles(math.rad(-90), 0, 0))
+		end
+	end
+	FlashlightService.Refresh(player)
 
 	local humanoid = character:WaitForChild("Humanoid", 10)
 	if humanoid then

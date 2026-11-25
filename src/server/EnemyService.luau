@@ -286,6 +286,12 @@ function EnemyService.SetEventSpeed(multiplier: number)
 	applySpeed()
 end
 
+-- Identificador de la noche actual: cambia al empezar y al terminar cada noche (para no
+-- hacer aparecer algo programado en una noche que ya termino).
+function EnemyService.GetNightToken(): number
+	return nightToken
+end
+
 -- Quita un enemigo antes de que acabe la noche (al terminar un evento).
 function EnemyService.RemoveEnemy(enemy)
 	local index = table.find(activeEnemies, enemy)

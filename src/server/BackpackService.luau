@@ -14,9 +14,11 @@ local ReplicatedStorage = game:GetService("ReplicatedStorage")
 
 local Shared = ReplicatedStorage:WaitForChild("Shared")
 local Config = require(Shared.Config)
+local HeldModels = require(Shared.HeldModels)
 
 local ShopService = require(script.Parent.ShopService)
 local WeaponService = require(script.Parent.WeaponService)
+local FumigatorService = require(script.Parent.FumigatorService)
 
 local BackpackService = {}
 
@@ -36,7 +38,9 @@ local function findTool(player: Player, key: string): Tool?
 	return nil
 end
 
-local function newTool(player: Player, key: string, name: string, tip: string, onUse: () -> ()): Tool?
+-- modelId: que modelo lleva en la mano (HeldModels). Lo ven los demas; tu lo ves con el
+-- ViewModel del cliente (atributo ModelId de la Tool). skinId: skin del arma (Fase 11).
+local function newTool(player: Player, key: string, name: string, tip: string, modelId: string, skinId: string?, onUse: () -> ()): Tool?
 	local backpack = player:FindFirstChildOfClass("Backpack")
 	if not backpack then
 		return nil
@@ -44,9 +48,17 @@ local function newTool(player: Player, key: string, name: string, tip: string, o
 	local tool = Instance.new("Tool")
 	tool.Name = name
 	tool.ToolTip = tip
-	tool.RequiresHandle = false -- no hace falta un modelo en la mano
 	tool.CanBeDropped = false
 	tool:SetAttribute("InventoryKey", key)
+	tool:SetAttribute("ModelId", modelId)
+	tool:SetAttribute("Skin", skinId)
+	local model = HeldModels.build(modelId, skinId)
+	if model then
+		HeldModels.intoTool(model, tool)
+		tool.RequiresHandle = true
+	else
+		tool.RequiresHandle = false
+	end
 	tool.Activated:Connect(onUse)
 	tool.Parent = backpack
 	return tool
@@ -75,7 +87,7 @@ function BackpackService.Sync(player: Player)
 				if tool then
 					tool.Name = name
 				else
-					newTool(player, key, name, item.Description, function()
+					newTool(player, key, name, item.Description, itemId, nil, function()
 						ShopService.UseItem(player, itemId)
 					end)
 				end
@@ -100,16 +112,34 @@ function BackpackService.Sync(player: Player)
 	if weaponId then
 		local item = Config.ShopItems[weaponId]
 		local uses = player:GetAttribute("WeaponUses") or -1
-		local name = if uses >= 0 then string.format("%s (%d)", item.DisplayName, uses) else item.DisplayName
+		-- Con usos: "Taser (9)"; con el pase Taser infinito: "Taser (∞)"
+		local limited = Config.Weapons[weaponId] and Config.Weapons[weaponId].Uses ~= nil
+		local name = if uses >= 0
+			then string.format("%s (%d)", item.DisplayName, uses)
+			elseif limited then item.DisplayName .. " (∞)"
+			else item.DisplayName
 		local key = "Weapon_" .. weaponId
 		local tool = findTool(player, key)
 		if tool then
 			tool.Name = name
 		else
-			newTool(player, key, name, item.Description, function()
+			newTool(player, key, name, item.Description, weaponId, player:GetAttribute("Skin_" .. weaponId), function()
 				WeaponService.Use(player)
 			end)
 		end
+	end
+
+	-- Fumigador de entidades (pase): 1 uso por noche
+	local fumigatorKey = "Special_Fumigator"
+	local fumigatorTool = findTool(player, fumigatorKey)
+	if player:GetAttribute("FumigatorReady") == true then
+		if not fumigatorTool then
+			newTool(player, fumigatorKey, "Fumigador (1 esta noche)", Config.GamePassInfo.Fumigator.Description, "Fumigator", nil, function()
+				FumigatorService.Use(player)
+			end)
+		end
+	elseif fumigatorTool then
+		fumigatorTool:Destroy()
 	end
 
 	syncing[player] = nil
@@ -127,6 +157,7 @@ function BackpackService.Start()
 		end
 		player:GetAttributeChangedSignal("Weapon"):Connect(sync)
 		player:GetAttributeChangedSignal("WeaponUses"):Connect(sync)
+		player:GetAttributeChangedSignal("FumigatorReady"):Connect(sync)
 		-- Al reaparecer Roblox vacia la mochila: se rehace
 		player.CharacterAdded:Connect(function()
 			task.wait(0.2)

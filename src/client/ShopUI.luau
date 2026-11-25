@@ -39,11 +39,18 @@ local function refresh()
 			local def = Config.Weapons[itemId]
 			local equipped = player:GetAttribute("Weapon") == itemId
 			local uses = player:GetAttribute("WeaponUses") or 0
-			local full = equipped and (def.Uses == nil or uses >= def.Uses)
-			if equipped then
+			local infinite = equipped and uses < 0
+			local full = equipped and (def.Uses == nil or infinite or uses >= def.Uses)
+			if infinite and def.Uses then
+				row.Owned.Text = "Equipada · usos infinitos (pase)"
+			elseif equipped then
 				row.Owned.Text = if def.Uses then string.format("Equipada · %d/%d usos", uses, def.Uses) else "Equipada"
 			else
 				row.Owned.Text = "Arma · reemplaza a la que llevas"
+			end
+			-- Recarga de taser con Robux (+10 usos): solo con un taser que se gasta
+			if row.Recharge then
+				row.Recharge.Visible = equipped and not infinite
 			end
 			if full then
 				row.Button.Text = "EQUIPADA"
@@ -191,7 +198,24 @@ local function build()
 		}, function()
 			buy(itemId)
 		end)
-		rows[itemId] = { Owned = owned, Button = button }
+		-- Taser: boton de recarga con Robux (producto TaserRecharge)
+		local recharge = nil
+		if itemId == "Taser" and Config.DevProducts.TaserRecharge ~= 0 then
+			recharge = UIKit.button({
+				AnchorPoint = Vector2.new(1, 0.5),
+				Position = UDim2.new(1, -126, 0.5, 0),
+				Size = UDim2.fromOffset(96, 36),
+				Text = string.format("+%d usos R$", Config.DevProducts.TaserRechargeUses),
+				TextSize = 13,
+				BackgroundColor3 = Color3.fromRGB(40, 130, 70),
+				Visible = false,
+				ZIndex = 23,
+				Parent = row,
+			}, function()
+				Remotes.event("RequestBuyProduct"):FireServer("TaserRecharge")
+			end)
+		end
+		rows[itemId] = { Owned = owned, Button = button, Recharge = recharge }
 	end
 
 	statusLabel = UIKit.text({

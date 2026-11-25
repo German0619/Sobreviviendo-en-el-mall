@@ -20,6 +20,8 @@ local Shared = ReplicatedStorage:WaitForChild("Shared")
 local Config = require(Shared.Config)
 local Remotes = require(Shared.Remotes)
 
+local Place = require(Shared.Place)
+
 local DataService = require(script.Parent.DataService)
 local ReviveService = require(script.Parent.ReviveService)
 local VendingService = require(script.Parent.VendingService)
@@ -68,6 +70,26 @@ local function buildHandlers()
 
 	register(Config.DevProducts.PremiumSoda, function(player)
 		return VendingService.OnChoiceSodaPurchased(player)
+	end)
+
+	-- Recarga de taser (mall): +10 usos al taser que llevas
+	register(Config.DevProducts.TaserRecharge, function(player)
+		if not Place.IsMall then
+			return false -- se entregara cuando este en el mall
+		end
+		-- (se carga aqui: WeaponService es del mall y este servicio tambien corre en el lobby)
+		local WeaponService = require(script.Parent.WeaponService) :: any
+		WeaponService.AddTaserUses(player, Config.DevProducts.TaserRechargeUses)
+		return true
+	end)
+
+	-- Giro de la caja de cosmeticos (lobby)
+	register(Config.DevProducts.CosmeticSpin, function(player)
+		if not Place.IsLobby then
+			return false -- se entregara cuando este en el lobby
+		end
+		local CosmeticsService = require(script.Parent.CosmeticsService) :: any
+		return CosmeticsService.RobuxSpin(player)
 	end)
 
 	-- Tiro afortunado: solo se entrega en el lobby (si no, Roblox lo reintenta luego)
@@ -155,6 +177,24 @@ local function promptProduct(player: Player, kind: any, index: any)
 			return
 		end
 		productId = Config.DevProducts.LuckySpin
+	elseif kind == "CosmeticSpin" then
+		-- Objeto aleatorio pagado: no se vende donde esta restringido
+		if player:GetAttribute("PaidRandomRestricted") ~= false then
+			notify(player, "En tu país el giro con Robux no está disponible: gira con diamantes ganados jugando.", "info")
+			return
+		end
+		productId = Config.DevProducts.CosmeticSpin
+	elseif kind == "TaserRecharge" then
+		-- Solo si llevas un taser que se gasta (con el pase Taser infinito no hace falta)
+		if player:GetAttribute("Weapon") ~= "Taser" then
+			notify(player, "Necesitas llevar un taser para recargarlo.", "info")
+			return
+		end
+		if (player:GetAttribute("WeaponUses") or 0) < 0 then
+			notify(player, "Tu taser es infinito: no necesita recarga.", "info")
+			return
+		end
+		productId = Config.DevProducts.TaserRecharge
 	else
 		return
 	end

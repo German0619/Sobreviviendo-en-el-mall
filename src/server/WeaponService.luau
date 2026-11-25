@@ -101,6 +101,11 @@ function WeaponService.Get(player: Player): string?
 	return if type(id) == "string" and W[id] then id else nil
 end
 
+-- Pase Taser infinito: el taser no gasta usos.
+local function hasInfiniteTaser(player: Player): boolean
+	return player:GetAttribute("Pass_InfiniteTaser") == true
+end
+
 -- Se puede comprar? (no si ya la llevas y no hay nada que recargar)
 function WeaponService.CanEquip(player: Player, weaponId: string): (boolean, string?)
 	local def = W[weaponId]
@@ -108,7 +113,7 @@ function WeaponService.CanEquip(player: Player, weaponId: string): (boolean, str
 		return false, "Arma inválida"
 	end
 	if WeaponService.Get(player) == weaponId then
-		if not def.Uses then
+		if not def.Uses or (player:GetAttribute("WeaponUses") or 0) < 0 then
 			return false, "Ya la llevas"
 		end
 		if (player:GetAttribute("WeaponUses") or 0) >= def.Uses then
@@ -129,11 +134,26 @@ function WeaponService.Equip(player: Player, weaponId: string, uses: number?)
 		WeaponService.SetUV(player, false)
 	end
 	player:SetAttribute("Weapon", weaponId)
-	player:SetAttribute("WeaponUses", if def.Uses then (uses or def.Uses) else -1)
+	local infinite = not def.Uses or (weaponId == "Taser" and hasInfiniteTaser(player))
+	player:SetAttribute("WeaponUses", if infinite then -1 else (uses or def.Uses))
 	player:SetAttribute("WeaponReadyAt", 0)
 	if previous and previous ~= weaponId then
 		notify(player, string.format("Dejaste %s; ahora llevas %s en la mochila.", displayName(previous), displayName(weaponId)))
 	end
+end
+
+-- Producto Recarga de taser: +uses al taser que llevas. Sin taser (lo perdio entre la
+-- compra y la entrega), le da uno con esos usos para no perder la compra.
+function WeaponService.AddTaserUses(player: Player, uses: number)
+	if WeaponService.Get(player) == "Taser" then
+		local current = player:GetAttribute("WeaponUses") or 0
+		if current >= 0 then
+			player:SetAttribute("WeaponUses", current + uses)
+		end
+	else
+		WeaponService.Equip(player, "Taser", uses)
+	end
+	notify(player, string.format("Taser recargado: +%d usos.", uses), "good")
 end
 
 function WeaponService.Clear(player: Player)
@@ -149,7 +169,8 @@ end
 local function consume(player: Player, weaponId: string)
 	local def = W[weaponId]
 	player:SetAttribute("WeaponReadyAt", serverNow() + (def.Cooldown or 0))
-	if def.Uses then
+	-- WeaponUses < 0: sin limite (armas sin usos o pase Taser infinito)
+	if def.Uses and (player:GetAttribute("WeaponUses") or 0) >= 0 then
 		local left = (player:GetAttribute("WeaponUses") or 0) - 1
 		player:SetAttribute("WeaponUses", left)
 		if left <= 0 then
@@ -482,6 +503,12 @@ function WeaponService.Start()
 		player:GetAttributeChangedSignal("FlashlightOn"):Connect(function()
 			if player:GetAttribute("FlashlightOn") ~= true and player:GetAttribute("UVOn") == true then
 				WeaponService.SetUV(player, false)
+			end
+		end)
+		-- Pase Taser infinito comprado durante la partida: el taser que lleva pasa a infinito
+		player:GetAttributeChangedSignal("Pass_InfiniteTaser"):Connect(function()
+			if hasInfiniteTaser(player) and WeaponService.Get(player) == "Taser" then
+				player:SetAttribute("WeaponUses", -1)
 			end
 		end)
 	end

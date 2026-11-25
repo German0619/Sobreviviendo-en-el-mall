@@ -102,9 +102,10 @@ local function sectionTitle(parent: Instance, y: number, text: string)
 	})
 end
 
--- Fila ancha: titulo + descripcion a la izquierda, precio y boton a la derecha.
-local function row(parent: Instance, name: string, y: number, height: number, title: string, description: string, titleColor: Color3?)
-	local r = frame(parent, name, UDim2.fromScale(1, height), UDim2.fromScale(0, y), COLORS.Panel)
+-- Fila: titulo + descripcion a la izquierda, precio y boton a la derecha.
+-- x / width (opcionales): para poner dos filas lado a lado (pases).
+local function row(parent: Instance, name: string, y: number, height: number, title: string, description: string, titleColor: Color3?, x: number?, width: number?)
+	local r = frame(parent, name, UDim2.fromScale(width or 1, height), UDim2.fromScale(x or 0, y), COLORS.Panel)
 	corner(r, 0.18)
 	label(r, "Title", UDim2.fromScale(0.6, 0.48), UDim2.fromScale(0.02, 0.06), 20, {
 		Text = title,
@@ -177,12 +178,15 @@ local function build(gui: ScreenGui)
 		Remotes.event("RequestBuyProduct"):FireServer("ClassSlot")
 	end)
 
-	-- Pases
+	-- Pases: en dos columnas (caben 6 en el hueco que queda)
 	sectionTitle(body, 0.545, "PASES  ·  para siempre")
-	local y = 0.595
-	for _, passName in Config.GamePassOrder do
+	local rowsCount = math.ceil(#Config.GamePassOrder / 2)
+	local rowStep = math.min(0.135, 0.4 / math.max(rowsCount, 1))
+	for i, passName in Config.GamePassOrder do
 		local info = Config.GamePassInfo[passName]
-		local price, b = row(body, "Pass_" .. passName, y, 0.125, info.DisplayName, info.Description, COLORS.Gold)
+		local column = (i - 1) % 2
+		local y = 0.595 + math.floor((i - 1) / 2) * rowStep
+		local price, b = row(body, "Pass_" .. passName, y, rowStep - 0.01, info.DisplayName, info.Description, COLORS.Gold, column * 0.505, 0.495)
 		showPrice(price, Config.GamePasses[passName] or 0, true)
 		b.Activated:Connect(function()
 			if player:GetAttribute("Pass_" .. passName) ~= true then
@@ -190,7 +194,6 @@ local function build(gui: ScreenGui)
 			end
 		end)
 		passButtons[passName] = b
-		y += 0.135
 	end
 end
 

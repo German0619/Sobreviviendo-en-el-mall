@@ -274,7 +274,7 @@ Las cuatro ideas se usan, **cada una en su propia tienda**. Todas con paneles na
 | **Mejoras permanentes** | Puesto **MEJORAS** (ya existe) | Ventajas pequeñas que se conservan en todas las partidas | Diamantes | Nada: se puede hacer ya |
 | **Maestría de clase** | Dentro del puesto **CLASES** | Niveles de cada clase, que suben jugándola | Se gana jugando | Nada |
 | **Taquilla del conserje** | Puesto nuevo en la plaza | Consumibles que te esperan al empezar la próxima partida | Diamantes | Objetos del mall (baterías, botiquines, bengalas ya existen) |
-| **Caja de cosméticos** | Puesto nuevo en la plaza | Skins de linterna y de armas, con rarezas | Diamantes | Fase 4 (armas) y Fase 11 (skins) |
+| **Caja de cosméticos** — [HECHO en la Fase 11] | Puestos CAJA y SKINS | Skins de linterna y de armas, con rarezas | Diamantes / Robux | Fase 4 (armas) y Fase 11 (skins) |
 
 1. **Mejoras permanentes** (puesto MEJORAS):
    - Pocos niveles y efecto pequeño por nivel, con topes bajos: es una ventaja que se puede comprar, porque los diamantes se venden con Robux.
@@ -296,9 +296,28 @@ Las cuatro ideas se usan, **cada una en su propia tienda**. Todas con paneles na
 
 **Orden sugerido:** Mejoras permanentes → Maestría de clase → Taquilla del conserje → Caja de cosméticos (con la Fase 11).
 
-**Fase 11: monetización de armas** (al final, como dice el documento).
-- Taser infinito, recarga de taser, skins de armas y caja de cosméticos.
-- Fumigador de entidades: hay que decidir antes si es consumible o pase.
+**Fase 11: monetización de armas** — [HECHO] (probado jugando)
+- Parte 1: **modelos en la mano** (`src/shared/HeldModels.luau`).
+  - 16 modelos (armas, objetos de la mochila y linterna) y las piezas que pintan las skins.
+  - Los demás los ven en tus manos: la herramienta en la derecha y la linterna en la izquierda.
+  - Tú los ves con `src/client/ViewModel.luau`, una copia local delante de la cámara; los reales se esconden solo para ti.
+- Parte 2: **armas con Robux** (IDs en `Config.GamePasses` / `Config.DevProducts`).
+  - **Taser infinito** (pase, 199 R$): el taser no gasta usos.
+  - **Recarga de taser** (producto, 15 R$): +10 usos, con un botón en la tienda del mall.
+  - **Fumigador de entidades** (pase, 350 R$, `FumigatorService`):
+    - 1 uso por noche, rociando al enemigo sin moverte 2, 4 u 8 s según su nivel;
+    - el enemigo no vuelve en toda la noche;
+    - no sirve con jefes ni con la Megafonía.
+- Parte 3: **skins** (`CosmeticsService`, `src/client/CosmeticsPanel.luau`, `Config.Skins`, `Config.Cosmetics`).
+  - 6 skins (Camuflaje, Blanco hielo, Carmesí, Neón, Dorado y Luna) para la linterna y las 5 armas.
+  - Puesto **CAJA** (x=55, z=−60):
+    - 250 💎 o 79 R$ (producto `CosmeticSpin`) por giro;
+    - probabilidades visibles (Común 55 %, Rara 30 %, Épica 12 %, Legendaria 3 %);
+    - repetida = +100 💎;
+    - respeta `PaidRandomRestricted`.
+  - Puesto **SKINS** (centro): compra directa (300, 600, 1200 o 2500 💎) y equipar una skin por objeto.
+  - Datos: `data.Skins`, `data.EquippedSkins`; el mall las lee de `Skin_<objeto>`.
+- Pendiente para el pulido: que las skins también cambien el color de los efectos de las armas (rayo del taser, nube del extintor...).
 
 **Fase 12: interfaz adaptable (PC, teléfono, tablet y consola).**
 Que toda la interfaz use las herramientas nativas de Roblox para adaptarse a cada pantalla y control.

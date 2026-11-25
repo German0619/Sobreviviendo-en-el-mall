@@ -75,7 +75,8 @@ return {
 	-- LOBBY (place del lobby, Workspace.Lobby)
 	-- Cuadro blanco del suelo donde se crea / reune una sala. Atributo: PadId (number)
 	LobbyRoomPad = "LobbyRoomPad",
-	-- Puesto de la plaza. Atributos: Stand ("Classes" | "Upgrades"), ActionText, ObjectText.
+	-- Puesto de la plaza. Atributos: Stand ("Classes" | "Upgrades" | "Cosmetics" (SKINS) |
+	-- "SkinBox" (CAJA)), ActionText, ObjectText.
 	-- Debe tener una parte hija llamada "PromptPart" donde aparece el ProximityPrompt.
 	LobbyStand = "LobbyStand",
 	-- Pantalla de clasificacion. Atributo: Board ("BestNight" | "BossesDefeated").
