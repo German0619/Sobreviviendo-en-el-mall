@@ -56,6 +56,7 @@ local FUNCTIONS = {
 	"RequestClaimVipDaily", -- () -> (ok, mensaje). Bono diario VIP
 	"RequestCosmeticSpin", -- () -> (ok, mensaje, objeto, skin, repetida). Caja de cosmeticos con diamantes
 	"RequestBuySkin", -- (objeto, skin) -> (ok, mensaje). Compra directa con diamantes
+	"RequestBuyPermanent", -- (mejora) -> (ok, mensaje). Siguiente nivel de una mejora permanente (lobby)
 }
 
 local IS_SERVER = RunService:IsServer()

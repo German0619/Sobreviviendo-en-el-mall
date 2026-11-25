@@ -53,9 +53,22 @@ function PlayerStats.Compute(player: Player): ComputedStats
 	local playerEffects = effects[player]
 	local result = {} :: { [string]: number }
 
+	-- Mejoras permanentes (puesto MEJORAS del lobby): 1 + PerLevel * nivel
+	local permanent: { [string]: number } = {}
+	local data = DataService.GetData(player)
+	if data and data.PermanentUpgrades then
+		for upgradeId, level in data.PermanentUpgrades do
+			local upgrade = Config.PermanentUpgrades[upgradeId]
+			if upgrade and upgrade.Stat and level > 0 then
+				permanent[upgrade.Stat] = (permanent[upgrade.Stat] or 1) + upgrade.PerLevel * level
+			end
+		end
+	end
+
 	for statName, stat in Config.Stats do
 		local value = stat.Base + stat.PerLevel * PlayerStats.GetLevel(player, statName)
 		value *= classDef.Modifiers[statName] or 1
+		value *= permanent[statName] or 1
 		if playerEffects then
 			for _, effect in playerEffects do
 				value *= effect.Modifiers[statName] or 1

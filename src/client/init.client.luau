@@ -17,6 +17,7 @@ local LOBBY_MODULES = {
 	ShopPanel = true, -- tienda con Robux (boton TIENDA)
 	AchievementsPanel = true, -- logros y bono diario VIP (boton LOGROS)
 	CosmeticsPanel = true, -- skins: caja, compra y equipar (puesto COSMETICOS)
+	PermanentPanel = true, -- mejoras permanentes (puesto MEJORAS)
 	VipChat = true, -- [VIP] en el chat (tambien en el mall)
 	Movement = true,
 }
@@ -32,6 +33,7 @@ local LOBBY_ONLY = {
 	ShopPanel = true,
 	AchievementsPanel = true,
 	CosmeticsPanel = true,
+	PermanentPanel = true,
 	LobbyUI = true,
 	StoreUI = true,
 }

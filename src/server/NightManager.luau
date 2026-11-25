@@ -37,6 +37,7 @@ local ClassService = require(script.Parent.ClassService)
 local RunState = require(script.Parent.RunState)
 local RoomService = require(script.Parent.RoomService)
 local PassService = require(script.Parent.PassService)
+local PermanentUpgradeService = require(script.Parent.PermanentUpgradeService)
 
 local NightManager = {}
 
@@ -389,6 +390,8 @@ local function runGame()
 		DataService.Update(player, function(d)
 			d.Lifetime.RunsPlayed += 1
 		end)
+		-- Mejoras permanentes: billetes extra y kit de inicio
+		PermanentUpgradeService.GrantRunStart(player)
 	end
 
 	while #Players:GetPlayers() > 0 do

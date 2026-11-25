@@ -750,6 +750,101 @@ function Config.getSkinOdds(): ({ [string]: number }, { [string]: number })
 	return bySkin, byRarity
 end
 
+----------------------------------------------------------------------
+-- Mejoras permanentes (puesto MEJORAS del lobby; PermanentUpgradeService)
+----------------------------------------------------------------------
+-- Se compran con diamantes (o con puntos de mejora, que se gastan primero) y valen en
+-- todas las partidas. Efecto pequeno y pocos niveles: los diamantes se venden con Robux.
+--   Stat: multiplica esa estadistica (Config.Stats) por 1 + PerLevel * nivel
+--         (se suma a la clase: Guardia con Vida 5 = 100 x 1.30 x 1.15).
+--   StartCash: billetes extra al empezar cada partida (PerLevel por nivel).
+--   Kit: objetos gratis al empezar cada partida; el nivel N da los N primeros.
+-- Costs[n] = diamantes del nivel n (el numero de niveles es #Costs).
+Config.PermanentUpgrades = {
+	Health = {
+		DisplayName = "Vida reforzada",
+		Description = "+3% de vida máxima por nivel.",
+		Stat = "Health",
+		PerLevel = 0.03,
+		Costs = { 90, 180, 300, 480, 720 },
+	},
+	Battery = {
+		DisplayName = "Pila de repuesto",
+		Description = "+5% de batería de linterna por nivel.",
+		Stat = "Battery",
+		PerLevel = 0.05,
+		Costs = { 60, 120, 210, 330, 480 },
+	},
+	Stamina = {
+		DisplayName = "Buen aliento",
+		Description = "+4% de estamina por nivel.",
+		Stat = "Stamina",
+		PerLevel = 0.04,
+		Costs = { 60, 120, 210, 330, 480 },
+	},
+	WalkSpeed = {
+		DisplayName = "Paso ligero",
+		Description = "+2% de velocidad al caminar por nivel.",
+		Stat = "WalkSpeed",
+		PerLevel = 0.02,
+		Costs = { 400, 900, 1600 },
+	},
+	StartCash = {
+		DisplayName = "Adelanto de sueldo",
+		Description = "+50 billetes al empezar cada partida por nivel.",
+		StartCash = 50,
+		Costs = { 90, 180, 300, 480 },
+	},
+	StarterKit = {
+		DisplayName = "Kit de inicio",
+		Description = "Objetos gratis al empezar cada partida: batería, luego botiquín, luego bengala.",
+		Kit = { "Battery", "Medkit", "Flare" },
+		Costs = { 120, 240, 420 },
+	},
+} :: { [string]: any }
+
+Config.PermanentUpgradeOrder = { "Health", "Stamina", "Battery", "WalkSpeed", "StartCash", "StarterKit" }
+
+-- Diamantes del siguiente nivel (nil = nivel maximo o mejora invalida).
+function Config.getPermanentCost(upgradeId: string, currentLevel: number): number?
+	local upgrade = Config.PermanentUpgrades[upgradeId]
+	return upgrade and upgrade.Costs[currentLevel + 1]
+end
+
+-- Diamantes gastados en total para llegar a `level` (lo que devuelve el reinicio).
+function Config.getPermanentSpent(upgradeId: string, level: number): number
+	local upgrade = Config.PermanentUpgrades[upgradeId]
+	local total = 0
+	if upgrade then
+		for n = 1, math.min(level, #upgrade.Costs) do
+			total += upgrade.Costs[n]
+		end
+	end
+	return total
+end
+
+-- Texto del efecto con `level` niveles (para el panel): "+9% de vida", "+100 billetes"...
+function Config.getPermanentEffectText(upgradeId: string, level: number): string
+	local upgrade = Config.PermanentUpgrades[upgradeId]
+	if not upgrade or level <= 0 then
+		return "Sin mejora"
+	end
+	if upgrade.Stat then
+		local stat = Config.Stats[upgrade.Stat]
+		return string.format("+%d%% de %s", math.floor(upgrade.PerLevel * level * 100 + 0.5), string.lower(stat.DisplayName))
+	elseif upgrade.StartCash then
+		return string.format("+%d billetes al empezar", upgrade.StartCash * level)
+	elseif upgrade.Kit then
+		local names = {}
+		for n = 1, math.min(level, #upgrade.Kit) do
+			local item = Config.ShopItems[upgrade.Kit[n]]
+			table.insert(names, if item then item.DisplayName else upgrade.Kit[n])
+		end
+		return table.concat(names, " + ")
+	end
+	return ""
+end
+
 -- Orden de los exclusivos del Mercader en la mochila (despues de los de ShopOrder)
 Config.MerchantOrder = {
 	"BigMedkit",
@@ -1791,6 +1886,7 @@ Config.DevProducts = {
 	TaserRecharge = 3735754732, -- (15) +10 usos al taser que llevas (mall). Creado el 2026-11-24
 	TaserRechargeUses = 10,
 	CosmeticSpin = 3735759341, -- (79) un giro de la caja de cosmeticos (lobby). Creado el 2026-11-24
+	PermanentReset = 3735927922, -- (99) creado el 2026-11-24. Reinicia las mejoras permanentes y devuelve lo gastado en puntos (lobby)
 	DiamondPacks = {
 		{ Id = 3735454464, Amount = 100 }, -- (49)
 		{ Id = 3735454548, Amount = 550 }, -- (199)
@@ -1823,6 +1919,8 @@ Config.DefaultData = {
 	VipDailyDay = 0, -- dia (UTC, os.time() // 86400) del ultimo bono diario VIP
 	Skins = {}, -- ["<objeto>:<skin>"] = true: skins que tienes (Config.Cosmetics)
 	EquippedSkins = {}, -- [objeto] = skin equipada
+	PermanentUpgrades = {}, -- [mejora] = nivel (Config.PermanentUpgrades, puesto MEJORAS)
+	UpgradePoints = 0, -- puntos de mejora (del reinicio con Robux); se gastan antes que los diamantes
 	Lifetime = {
 		NightsSurvived = 0,
 		MissionsCompleted = 0,

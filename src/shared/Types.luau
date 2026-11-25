@@ -60,6 +60,8 @@ export type PlayerData = {
 	VipDailyDay: number,
 	Skins: { [string]: boolean },
 	EquippedSkins: { [string]: string },
+	PermanentUpgrades: { [string]: number },
+	UpgradePoints: number,
 	Lifetime: LifetimeStats,
 	SessionLock: SessionLock?,
 }

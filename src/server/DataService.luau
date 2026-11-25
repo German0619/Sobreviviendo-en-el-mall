@@ -105,6 +105,11 @@ local function pushAttributes(player: Player, data: PlayerData)
 		local skin = (data.EquippedSkins or {})[itemId]
 		player:SetAttribute("Skin_" .. itemId, if skin and Config.Skins[skin] then skin else nil)
 	end
+	-- Mejoras permanentes: nivel de cada una (Perm_<id>) y puntos de mejora
+	for upgradeId in Config.PermanentUpgrades do
+		player:SetAttribute("Perm_" .. upgradeId, (data.PermanentUpgrades or {})[upgradeId] or 0)
+	end
+	player:SetAttribute("UpgradePoints", data.UpgradePoints or 0)
 end
 
 local function sanitize(data: PlayerData)
@@ -150,6 +155,17 @@ local function sanitize(data: PlayerData)
 	if not data.ClassSlots[data.EquippedSlot] then
 		data.EquippedSlot = 1
 	end
+
+	-- Mejoras permanentes: solo las que existen y sin pasar su nivel maximo
+	local permanent = {}
+	for upgradeId, level in data.PermanentUpgrades do
+		local upgrade = Config.PermanentUpgrades[upgradeId]
+		if upgrade and type(level) == "number" and level > 0 then
+			permanent[upgradeId] = math.min(math.floor(level), #upgrade.Costs)
+		end
+	end
+	data.PermanentUpgrades = permanent
+	data.UpgradePoints = math.max(0, math.floor(data.UpgradePoints))
 end
 
 -- Devuelve (ok, data). ok=false significa error real de DataStore.

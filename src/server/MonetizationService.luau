@@ -92,6 +92,15 @@ local function buildHandlers()
 		return CosmeticsService.RobuxSpin(player)
 	end)
 
+	-- Reinicio de mejoras permanentes (lobby): devuelve lo gastado en puntos de mejora
+	register(Config.DevProducts.PermanentReset, function(player)
+		if not Place.IsLobby then
+			return false -- se entregara cuando este en el lobby
+		end
+		local PermanentUpgradeService = require(script.Parent.PermanentUpgradeService) :: any
+		return PermanentUpgradeService.Reset(player)
+	end)
+
 	-- Tiro afortunado: solo se entrega en el lobby (si no, Roblox lo reintenta luego)
 	register(Config.DevProducts.LuckySpin, function(player)
 		return ClassService.LuckySpin(player)
@@ -184,6 +193,14 @@ local function promptProduct(player: Player, kind: any, index: any)
 			return
 		end
 		productId = Config.DevProducts.CosmeticSpin
+	elseif kind == "PermanentReset" then
+		-- Solo si hay algo que reiniciar
+		local PermanentUpgradeService = require(script.Parent.PermanentUpgradeService) :: any
+		if not Place.IsLobby or PermanentUpgradeService.GetSpent(player) <= 0 then
+			notify(player, "No tienes mejoras permanentes que reiniciar.", "info")
+			return
+		end
+		productId = Config.DevProducts.PermanentReset
 	elseif kind == "TaserRecharge" then
 		-- Solo si llevas un taser que se gasta (con el pase Taser infinito no hace falta)
 		if player:GetAttribute("Weapon") ~= "Taser" then

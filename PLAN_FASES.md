@@ -258,7 +258,7 @@
 **Fase 10: lobby completo.**
 - [HECHO] Cuadros de sala físicos (`PadService` + `PadUI`): se entra solo subiéndose, no se sale caminando (solo saltando) y salir del cuadro es salir de la sala.
 - [HECHO] Inicio automático a los 40 s (o al llenarse, o con INICIAR PARTIDA del anfitrión).
-- [HECHO] Puesto de CLASES (panel nativo `ClassPanel`). El puesto de MEJORAS sigue en "Próximamente": ver *Tiendas del lobby* abajo.
+- [HECHO] Puesto de CLASES (panel nativo `ClassPanel`). El puesto de MEJORAS abre las mejoras permanentes (`PermanentPanel`): ver *Tiendas del lobby* abajo.
 - [HECHO] Tablas de clasificación (noche récord y jefes vencidos) con OrderedDataStore (`LeaderboardService`).
 - [HECHO] Panel de logros con "!" (`AchievementService` + `AchievementsPanel`): 12 logros que se reclaman.
 - [HECHO] Giro automático hasta una clase.
@@ -281,6 +281,14 @@ Las cuatro ideas se usan, **cada una en su propia tienda**. Todas con paneles na
    - Ejemplos: +3% de vida por nivel (hasta 5), +5% de batería por nivel, billetes extra al empezar cada partida, un botiquín gratis al empezar.
    - Datos: `data.PermanentUpgrades[id] = nivel`. El mall los aplica en `PlayerStats.Compute` (multiplicadores) y al iniciar la partida (billetes y objetos iniciales).
    - Antes de programarla, proponer una tabla de mejoras con niveles y costos para ajustarla.
+   - [HECHO] (`PermanentUpgradeService`, `src/client/PermanentPanel.luau`, `Config.PermanentUpgrades`). Tabla elegida (2026-11-24, la versión ~40% más barata, unos 8900 💎 en total):
+     - Vida reforzada: +3% de vida por nivel, 5 niveles (90 · 180 · 300 · 480 · 720).
+     - Buen aliento: +4% de estamina por nivel, 5 niveles (60 · 120 · 210 · 330 · 480).
+     - Pila de repuesto: +5% de batería por nivel, 5 niveles (60 · 120 · 210 · 330 · 480).
+     - Paso ligero: +2% de velocidad por nivel, 3 niveles (400 · 900 · 1600).
+     - Adelanto de sueldo: +50 billetes al empezar cada partida por nivel, 4 niveles (90 · 180 · 300 · 480).
+     - Kit de inicio: batería, luego + botiquín, luego + bengala al empezar cada partida, 3 niveles (120 · 240 · 420).
+   - **Reinicio con Robux** (producto `PermanentReset`, 99 R$): quita los niveles y devuelve el 100% de lo gastado como **puntos de mejora** (`data.UpgradePoints`), que solo sirven para volver a comprar mejoras y se gastan antes que los diamantes.
 2. **Maestría de clase** (puesto CLASES):
    - Cada clase sube de nivel al jugar con ella y mejora un poco su bonificación (p. ej. Corredor nivel 3: +15% de velocidad en vez de +10%).
    - La maestría se guarda **por clase** (`data.ClassMastery[clase]`), así no se pierde aunque la ruleta reemplace la clase del slot.

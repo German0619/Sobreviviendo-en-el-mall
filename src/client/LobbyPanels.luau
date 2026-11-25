@@ -4,7 +4,7 @@
 --   "Shop"         boton TIENDA          (Fase 4)
 --   "Achievements" boton LOGROS          (AchievementsPanel)
 --   "Classes"      puesto CLASES         (ClassPanel)
---   "Upgrades"     puesto MEJORAS        (por decidir)
+--   "Upgrades"     puesto MEJORAS        (PermanentPanel)
 -- Mientras un panel no exista se muestra un aviso nativo de "Proximamente".
 
 local StarterGui = game:GetService("StarterGui")
