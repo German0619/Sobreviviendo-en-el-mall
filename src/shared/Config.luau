@@ -24,7 +24,9 @@ Config.Debug = {
 	MissionGoalOverride = nil :: number?, -- ej. 2: tareas necesarias para pasar la noche (para probar)
 	OnlyEvents = nil :: { string }?, -- ej. { "Fog" }: solo salen esos eventos (para probarlos)
 	EventDelayOverride = nil :: number?, -- ej. 10: segundos hasta el primer evento y entre eventos
-	ForceBoss = nil :: string?, -- ej. "Manager": TODAS las noches son de ese jefe (para probarlo)
+	-- ej. "Manager" o { "Luni", "Manager" }: TODAS las noches son de ese jefe o pareja (para
+	-- probarlo). Para ver el refuerzo de las vueltas, mejor StartNight = 25, 45...
+	ForceBoss = nil :: (string | { string })?,
 	PreparationSecondsOverride = nil :: number?,
 	-- SOLO en Studio:
 	StudioStartCash = 0, -- billetes al empezar cada partida (ej. 5000 para probar la tienda)
@@ -1772,6 +1774,23 @@ Config.Bosses = {
 	Every = 5,
 	-- De mas facil a mas dificil: Luni (noche 5), Gerente (10), Coleccionista (15), Central (20)
 	Order = { "Luni", "Manager", "Collector", "Central" },
+	-- Despues del ultimo jefe (noche Every x #Order = 20), cada Every noches salen DOS jefes
+	-- a la vez, en este orden (25 Luni + Gerente, 30 Gerente + Coleccionista...), y se
+	-- repiten. Cada vuelta por las parejas (25-40 = vuelta 1, 45-60 = vuelta 2...) los
+	-- refuerza (Scaling): sus cuerpos van mas rapido y tienen mas objetivos (ExtraField de
+	-- cada jefe). Hay que vencer a los dos; cada uno da su premio y cuenta para su logro.
+	Pairs = {
+		{ "Luni", "Manager" },
+		{ "Manager", "Collector" },
+		{ "Collector", "Central" },
+		{ "Central", "Luni" },
+	},
+	Scaling = {
+		SpeedPerRound = 0.15, -- +15% de velocidad por vuelta...
+		MaxSpeed = 0.6, -- ...hasta +60%
+		ExtraPerRound = 1, -- +1 objetivo por vuelta...
+		MaxExtra = 3, -- ...hasta +3
+	},
 	GoalMultiplier = 0.5,
 	-- Diamantes al vencer a un jefe que ya habias vencido antes: esta fraccion de los
 	-- diamantes de su logro (la primera vez se cobran reclamando el logro en el lobby).
@@ -1784,9 +1803,12 @@ Config.Bosses = {
 	MusicSoundId = "",
 	Manager = {
 		DisplayName = "El Gerente",
-		Objective = "Destruyan sus 3 radios repartidas por el mall.",
+		Objective = "Destruyan sus {n} radios repartidas por el mall.", -- {n} = Radios (con el refuerzo)
 		Reward = 500,
 		Radios = 3,
+		ExtraField = "Radios", -- (refuerzo desde la noche 25: +1 radio por vuelta)
+		-- Mas rapido tambien en sus ordenes: estos tiempos se dividen por el refuerzo
+		FasterFields = { "CallSeconds", "ShutterSeconds" },
 		RadioHoldSeconds = 4,
 		RadioMinDistance = 30, -- las radios aparecen a esta distancia de los jugadores (o mas)
 		CallSeconds = 30, -- cada 30 s pide refuerzos (tantos como radios le quedan)
@@ -1802,16 +1824,22 @@ Config.Bosses = {
 	Luni = {
 		DisplayName = "Luni, la mascota",
 		Objective = "Atráiganla al cuarto del generador y activen el apagón de sector con ella dentro.",
+		-- Con varios apagones (desde la noche 25)
+		ObjectiveMany = "Atráiganla a un generador y activen el apagón de sector con ella dentro, {n} veces (cada vez en otro generador).",
 		Reward = 400,
 		RoomRadius = 22, -- Luni tiene que estar a esta distancia del panel del generador
 		HoldSeconds = 3, -- mantener E en el panel (con Luni dentro), jugando en equipo
 		SoloHoldSeconds = 0.5, -- jugando solo (si no, es imposible: te alcanza mientras aprietas)
+		Blackouts = 1, -- apagones que hacen falta (desde la noche 25, +1 por vuelta)
+		ExtraField = "Blackouts",
+		RecoverSeconds = 10, -- tras un apagon que no la vence, se levanta a los 10 s
 	},
 	Collector = {
 		DisplayName = "El Coleccionista",
-		Objective = "Devuelvan 3 objetos perdidos a sus tiendas. Revivan a los caídos antes de que se conviertan en maniquíes.",
+		Objective = "Devuelvan {n} objetos perdidos a sus tiendas. Revivan a los caídos antes de que se conviertan en maniquíes.",
 		Reward = 600,
 		Offerings = 3,
+		ExtraField = "Offerings", -- (refuerzo desde la noche 25: +1 objeto por vuelta)
 		OfferingMinDistance = 30, -- los objetos aparecen a esta distancia de los jugadores (o mas)
 		PickupHold = 0.5,
 		DeliverHold = 2,
@@ -1820,9 +1848,12 @@ Config.Bosses = {
 	},
 	Central = {
 		DisplayName = "La Central",
-		Objective = "Reinicien sus 3 servidores (en plantas distintas) casi a la vez: tendrán que separarse.",
+		Objective = "Reinicien sus {n} servidores (en plantas distintas) casi a la vez: tendrán que separarse.",
 		Reward = 800,
 		Servers = 3,
+		ExtraField = "Servers", -- (refuerzo desde la noche 25: +1 servidor por vuelta)
+		-- No tiene cuerpo: su refuerzo de velocidad es actuar mas a menudo
+		FasterFields = { "ActionSeconds" },
 		RestartHold = 5, -- mantener E en cada servidor
 		SyncSeconds = 30, -- tras reiniciar el primero, tiempo para reiniciar los demas (en equipo)
 		SoloSyncSeconds = 120, -- jugando solo

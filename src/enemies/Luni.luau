@@ -111,7 +111,11 @@ end
 
 function Luni:SpeedMultiplier(): number
 	local slow = if os.clock() < self.SlowUntil then self.Def.SlowMultiplier else 1
-	return slow * self.Ctx.Difficulty.SpeedMultiplier * (1 + Config.Threat.SpeedPerFailedMission * self.Ctx.GetTotalThreat())
+	-- BossSpeed: refuerzo del jefe desde la noche 25 (lo pone su modulo de jefe)
+	return slow
+		* (self.BossSpeed or 1)
+		* self.Ctx.Difficulty.SpeedMultiplier
+		* (1 + Config.Threat.SpeedPerFailedMission * self.Ctx.GetTotalThreat())
 end
 
 -- El jugador del grupo mas numeroso (si hay empate, el mas cercano).
@@ -231,8 +235,10 @@ function Luni:PowerDown()
 	if self.Steps then
 		self.Steps:Stop()
 	end
+	self.Eyes = {} -- (para PowerUp)
 	for _, d in self.Model:GetDescendants() do
 		if d:IsA("BasePart") and d.Name == "Pupil" then
+			table.insert(self.Eyes, { Part = d, Color = d.Color, Material = d.Material })
 			d.Color = Color3.fromRGB(20, 20, 20)
 			d.Material = Enum.Material.SmoothPlastic
 		elseif d:IsA("PointLight") then
@@ -240,6 +246,7 @@ function Luni:PowerDown()
 		end
 	end
 	local pivot = self.Model:GetPivot()
+	self.StandPivot = pivot
 	local fall = pivot * CFrame.new(0, -1.2, 0) * CFrame.Angles(math.rad(-25), 0, 0)
 	task.spawn(function()
 		for i = 1, 20 do
@@ -250,6 +257,29 @@ function Luni:PowerDown()
 			task.wait(0.03)
 		end
 	end)
+end
+
+-- Recupera la energia tras un apagon (desde la noche 25 hay que apagarla varias veces).
+function Luni:PowerUp()
+	if self.Powered or not self.Model.Parent then
+		return
+	end
+	for _, eye in self.Eyes or {} do
+		eye.Part.Color = eye.Color
+		eye.Part.Material = eye.Material
+	end
+	for _, d in self.Model:GetDescendants() do
+		if d:IsA("PointLight") then
+			d.Enabled = true
+		end
+	end
+	if self.StandPivot then
+		self.Model:PivotTo(self.StandPivot)
+	end
+	self.Powered = true
+	if self.Steps then
+		self.Steps:Play()
+	end
 end
 
 function Luni:GetPosition(): Vector3

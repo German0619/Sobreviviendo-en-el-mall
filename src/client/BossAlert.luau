@@ -50,24 +50,28 @@ local function build()
 	frame = Instance.new("Frame")
 	frame.AnchorPoint = Vector2.new(0.5, 0.5)
 	frame.Position = UDim2.fromScale(0.5, 0.35)
-	frame.Size = UDim2.fromOffset(640, 130)
+	frame.Size = UDim2.fromOffset(760, 200)
 	frame.BackgroundTransparency = 1
 	frame.Visible = false
 	frame.Parent = gui
+	-- Titulo: se encoge si es largo (dos jefes: "LUNI, LA MASCOTA Y EL GERENTE (VUELTA 1)")
 	title = UIKit.text({
 		Size = UDim2.new(1, 0, 0, 70),
-		TextSize = 54,
+		TextScaled = true,
 		Font = Enum.Font.GothamBlack,
 		TextColor3 = RED,
 		TextStrokeTransparency = 0.2,
 		Text = "",
 		Parent = frame,
 	})
+	UIKit.make("UITextSizeConstraint", { MaxTextSize = 54, MinTextSize = 20, Parent = title })
+	-- Objetivo: con dos jefes, una linea (o dos) por jefe
 	subtitle = UIKit.text({
 		Position = UDim2.fromOffset(0, 74),
-		Size = UDim2.new(1, 0, 0, 50),
+		Size = UDim2.new(1, 0, 0, 120),
 		TextSize = 20,
 		TextWrapped = true,
+		TextYAlignment = Enum.TextYAlignment.Top,
 		TextStrokeTransparency = 0.4,
 		Text = "",
 		Parent = frame,

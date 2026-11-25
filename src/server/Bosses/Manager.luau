@@ -100,6 +100,7 @@ return {
 			ctx.Defeat()
 			return nil
 		end
+		enemy.BossSpeed = ctx.SpeedBoost -- (desde la noche 25)
 
 		-- Radios repartidas: alternando plantas y en zonas distintas
 		local radios = {} -- [radio] = mission

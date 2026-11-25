@@ -140,6 +140,7 @@ end
 
 local eventLabel
 local top: Frame
+local TOAST_TOP = 112 -- donde empiezan los avisos (si no hay evento ni jefe)
 local missionsFrame: Frame
 local gui, clockLabel, nightLabel, phaseLabel, moneyLabel, zoneLabel, itemsLabel, sodaLabel, classLabel, barsFrame
 local diamondsLabel, deadSubtitle, reviveButton, missionsTitle
@@ -314,7 +315,7 @@ local function build()
 	-- Avisos
 	toastList = make("Frame", {
 		AnchorPoint = Vector2.new(0.5, 0),
-		Position = UDim2.new(0.5, 0, 0, 112),
+		Position = UDim2.new(0.5, 0, 0, TOAST_TOP), -- (baja si hay evento o jefe: ver update)
 		Size = UDim2.fromOffset(520, 220),
 		BackgroundTransparency = 1,
 		Parent = gui,
@@ -655,7 +656,12 @@ local function update()
 			eventLabel.TextColor3 = COLORS.Good
 		else
 			local progress = state:GetAttribute("BossProgress")
-			eventLabel.Text = "☠ " .. string.upper(bossName) .. (if type(progress) == "string" and progress ~= "" then "  ·  " .. progress else "")
+			local text = "☠ " .. string.upper(bossName)
+			if type(progress) == "string" and progress ~= "" then
+				-- Dos jefes: el progreso de cada uno en su linea, debajo del nombre
+				text ..= if string.find(progress, "\n") then "\n" .. progress else "  ·  " .. progress
+			end
+			eventLabel.Text = text
 			eventLabel.TextColor3 = COLORS.Bad
 		end
 		eventLabel.Visible = true
@@ -675,6 +681,11 @@ local function update()
 	else
 		eventLabel.Visible = false
 	end
+	-- Alto segun las lineas, y los avisos debajo para no taparse
+	local lines = if eventLabel.Visible then #string.split(eventLabel.Text, "\n") else 0
+	eventLabel.Size = UDim2.new(1, 0, 0, 22 * math.max(lines, 1))
+	local eventBottom = top.Position.Y.Offset + eventLabel.Position.Y.Offset + 22 * lines
+	toastList.Position = UDim2.new(0.5, 0, 0, if lines > 0 then math.max(TOAST_TOP, eventBottom + 6) else TOAST_TOP)
 
 	local classDef = Config.Classes[player:GetAttribute("EquippedClass") or ""]
 	if classDef and not player:GetAttribute("SpinAnimating") then

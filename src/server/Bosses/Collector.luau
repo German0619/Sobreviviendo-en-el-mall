@@ -103,6 +103,7 @@ return {
 			ctx.Defeat()
 			return nil
 		end
+		collector.BossSpeed = ctx.SpeedBoost -- (desde la noche 25)
 
 		local converted = {} -- enemigos "Converted"
 		local convertedCount = 0

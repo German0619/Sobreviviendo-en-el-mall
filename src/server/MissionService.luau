@@ -304,11 +304,17 @@ end
 
 -- Un punto libre de un tipo de mision (para las misiones de evento: generadores,
 -- monitores, paneles de alarma). floor: solo de esa planta, si la hay. near: el mas
--- cercano a ese punto (si no, uno al azar).
-function MissionService.GetFreeSpot(missionType: string, floor: number?, near: Vector3?): BasePart?
+-- cercano a ese punto (si no, uno al azar). exclude: puntos que no valen (p. ej. el
+-- generador del apagon anterior de Luni).
+function MissionService.GetFreeSpot(missionType: string, floor: number?, near: Vector3?, exclude: { [Instance]: boolean }?): BasePart?
 	local list = {}
 	for _, inst in CollectionService:GetTagged(Tags.MissionSpot) do
-		if inst:IsA("BasePart") and inst:GetAttribute("MissionType") == missionType and not spotBusy[inst] then
+		if
+			inst:IsA("BasePart")
+			and inst:GetAttribute("MissionType") == missionType
+			and not spotBusy[inst]
+			and not (exclude and exclude[inst])
+		then
 			if not floor or Config.getFloor(inst.Position.Y) == floor then
 				table.insert(list, inst)
 			end

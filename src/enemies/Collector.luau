@@ -99,7 +99,9 @@ function Collector:SetConverted(count: number)
 end
 
 function Collector:SpeedMultiplier(): number
+	-- BossSpeed: refuerzo del jefe desde la noche 25 (lo pone su modulo de jefe)
 	return (1 + self.Def.SpeedPerConverted * self.Converted)
+		* (self.BossSpeed or 1)
 		* self.Ctx.Difficulty.SpeedMultiplier
 		* (1 + Config.Threat.SpeedPerFailedMission * self.Ctx.GetTotalThreat())
 end

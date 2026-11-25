@@ -6,6 +6,9 @@
 --   grupo al empezar): hay que atraerla hasta alli y activar el "apagon de sector" (mision
 --   de evento, mantener E) MIENTRAS ella esta dentro (a RoomRadius del panel).
 -- * El progreso dice a que distancia esta Luni del cuarto.
+-- * Desde la noche 25 hay que apagarla def.Blackouts veces (BossService la refuerza):
+--   tras cada apagon se queda quieta RecoverSeconds, se levanta y el siguiente apagon
+--   es en OTRO generador.
 
 local ReplicatedStorage = game:GetService("ReplicatedStorage")
 local Players = game:GetService("Players")
@@ -45,10 +48,16 @@ return {
 			ctx.Defeat()
 			return nil
 		end
+		enemy.BossSpeed = ctx.SpeedBoost -- (desde la noche 25)
 
 		local mission = nil
 		local panel: BasePart? = nil
 		local zone = "?"
+		local blackouts = math.max(1, def.Blackouts or 1) -- apagones que hacen falta
+		local done = 0
+		local usedPanels: { [Instance]: boolean } = {}
+		local recovering = false
+		local pickPanel: () -> boolean
 
 		local function luniDistance(): number
 			if not panel or not enemy.Model or not enemy.Model.Parent then
@@ -98,10 +107,40 @@ return {
 				OnComplete = function(player: Player)
 					enemy:PowerDown()
 					LightService.Flicker(zone, 2.5)
-					notifyAll(string.format("¡%s activó el apagón de sector! Luni se queda sin energía.", player.DisplayName), "good")
-					ctx.Defeat()
-					task.delay(6, function()
-						EnemyService.RemoveEnemy(enemy)
+					done += 1
+					mission = nil
+					if done >= blackouts then
+						notifyAll(string.format("¡%s activó el apagón de sector! Luni se queda sin energía.", player.DisplayName), "good")
+						ctx.Defeat()
+						task.delay(6, function()
+							EnemyService.RemoveEnemy(enemy)
+						end)
+						return
+					end
+					-- Aun le queda energia: se recupera y hay que llevarla a otro generador
+					notifyAll(
+						string.format(
+							"¡%s dejó a Luni sin energía! Se recuperará en %d s: llévenla a otro generador (%d/%d).",
+							player.DisplayName,
+							def.RecoverSeconds,
+							done,
+							blackouts
+						),
+						"good"
+					)
+					if panel then
+						usedPanels[panel] = true
+					end
+					panel = nil
+					recovering = true
+					task.delay(def.RecoverSeconds, function()
+						if ctx.Ended or ctx.Defeated then
+							return
+						end
+						recovering = false
+						enemy:PowerUp()
+						notifyAll("¡Luni vuelve a tener energía!", "bad")
+						pickPanel()
 					end)
 				end,
 				OnExpire = function()
@@ -112,9 +151,11 @@ return {
 			})
 		end
 
-		-- Generador: el mas cercano al grupo (si estan todos ocupados, se reintenta)
-		local function pickPanel(): boolean
-			panel = MissionService.GetFreeSpot("RestartGenerator", nil, playersCenter())
+		-- Generador: el mas cercano al grupo, y no uno ya usado (si estan todos ocupados,
+		-- se reintenta; si ya se usaron todos, vale cualquiera)
+		function pickPanel(): boolean
+			panel = MissionService.GetFreeSpot("RestartGenerator", nil, playersCenter(), usedPanels)
+				or MissionService.GetFreeSpot("RestartGenerator", nil, playersCenter())
 			if not panel then
 				return false
 			end
@@ -130,16 +171,20 @@ return {
 		-- Progreso: a que distancia esta Luni del cuarto
 		task.spawn(function()
 			while not ctx.Ended and not ctx.Defeated do
-				if not panel then
+				-- (con varios apagones, cuantos van)
+				local count = if blackouts > 1 then string.format(" · apagones %d/%d", done, blackouts) else ""
+				if recovering then
+					ctx.SetProgress("Luni se está recuperando..." .. count)
+				elseif not panel then
 					pickPanel()
 				else
 					local d = luniDistance()
 					if d <= def.RoomRadius then
-						ctx.SetProgress("¡Luni está en el cuarto! Activen el apagón")
+						ctx.SetProgress("¡Luni está en el cuarto! Activen el apagón" .. count)
 					elseif d == math.huge then
-						ctx.SetProgress("Luni está en otra planta que el generador (" .. zone .. ")")
+						ctx.SetProgress("Luni está en otra planta que el generador (" .. zone .. ")" .. count)
 					else
-						ctx.SetProgress(string.format("Luni a %d studs del generador (%s)", math.floor(d), zone))
+						ctx.SetProgress(string.format("Luni a %d studs del generador (%s)", math.floor(d), zone) .. count)
 					end
 				end
 				task.wait(1)

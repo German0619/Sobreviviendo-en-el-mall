@@ -253,7 +253,10 @@
   - **La Central** (noche 20, 800 billetes, 500 diamantes):
     - IA sin cuerpo: las cámaras la avisan y atraen enemigos; apaga luces, cierra persianas y anuncia tareas falsas;
     - se vence reiniciando 3 servidores en plantas distintas antes de que acabe la cuenta atrás (30 s en equipo, 120 s solo).
-- Pendiente (noche 25 en adelante): el documento dice que los jefes se repiten "con más vida y velocidad y mecánicas combinadas" (p. ej. Luni junto al Gerente). Ahora se repiten igual.
+- [PROGRAMADO, falta probar] Noche 25 en adelante: el documento dice que los jefes se repiten "con más vida y velocidad y mecánicas combinadas" (p. ej. Luni junto al Gerente). Decidido el 2026-11-24:
+  - **Parejas** (`Config.Bosses.Pairs`): 25 Luni + Gerente, 30 Gerente + Coleccionista, 35 Coleccionista + Central, 40 Central + Luni, y se repiten. Hay que vencer a los dos; cada uno da su premio y cuenta para su logro.
+  - **Refuerzo por vuelta** (`Config.Bosses.Scaling`; vuelta 1 = noches 25–40, vuelta 2 = 45–60…): +15 % de velocidad (tope +60 %) y +1 objetivo (tope +3). El objetivo es `ExtraField`: radios del Gerente, objetos del Coleccionista, servidores de la Central y apagones de Luni (tras cada apagón se recupera a los 10 s y el siguiente es en otro generador). Las órdenes del Gerente y las acciones de la Central también son más frecuentes (`FasterFields`).
+  - Los objetivos dicen el número reforzado (`{n}` en `Objective`; Luni usa `ObjectiveMany`). En el HUD, con dos jefes, el progreso de cada uno va en su línea y los avisos bajan para no taparlo; el cartel de alerta muestra los dos objetivos.
 
 **Fase 10: lobby completo.**
 - [HECHO] Cuadros de sala físicos (`PadService` + `PadUI`): se entra solo subiéndose, no se sale caminando (solo saltando) y salir del cuadro es salir de la sala.

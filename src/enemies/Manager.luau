@@ -89,7 +89,10 @@ function Manager.new(spawnPosition: Vector3, ctx)
 end
 
 function Manager:SpeedMultiplier(): number
-	return self.Ctx.Difficulty.SpeedMultiplier * (1 + Config.Threat.SpeedPerFailedMission * self.Ctx.GetTotalThreat())
+	-- BossSpeed: refuerzo del jefe desde la noche 25 (lo pone su modulo de jefe)
+	return (self.BossSpeed or 1)
+		* self.Ctx.Difficulty.SpeedMultiplier
+		* (1 + Config.Threat.SpeedPerFailedMission * self.Ctx.GetTotalThreat())
 end
 
 -- Habla por el walkie (lo usa su modulo de jefe): el led parpadea.

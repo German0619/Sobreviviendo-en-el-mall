@@ -255,18 +255,21 @@ local function runNight(night: number): boolean -- devuelve true si todos murier
 	end
 	setPhase("Night")
 	-- Noche de jefe: mitad de enemigos y de tareas, sin eventos al azar (el jefe es el evento)
-	local bossId = BossService.GetBossFor(night)
-	EnemyService.StartNight(night, if bossId then { BudgetMultiplier = Config.SpawnDirector.BossBudgetMultiplier } else nil)
-	MissionService.StartNight(night, teamSize, if bossId then Config.Bosses.GoalMultiplier else nil)
-	if bossId then
-		BossService.StartNight(night, bossId)
+	-- (desde la noche 25, dos jefes a la vez: BossService)
+	local bossIds = BossService.GetBossesFor(night)
+	local isBossNight = #bossIds > 0
+	EnemyService.StartNight(night, if isBossNight then { BudgetMultiplier = Config.SpawnDirector.BossBudgetMultiplier } else nil)
+	MissionService.StartNight(night, teamSize, if isBossNight then Config.Bosses.GoalMultiplier else nil)
+	if isBossNight then
+		BossService.StartNight(night, bossIds)
 	else
 		EventDirector.StartNight(night)
 	end
 	local _, goal = MissionService.GetProgress()
-	if bossId then
-		local boss = Config.Bosses[bossId]
-		notifyAll(string.format("¡Noche %d: JEFE! %s. %s Y completen %d tareas.", night, boss.DisplayName, boss.Objective, goal), "bad")
+	if isBossNight then
+		local name, objective = BossService.Describe(bossIds, night)
+		local title = if #bossIds > 1 then "¡DOS JEFES!" else "¡JEFE!"
+		notifyAll(string.format("¡Noche %d: %s %s. %s Y completen %d tareas.", night, title, name, string.gsub(objective, "\n", " "), goal), "bad")
 	else
 		notifyAll(string.format("Noche %d: completen %d tareas en equipo para llegar a las 6 AM.", night, goal), "bad")
 	end
@@ -286,7 +289,7 @@ local function runNight(night: number): boolean -- devuelve true si todos murier
 		local hour = Config.Night.StartHour
 			+ (Config.Night.EndHour - Config.Night.StartHour) * math.min(done / math.max(total, 1), 1)
 		-- Con el jefe aun en pie, el reloj se queda en 5:59
-		local bossAlive = bossId ~= nil and not BossService.IsDefeated()
+		local bossAlive = isBossNight and not BossService.IsDefeated()
 		if bossAlive then
 			hour = math.min(hour, Config.Night.EndHour - 1 / 60)
 		end
