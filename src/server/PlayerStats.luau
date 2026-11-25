@@ -35,9 +35,12 @@ local publishedFlags: { [Player]: { [string]: boolean } } = {}
 local publishedPerks: { [Player]: { [string]: boolean } } = {}
 local effectCounter = 0
 
-local function getClassDef(player: Player): Types.ClassDef
+-- Modificadores y habilidades de la clase equipada, con su maestria (Config.ClassMastery).
+local function getClassDef(player: Player): { Modifiers: { [string]: number }, Perks: { [string]: any } }
 	local className = DataService.GetEquippedClass(player)
-	return Config.Classes[className] or Config.Classes[Config.DefaultClass]
+	local data = DataService.GetData(player)
+	local nights = if data and data.ClassMastery then data.ClassMastery[className] or 0 else 0
+	return Config.getMasteredClass(className, (Config.getMasteryLevel(nights)))
 end
 
 ----------------------------------------------------------------------

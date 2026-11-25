@@ -62,6 +62,7 @@ export type PlayerData = {
 	EquippedSkins: { [string]: string },
 	PermanentUpgrades: { [string]: number },
 	UpgradePoints: number,
+	ClassMastery: { [string]: number },
 	Lifetime: LifetimeStats,
 	SessionLock: SessionLock?,
 }

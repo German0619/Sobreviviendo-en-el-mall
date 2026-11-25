@@ -5,7 +5,8 @@
 --   Centro     la ruleta: GIRAR (diamantes), "Girar hasta: <clase>" (giros
 --              automaticos hasta que salga la clase elegida) y el tiro
 --              afortunado (Robux, garantiza Epica o superior; con sus %).
---   Derecha    detalle de la clase seleccionada y sus bonificaciones.
+--   Derecha    detalle de la clase seleccionada: su maestria (nivel y noches,
+--              Config.ClassMastery) y sus bonificaciones con tu nivel de maestria.
 --
 -- La clase que sale REEMPLAZA a la del slot equipado (si es Epica o superior
 -- se pide confirmar). El servidor (ClassService) valida y sortea; aqui solo se
@@ -131,8 +132,18 @@ local PERK_TEXT = {
 	end,
 }
 
+-- Noches con la clase y nivel de maestria (Config.ClassMastery)
+local function masteryOf(className: string): (number, number, number?)
+	local nights = player:GetAttribute("Mastery_" .. className)
+	nights = if type(nights) == "number" then nights else 0
+	local level, nextNights = Config.getMasteryLevel(nights)
+	return nights, level, nextNights
+end
+
+-- Bonificaciones de la clase con TU nivel de maestria.
 local function bonusesOf(className: string): { string }
-	local def = classDef(className)
+	local _, level = masteryOf(className)
+	local def = Config.getMasteredClass(className, level)
 	local list = {}
 	for _, pair in MODIFIER_NAMES do
 		local mult = def.Modifiers[pair[1]]
@@ -208,6 +219,7 @@ local luckyOdds: TextLabel
 local statusLabel: TextLabel
 local detail: { [string]: TextLabel } = {}
 local bonusGrid: Frame
+local masteryFill: Frame
 
 local selectedClass = Config.DefaultClass
 local animating = false
@@ -284,6 +296,17 @@ local function refreshDetail()
 	end
 	detail.Odds.Text = odds
 	detail.Description.Text = def.Description
+	-- Maestria
+	local nights, level, nextNights = masteryOf(selectedClass)
+	local maxLevel = #Config.ClassMastery.Nights
+	local previousNights = if level > 0 then Config.ClassMastery.Nights[level] else 0
+	if nextNights then
+		detail.Mastery.Text = string.format("MAESTRÍA %d/%d  ·  %d/%d noches", level, maxLevel, nights, nextNights)
+		masteryFill.Size = UDim2.fromScale(math.clamp((nights - previousNights) / (nextNights - previousNights), 0, 1), 1)
+	else
+		detail.Mastery.Text = string.format("MAESTRÍA %d/%d  ·  ¡máxima!", level, maxLevel)
+		masteryFill.Size = UDim2.fromScale(1, 1)
+	end
 	-- Bonificaciones: una columna (hasta 5) o dos columnas (mas de 5)
 	for _, child in bonusGrid:GetChildren() do
 		child:Destroy()
@@ -656,15 +679,23 @@ local function build(gui: ScreenGui)
 	detail.Name = label(right, "Name", UDim2.fromScale(1, 0.12), UDim2.fromScale(0, 0), 32, { Font = Enum.Font.GothamBlack })
 	detail.Rarity = label(right, "Rarity", UDim2.fromScale(1, 0.07), UDim2.fromScale(0, 0.12), 18)
 	detail.Odds = label(right, "Odds", UDim2.fromScale(1, 0.06), UDim2.fromScale(0, 0.2), 14, { TextColor3 = COLORS.Dim })
-	detail.Description = label(right, "Description", UDim2.fromScale(1, 0.2), UDim2.fromScale(0, 0.29), 17, {
+	detail.Description = label(right, "Description", UDim2.fromScale(1, 0.14), UDim2.fromScale(0, 0.28), 17, {
 		Font = Enum.Font.Gotham,
 		TextWrapped = true,
 	})
-	label(right, "BonusTitle", UDim2.fromScale(1, 0.06), UDim2.fromScale(0, 0.52), 16, {
+	-- Maestria: nivel y barra hasta el siguiente nivel (noches con esta clase equipada)
+	detail.Mastery = label(right, "Mastery", UDim2.fromScale(1, 0.055), UDim2.fromScale(0, 0.44), 14, {
+		TextColor3 = Color3.fromRGB(120, 200, 255),
+	})
+	local masteryBar = frame(right, "MasteryBar", UDim2.fromScale(1, 0.025), UDim2.fromScale(0, 0.505), Color3.fromRGB(20, 22, 34))
+	corner(masteryBar, 0.5)
+	masteryFill = frame(masteryBar, "Fill", UDim2.fromScale(0, 1), UDim2.fromScale(0, 0), Color3.fromRGB(120, 200, 255))
+	corner(masteryFill, 0.5)
+	label(right, "BonusTitle", UDim2.fromScale(1, 0.055), UDim2.fromScale(0, 0.545), 16, {
 		Text = "BONIFICACIONES",
 		TextColor3 = COLORS.Gold,
 	})
-	bonusGrid = frame(right, "Bonuses", UDim2.fromScale(1, 0.3), UDim2.fromScale(0, 0.59))
+	bonusGrid = frame(right, "Bonuses", UDim2.fromScale(1, 0.3), UDim2.fromScale(0, 0.605))
 	detail.Owned = label(right, "Owned", UDim2.fromScale(1, 0.07), UDim2.fromScale(0, 0.91), 13, { TextColor3 = COLORS.Dim })
 end
 

@@ -162,12 +162,37 @@ function ClassService.CheckAchievements(player: Player)
 	AchievementService.Check(player)
 end
 
+-- Maestria: +1 noche a la clase equipada. Al subir de nivel se avisa y se aplica ya.
+local function addMastery(player: Player)
+	local className = DataService.GetEquippedClass(player)
+	local before = 0
+	DataService.Update(player, function(d)
+		d.ClassMastery = d.ClassMastery or {}
+		before = d.ClassMastery[className] or 0
+		d.ClassMastery[className] = before + 1
+	end)
+	local oldLevel = Config.getMasteryLevel(before)
+	local newLevel = Config.getMasteryLevel(before + 1)
+	if newLevel > oldLevel then
+		PlayerStats.Apply(player)
+		notify(
+			player,
+			string.format("¡Maestría de %s: nivel %d! Su bonificación mejora.", Config.Classes[className].DisplayName, newLevel),
+			"good"
+		)
+	end
+	if game:GetService("RunService"):IsStudio() then
+		print(string.format("[Maestría] %s: %s %d noches (nivel %d)", player.Name, className, before + 1, newLevel))
+	end
+end
+
 -- Llamar cuando el jugador sobrevive una noche (despues de sumar NightsSurvived).
 function ClassService.OnNightSurvived(player: Player)
 	local data = DataService.GetData(player)
 	if not data then
 		return
 	end
+	addMastery(player)
 	local every = Config.Diamonds.MilestoneNights
 	if every > 0 and data.Lifetime.NightsSurvived % every == 0 then
 		DataService.AddDiamonds(player, Config.Diamonds.MilestoneReward, false)

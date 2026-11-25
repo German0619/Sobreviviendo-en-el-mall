@@ -110,6 +110,10 @@ local function pushAttributes(player: Player, data: PlayerData)
 		player:SetAttribute("Perm_" .. upgradeId, (data.PermanentUpgrades or {})[upgradeId] or 0)
 	end
 	player:SetAttribute("UpgradePoints", data.UpgradePoints or 0)
+	-- Maestria: noches sobrevividas con cada clase (Mastery_<clase>)
+	for className in Config.Classes do
+		player:SetAttribute("Mastery_" .. className, (data.ClassMastery or {})[className] or 0)
+	end
 end
 
 local function sanitize(data: PlayerData)
@@ -166,6 +170,15 @@ local function sanitize(data: PlayerData)
 	end
 	data.PermanentUpgrades = permanent
 	data.UpgradePoints = math.max(0, math.floor(data.UpgradePoints))
+
+	-- Maestria: solo clases que existen, con un numero de noches valido
+	local mastery = {}
+	for className, nights in data.ClassMastery do
+		if Config.Classes[className] and type(nights) == "number" and nights > 0 then
+			mastery[className] = math.floor(nights)
+		end
+	end
+	data.ClassMastery = mastery
 end
 
 -- Devuelve (ok, data). ok=false significa error real de DataStore.
@@ -267,6 +280,12 @@ local function onPlayerAdded(player: Player)
 
 	if RunService:IsStudio() and (Config.Debug.StudioBonusDiamonds or 0) > 0 then
 		data.Diamonds += Config.Debug.StudioBonusDiamonds
+	end
+	local masteryNights = Config.Debug.StudioMasteryNights
+	if RunService:IsStudio() and masteryNights and masteryNights > 0 then
+		for className in Config.Classes do
+			data.ClassMastery[className] = math.max(data.ClassMastery[className] or 0, masteryNights)
+		end
 	end
 
 	if player.Parent == nil then

@@ -292,6 +292,10 @@ Las cuatro ideas se usan, **cada una en su propia tienda**. Todas con paneles na
 2. **Maestría de clase** (puesto CLASES):
    - Cada clase sube de nivel al jugar con ella y mejora un poco su bonificación (p. ej. Corredor nivel 3: +15% de velocidad en vez de +10%).
    - La maestría se guarda **por clase** (`data.ClassMastery[clase]`), así no se pierde aunque la ruleta reemplace la clase del slot.
+   - [HECHO] (`Config.ClassMastery`, `ClassService.OnNightSurvived`, `PlayerStats`, detalle de `ClassPanel`). Decidido el 2026-11-24:
+     - 1 noche de maestría por cada noche sobrevivida con la clase equipada; niveles a las 3 · 8 · 15 · 25 · 40 noches.
+     - Sin recompensa extra al subir: solo un aviso y la mejora de la clase.
+     - Por nivel: Conserje y Conserje experimentado +2% de vida, estamina y batería · Corredor +1% de velocidad · Atleta +4% de estamina · Electricista +0.1 de reparación · Guardia +4% de vida · Ahorrador +2% de pago · Visión nocturna +5% de batería · Médium +3% de vida · Sombra +0.1 de detección · Médico +0.2 al revivir · Guardián lunar +2% de vida, estamina y velocidad.
 3. **Taquilla del conserje** (puesto nuevo):
    - Consumibles comprados con diamantes que se entregan al empezar la próxima partida y se gastan al usarlos.
    - Datos: `data.Locker[itemId] = cantidad`. El mall los entrega al iniciar la partida y los descuenta.

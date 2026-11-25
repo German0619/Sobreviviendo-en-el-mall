@@ -31,6 +31,9 @@ Config.Debug = {
 	-- Diamantes que se suman al entrar (ej. 1000 para probar la ruleta).
 	-- Ojo: con API Services activado se guardan en tus datos de verdad.
 	StudioBonusDiamonds = 0,
+	-- Noches de maestria minimas para TODAS las clases al entrar (ej. 7: nivel 1, a una
+	-- noche del nivel 2). Ojo: con API Services activado se guardan en tus datos de verdad.
+	StudioMasteryNights = nil :: number?,
 	-- Pases que se simulan como comprados en Studio (ej. { "DoubleMoney", "VIP" })
 	StudioOwnedPasses = {} :: { string },
 }
@@ -313,6 +316,68 @@ do
 			end
 		end
 	end
+end
+
+-- Maestria de clase: cada clase sube de nivel con las noches que sobrevives llevandola
+-- equipada (data.ClassMastery[clase] = noches). Se guarda POR CLASE: no se pierde aunque
+-- la ruleta reemplace la clase del slot, y vuelve si la consigues otra vez.
+--   Nights[n]: noches acumuladas para el nivel n (el maximo es #Nights).
+--   Modifiers: se SUMA al modificador de la clase por nivel (Corredor 1.10 + 0.01 x 5 = 1.15).
+--   Perks: se suma al valor numerico de la habilidad por nivel (Sombra 2.0 + 0.1 x 5 = 2.5).
+Config.ClassMastery = {
+	Nights = { 3, 8, 15, 25, 40 },
+	Classes = {
+		Conserje = { Modifiers = { Health = 0.02, Stamina = 0.02, Battery = 0.02 } },
+		Corredor = { Modifiers = { WalkSpeed = 0.01 } },
+		Atleta = { Modifiers = { Stamina = 0.04 } },
+		Electricista = { Perks = { RepairSpeed = 0.1 } },
+		Guardia = { Modifiers = { Health = 0.04 } },
+		Ahorrador = { Perks = { PayBonus = 0.02 } },
+		VisionNocturna = { Modifiers = { Battery = 0.05 } },
+		Medium = { Modifiers = { Health = 0.03 } },
+		Sombra = { Perks = { DetectionDelay = 0.1 } },
+		Medico = { Perks = { ReviveSpeed = 0.2 } },
+		GuardianLunar = { Modifiers = { Health = 0.02, Stamina = 0.02, WalkSpeed = 0.02 } },
+		ConserjeExperimentado = { Modifiers = { Health = 0.02, Stamina = 0.02, Battery = 0.02 } },
+	} :: { [string]: { Modifiers: { [string]: number }?, Perks: { [string]: number }? } },
+}
+
+-- Nivel de maestria con `nights` noches. Devuelve (nivel, noches para el siguiente o nil).
+function Config.getMasteryLevel(nights: number): (number, number?)
+	local level = 0
+	for n, needed in Config.ClassMastery.Nights do
+		if nights >= needed then
+			level = n
+		else
+			return level, needed
+		end
+	end
+	return level, nil
+end
+
+-- Modificadores y habilidades de una clase con su maestria (tablas en cache: no modificar).
+local masteredCache: { [string]: { Modifiers: { [string]: number }, Perks: { [string]: any } } } = {}
+function Config.getMasteredClass(className: string, level: number): { Modifiers: { [string]: number }, Perks: { [string]: any } }
+	local def = Config.Classes[className] or Config.Classes[Config.DefaultClass]
+	level = math.clamp(math.floor(level), 0, #Config.ClassMastery.Nights)
+	local key = className .. ":" .. level
+	local cached = masteredCache[key]
+	if cached then
+		return cached
+	end
+	local mastery = Config.ClassMastery.Classes[className] or {}
+	local modifiers = table.clone(def.Modifiers)
+	local perks = table.clone(def.Perks)
+	for stat, perLevel in mastery.Modifiers or {} do
+		modifiers[stat] = (modifiers[stat] or 1) + perLevel * level
+	end
+	for perk, perLevel in mastery.Perks or {} do
+		local base = perks[perk]
+		perks[perk] = (if type(base) == "number" then base else 0) + perLevel * level
+	end
+	local result = { Modifiers = modifiers, Perks = perks }
+	masteredCache[key] = result
+	return result
 end
 
 -- Orden en la ventana de clases / probabilidades
@@ -1921,6 +1986,7 @@ Config.DefaultData = {
 	EquippedSkins = {}, -- [objeto] = skin equipada
 	PermanentUpgrades = {}, -- [mejora] = nivel (Config.PermanentUpgrades, puesto MEJORAS)
 	UpgradePoints = 0, -- puntos de mejora (del reinicio con Robux); se gastan antes que los diamantes
+	ClassMastery = {}, -- [clase] = noches sobrevividas con ella equipada (Config.ClassMastery)
 	Lifetime = {
 		NightsSurvived = 0,
 		MissionsCompleted = 0,
