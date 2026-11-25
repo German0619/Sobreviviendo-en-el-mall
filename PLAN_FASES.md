@@ -416,7 +416,14 @@ Que toda la interfaz use las herramientas nativas de Roblox para adaptarse a cad
   - Si un modelo sigue siendo de una pieza (p. ej. un maniquí del mapa), el cuerpo entero se balancea sobre los pies al andar.
   - Al acabar la noche las piezas vuelven a su pose de reposo (los maniquíes y la estatua vuelven al mapa).
 - [HECHO] Ruleta de clases: el resultado aparece en el slot antes de que la ruleta se pare. Debe mostrarse solo cuando termine el giro. (`ClassPanel` muestra la clase anterior en slots y carrete hasta que termina la animación, también en el tiro afortunado.)
-- Mejorar el diseño del lobby.
+- [PROGRAMADO, falta probar y GUARDAR el place del lobby] Mejorar el diseño del lobby (2026-11-25). Hecho en el place del lobby (no en el código):
+  - Materiales PBR generados con IA en MaterialService (LobbyFloorTile1, LobbyAisleMarble1, LobbyWallPanel, LobbyCeilingTile3, LobbyWalnut, LobbyGranite1, LobbyBrushedSteel1, LobbyShutter) aplicados a suelo, pasillo, paredes, techo, persianas, marcos, columnas, barandillas, balcones, puestos, bancos, macetas y punto de aparición.
+  - Iluminación: atardecer (ClockTime 18.3) que se ve por el tragaluz, luz ambiente cálida, exposición +0.25, lámparas más fuertes, bloom suave; se quitaron 2 cielos duplicados.
+  - Cuadros de sala: base de mármol azul y dorado; muros de cristal tintado con una tira de neón arriba (carpeta Glow: PadService la colorea por estado). Misma altura (no se sale caminando).
+  - `Workspace.Lobby.Details`: columnas con base, anillo de latón, capitel y carteles iluminados; luz indirecta violeta bajo los balcones y cálida en lo alto de las paredes; fuente con agua visible (antes peleaba con el borde), aro de granito, luces bajo el agua y anillo de latón en el suelo; 4 estandartes de Plaza Luna; papeleras; directorio junto a la entrada.
+  - Pendiente (pedido por el usuario, 2026-11-25):
+    - Ajustar el brillo del lobby.
+    - Cambiar las baldosas de creación de partida (los cuadros de sala).
 - [HECHO] (probado jugando) Mejorar el diseño de la ruleta de clases (2026-11-25, con la imagen de referencia del usuario). `ClassPanel`: lista de probabilidades a la izquierda, RUEDA en el centro (un sector por clase con el color de su rareza y solo su nombre, flecha arriba, GIRAR en el centro con su precio, aro con remaches; gira 5 vueltas y frena en la clase que salio, con un clic por sector; el nombre ganador parpadea) y detalle con "Girar hasta" y tiro afortunado a la derecha. Los sectores se rellenan por anillos de barras (sin mezclar colores con el vecino).
 - [HECHO] Subir el precio de las armas: en una sola noche se ganan fácilmente más de 300 billetes.
   - Escalonadas: Trapeador 400, Cartel 700, Extintor 1100, Linterna UV 1600, Taser 3200 (no alcanza antes de terminar la noche 5 sin el pase x2). Mercader en proporción (3800, 1400, 1100, 1000).
