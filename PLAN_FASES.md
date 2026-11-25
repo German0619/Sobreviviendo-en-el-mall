@@ -417,7 +417,7 @@ Que toda la interfaz use las herramientas nativas de Roblox para adaptarse a cad
   - Al acabar la noche las piezas vuelven a su pose de reposo (los maniquíes y la estatua vuelven al mapa).
 - [HECHO] Ruleta de clases: el resultado aparece en el slot antes de que la ruleta se pare. Debe mostrarse solo cuando termine el giro. (`ClassPanel` muestra la clase anterior en slots y carrete hasta que termina la animación, también en el tiro afortunado.)
 - Mejorar el diseño del lobby.
-- Mejorar el diseño de la ruleta de clases (el usuario pasará imágenes de referencia cuando toque).
+- [HECHO] (probado jugando) Mejorar el diseño de la ruleta de clases (2026-11-25, con la imagen de referencia del usuario). `ClassPanel`: lista de probabilidades a la izquierda, RUEDA en el centro (un sector por clase con el color de su rareza y solo su nombre, flecha arriba, GIRAR en el centro con su precio, aro con remaches; gira 5 vueltas y frena en la clase que salio, con un clic por sector; el nombre ganador parpadea) y detalle con "Girar hasta" y tiro afortunado a la derecha. Los sectores se rellenan por anillos de barras (sin mezclar colores con el vecino).
 - [HECHO] Subir el precio de las armas: en una sola noche se ganan fácilmente más de 300 billetes.
   - Escalonadas: Trapeador 400, Cartel 700, Extintor 1100, Linterna UV 1600, Taser 3200 (no alcanza antes de terminar la noche 5 sin el pase x2). Mercader en proporción (3800, 1400, 1100, 1000).
   - El taser se vuelve a comprar cuando se le acaban los usos, un 25 % más caro cada vez en la misma partida (`RebuyGrowth`, `Config.getShopPrice`, atributo `TaserBuys`).
