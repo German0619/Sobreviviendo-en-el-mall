@@ -320,14 +320,14 @@ end
 -- [Q] Habilidad de clase: Porrazo del Guardia
 ----------------------------------------------------------------------
 
-local function shockwave(position: Vector3, look: Vector3)
+local function shockwave(position: Vector3, look: Vector3, color: Color3?)
 	local ring = prop({
 		Name = "Shove",
 		Shape = Enum.PartType.Cylinder,
 		Size = Vector3.new(0.2, 2, 2),
 		CFrame = CFrame.new(position + look * 2) * CFrame.Angles(0, 0, math.rad(90)),
 		Material = Enum.Material.Neon,
-		Color = Color3.fromRGB(120, 170, 255),
+		Color = color or Color3.fromRGB(120, 170, 255),
 		Transparency = 0.3,
 	})
 	ring.Parent = getPropsFolder()
@@ -341,13 +341,14 @@ end
 
 -- Empuja y aturde a los enemigos de enfrente. strength = { StunSeconds, Distance }
 -- (el Porrazo usa Config.Defense.Shove; el Trapeador, uno mas debil). Devuelve los golpeados.
-function DefenseService.Push(player: Player, range: number, strength: { StunSeconds: number, Distance: number }): number
+-- color: el de la onda (la skin del trapeador); nil = el azul normal.
+function DefenseService.Push(player: Player, range: number, strength: { StunSeconds: number, Distance: number }, color: Color3?): number
 	local root = getRoot(player)
 	local look = root and flatLook(root)
 	if not root or not look then
 		return 0
 	end
-	shockwave(root.Position, look)
+	shockwave(root.Position, look, color)
 	local hits = 0
 	for _, enemy in enemyProvider() do
 		local model = enemy.Model

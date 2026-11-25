@@ -291,17 +291,19 @@ end
 -- Taser
 ----------------------------------------------------------------------
 
-local function taserBolt(from: Vector3, to: Vector3)
+-- color: el de la skin del taser (Config.Skins[...].Effect) o el azul electrico normal.
+local function taserBolt(from: Vector3, to: Vector3, color: Color3?)
+	local boltColor = color or Color3.fromRGB(120, 200, 255)
 	local length = (to - from).Magnitude
 	local bolt = part({
 		Name = "TaserBolt",
 		Size = Vector3.new(0.15, 0.15, length),
 		CFrame = CFrame.lookAt((from + to) / 2, to),
 		Material = Enum.Material.Neon,
-		Color = Color3.fromRGB(120, 200, 255),
+		Color = boltColor,
 	})
 	local light = Instance.new("PointLight")
-	light.Color = Color3.fromRGB(120, 200, 255)
+	light.Color = boltColor
 	light.Range = 10
 	light.Brightness = 3
 	light.Parent = bolt
@@ -345,7 +347,7 @@ local function useTaser(player: Player): boolean
 	end
 
 	local model = best.Model
-	taserBolt(origin, model:GetPivot().Position)
+	taserBolt(origin, model:GetPivot().Position, Config.getSkinEffect(player, "Taser"))
 	local enemyDef = Config.Enemies[best.EnemyType]
 	if enemyDef and enemyDef.TaserImmune then
 		notify(player, "¡No le hace nada!", "bad")
@@ -383,6 +385,14 @@ local function useExtinguisher(player: Player): boolean
 	look = if look.Magnitude > 0.01 then look.Unit else Vector3.new(0, 0, -1)
 	local hit = Workspace:Raycast(origin, look * def.Range, rayParams(player))
 	local center = if hit then hit.Position - look * 2 else origin + look * def.Range
+	-- Skin del extintor: la nube y el chorro se tinen de su color (siguen siendo humo claro)
+	local skinColor = Config.getSkinEffect(player, "Extinguisher")
+	local smokeColor = Color3.fromRGB(235, 238, 245)
+	local sprayColor = Color3.new(1, 1, 1)
+	if skinColor then
+		smokeColor = smokeColor:Lerp(skinColor, Config.SkinEffects.SmokeTint)
+		sprayColor = sprayColor:Lerp(skinColor, Config.SkinEffects.SmokeTint)
+	end
 
 	local cloud = part({
 		Name = "ExtinguisherCloud",
@@ -391,7 +401,7 @@ local function useExtinguisher(player: Player): boolean
 		Transparency = 1,
 	})
 	local smoke = Instance.new("ParticleEmitter")
-	smoke.Color = ColorSequence.new(Color3.fromRGB(235, 238, 245))
+	smoke.Color = ColorSequence.new(smokeColor)
 	smoke.LightInfluence = 1
 	smoke.Size = NumberSequence.new({ NumberSequenceKeypoint.new(0, 4), NumberSequenceKeypoint.new(1, def.Radius * 0.9) })
 	smoke.Transparency = NumberSequence.new({
@@ -412,7 +422,7 @@ local function useExtinguisher(player: Player): boolean
 		Size = Vector3.new(0.6, 0.6, (center - origin).Magnitude),
 		CFrame = CFrame.lookAt((origin + center) / 2, center),
 		Material = Enum.Material.SmoothPlastic,
-		Color = Color3.new(1, 1, 1),
+		Color = sprayColor,
 		Transparency = 0.5,
 	})
 	spray.Parent = propsFolder()
@@ -435,19 +445,30 @@ end
 -- Cartel de piso mojado
 ----------------------------------------------------------------------
 
-local function buildSign(ground: Vector3, facing: Vector3): Model
+-- skinId: skin del cartel del jugador (los paneles toman su color y material; el charco
+-- se tine de su color de efecto).
+local function buildSign(ground: Vector3, facing: Vector3, skinId: string?): Model
 	local model = Instance.new("Model")
 	model.Name = "WetFloorSign"
 	local base = CFrame.lookAt(ground, ground + facing)
-	local yellow = Color3.fromRGB(255, 210, 40)
+	local skin = if skinId then Config.Skins[skinId] else nil
+	local panelColor = if skin then skin.Body.Color else Color3.fromRGB(255, 210, 40)
+	local panelMaterial = if skin then skin.Body.Material else Enum.Material.SmoothPlastic
+	local puddleColor = Color3.fromRGB(120, 170, 220)
+	if skin and skin.Effect then
+		puddleColor = puddleColor:Lerp(skin.Effect, Config.SkinEffects.PuddleTint)
+	end
+	-- Texto legible sobre paneles oscuros (Neón, Luna...)
+	local _, _, brightness = panelColor:ToHSV()
+	local textColor = if brightness < 0.45 then Color3.fromRGB(240, 240, 240) else Color3.fromRGB(20, 20, 20)
 	for _, side in { -1, 1 } do
 		local panel = part({
 			Name = "Panel",
 			Size = Vector3.new(1.6, 2.6, 0.12),
 			-- Caballete en A: los dos paneles se juntan arriba y se abren abajo
 			CFrame = base * CFrame.new(0, 1.25, side * 0.3) * CFrame.Angles(math.rad(-side * 12), 0, 0),
-			Material = Enum.Material.SmoothPlastic,
-			Color = yellow,
+			Material = panelMaterial,
+			Color = panelColor,
 			CanCollide = false,
 		})
 		local gui = Instance.new("SurfaceGui")
@@ -462,7 +483,7 @@ local function buildSign(ground: Vector3, facing: Vector3): Model
 		text.BackgroundTransparency = 1
 		text.Font = Enum.Font.GothamBlack
 		text.TextScaled = true
-		text.TextColor3 = Color3.fromRGB(20, 20, 20)
+		text.TextColor3 = textColor
 		text.Text = "¡PISO\nMOJADO!"
 		text.Parent = gui
 		panel.Parent = model
@@ -473,7 +494,7 @@ local function buildSign(ground: Vector3, facing: Vector3): Model
 		Size = Vector3.new(0.06, W.WetFloorSign.Radius * 2, W.WetFloorSign.Radius * 2),
 		CFrame = CFrame.new(ground + Vector3.new(0, 0.04, 0)) * CFrame.Angles(0, 0, math.rad(90)),
 		Material = Enum.Material.Glass,
-		Color = Color3.fromRGB(120, 170, 220),
+		Color = puddleColor,
 		Transparency = 0.55,
 	})
 	puddle.Parent = model
@@ -497,7 +518,8 @@ local function useWetFloorSign(player: Player): boolean
 		notify(player, "Aquí no se puede poner el cartel.")
 		return false
 	end
-	local model = buildSign(down.Position, look)
+	local skinId = player:GetAttribute("Skin_WetFloorSign")
+	local model = buildSign(down.Position, look, if type(skinId) == "string" then skinId else nil)
 	DefenseService.AddSlowZone(down.Position, def.Radius, def.SpeedMultiplier, def.Duration)
 	task.delay(def.Duration, function()
 		model:Destroy()
@@ -554,7 +576,9 @@ end
 
 local function useMop(player: Player): boolean
 	local def = W.Mop
-	if DefenseService.Push(player, def.Range, { StunSeconds = def.StunSeconds, Distance = def.Distance }) == 0 then
+	-- (la onda del empujon toma el color de la skin del trapeador)
+	local strength = { StunSeconds = def.StunSeconds, Distance = def.Distance }
+	if DefenseService.Push(player, def.Range, strength, Config.getSkinEffect(player, "Mop")) == 0 then
 		notify(player, "El trapeador no alcanzó a nadie.")
 	end
 	return true -- gasta el enfriamiento aunque no acierte

@@ -25,11 +25,16 @@ local NORMAL_COLOR = Color3.fromRGB(255, 244, 214)
 local PREMIUM_COLOR = Color3.fromRGB(255, 205, 110) -- haz dorado del pase Linterna Premium
 local UV_COLOR = Color3.fromRGB(150, 80, 255) -- arma Linterna UV encendida (atributo UVOn)
 
+-- Skins: la luz se tine con el color de efecto de la skin (Config.SkinEffects): la
+-- linterna solo un toque (es con la que se ve); el haz UV a medias.
 local function beamColor(player: Player): Color3
 	if player:GetAttribute("UVOn") == true then
-		return UV_COLOR
+		local skin = Config.getSkinEffect(player, "UVFlashlight")
+		return if skin then UV_COLOR:Lerp(skin, Config.SkinEffects.UVTint) else UV_COLOR
 	end
-	return if player:GetAttribute("Pass_PremiumFlashlight") == true then PREMIUM_COLOR else NORMAL_COLOR
+	local base = if player:GetAttribute("Pass_PremiumFlashlight") == true then PREMIUM_COLOR else NORMAL_COLOR
+	local skin = Config.getSkinEffect(player, "Flashlight")
+	return if skin then base:Lerp(skin, Config.SkinEffects.FlashlightTint) else base
 end
 
 -- Pase Linterna Premium (lo publica PassService)

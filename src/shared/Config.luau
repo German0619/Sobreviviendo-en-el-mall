@@ -737,6 +737,7 @@ Config.Skins = {
 		Rarity = "Common",
 		Body = { Color = Color3.fromRGB(85, 100, 60), Material = Enum.Material.Fabric },
 		Accent = { Color = Color3.fromRGB(110, 85, 55), Material = Enum.Material.Fabric },
+		Effect = Color3.fromRGB(140, 185, 90), -- color de los efectos del arma (rayo, nube, onda...)
 	},
 	Ice = {
 		DisplayName = "Blanco hielo",
@@ -744,6 +745,7 @@ Config.Skins = {
 		Body = { Color = Color3.fromRGB(235, 245, 255), Material = Enum.Material.SmoothPlastic, Reflectance = 0.1 },
 		Accent = { Color = Color3.fromRGB(150, 200, 235), Material = Enum.Material.Glass },
 		Glow = { Color = Color3.fromRGB(170, 230, 255) },
+		Effect = Color3.fromRGB(170, 230, 255),
 	},
 	Crimson = {
 		DisplayName = "Carmesí",
@@ -751,6 +753,7 @@ Config.Skins = {
 		Body = { Color = Color3.fromRGB(150, 15, 30), Material = Enum.Material.SmoothPlastic, Reflectance = 0.1 },
 		Accent = { Color = Color3.fromRGB(25, 20, 22), Material = Enum.Material.Metal },
 		Glow = { Color = Color3.fromRGB(255, 60, 60) },
+		Effect = Color3.fromRGB(255, 60, 60),
 	},
 	Neon = {
 		DisplayName = "Neón",
@@ -758,12 +761,14 @@ Config.Skins = {
 		Body = { Color = Color3.fromRGB(20, 20, 26), Material = Enum.Material.SmoothPlastic },
 		Accent = { Color = Color3.fromRGB(0, 255, 200), Material = Enum.Material.Neon },
 		Glow = { Color = Color3.fromRGB(0, 255, 200) },
+		Effect = Color3.fromRGB(0, 255, 200),
 	},
 	Gold = {
 		DisplayName = "Dorado",
 		Rarity = "Epic",
 		Body = { Color = Color3.fromRGB(230, 180, 50), Material = Enum.Material.Foil, Reflectance = 0.25 },
 		Accent = { Color = Color3.fromRGB(150, 110, 30), Material = Enum.Material.Metal },
+		Effect = Color3.fromRGB(255, 205, 80),
 	},
 	Luna = {
 		DisplayName = "Luna",
@@ -771,9 +776,27 @@ Config.Skins = {
 		Body = { Color = Color3.fromRGB(60, 40, 120), Material = Enum.Material.Glass, Reflectance = 0.2 },
 		Accent = { Color = Color3.fromRGB(250, 225, 140), Material = Enum.Material.Neon },
 		Glow = { Color = Color3.fromRGB(200, 160, 255) },
+		Effect = Color3.fromRGB(200, 160, 255),
 	},
 }
 Config.SkinOrder = { "Camo", "Ice", "Crimson", "Neon", "Gold", "Luna" }
+
+-- Efectos de las armas con skin (WeaponService, FlashlightService, DefenseService):
+-- cuanto se mezcla el color de efecto de la skin con el color normal del efecto.
+Config.SkinEffects = {
+	FlashlightTint = 0.2, -- la luz de la linterna: solo un toque (es con la que se ve)
+	UVTint = 0.5, -- el haz UV: a medias, para que siga pareciendo UV
+	SmokeTint = 0.45, -- la nube y el chorro del extintor: siguen siendo humo claro
+	PuddleTint = 0.6, -- el charco del cartel
+}
+
+-- Color de efecto de la skin que lleva `player` en `itemId` (nil = sin skin).
+-- La skin equipada esta en el atributo Skin_<objeto> (DataService).
+function Config.getSkinEffect(player: Player, itemId: string): Color3?
+	local skinId = player:GetAttribute("Skin_" .. itemId)
+	local skin = if type(skinId) == "string" then Config.Skins[skinId] else nil
+	return skin and skin.Effect
+end
 
 -- Cosmeticos (puesto COSMETICOS del lobby, CosmeticsService). Una skin es de un objeto
 -- concreto: la clave es "<objeto>:<skin>" (p. ej. "Taser:Gold"). Se equipa una por objeto.

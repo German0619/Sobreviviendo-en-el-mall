@@ -335,7 +335,7 @@ Las cuatro ideas se usan, **cada una en su propia tienda**. Todas con paneles na
     - respeta `PaidRandomRestricted`.
   - Puesto **SKINS** (centro): compra directa (300, 600, 1200 o 2500 💎) y equipar una skin por objeto.
   - Datos: `data.Skins`, `data.EquippedSkins`; el mall las lee de `Skin_<objeto>`.
-- Pendiente para el pulido: que las skins también cambien el color de los efectos de las armas (rayo del taser, nube del extintor...).
+- [HECHO] Que las skins también cambien el color de los efectos de las armas (rayo del taser, nube del extintor...). (2026-11-24: cada skin tiene un color de efecto, `Config.Skins[...].Effect`; rayo y destello del taser, nube y chorro del extintor teñidos, cartel con el color y material de la skin y charco teñido, onda del trapeador, haz UV mezclado a medias y luz de la linterna con un toque del 20 %, `Config.SkinEffects`.)
 
 **Fase 12: interfaz adaptable (PC, teléfono, tablet y consola).** — [HECHO] (2026-11-24)
 Que toda la interfaz use las herramientas nativas de Roblox para adaptarse a cada pantalla y control.

@@ -14,6 +14,7 @@ local Workspace = game:GetService("Workspace")
 
 local Shared = ReplicatedStorage:WaitForChild("Shared")
 local HeldModels = require(Shared.HeldModels)
+local Config = require(Shared.Config)
 
 local player = Players.LocalPlayer
 
@@ -157,7 +158,16 @@ function ViewModel.Start()
 		if leftModel then
 			leftModel:PivotTo(camCF * sway:Inverse() * LEFT_OFFSET)
 			local on = player:GetAttribute("FlashlightOn") == true
-			local color = if player:GetAttribute("UVOn") == true then UV_BEAM elseif leftPremium then PREMIUM_BEAM else NORMAL_BEAM
+			-- (mismo tinte de skin que la luz real: FlashlightService.beamColor)
+			local color
+			if player:GetAttribute("UVOn") == true then
+				local skin = Config.getSkinEffect(player, "UVFlashlight")
+				color = if skin then UV_BEAM:Lerp(skin, Config.SkinEffects.UVTint) else UV_BEAM
+			else
+				local skin = Config.getSkinEffect(player, "Flashlight")
+				local base = if leftPremium then PREMIUM_BEAM else NORMAL_BEAM
+				color = if skin then base:Lerp(skin, Config.SkinEffects.FlashlightTint) else base
+			end
 			HeldModels.setLit(leftModel, on, color)
 		end
 	end)
