@@ -137,10 +137,23 @@ FASES DE IMPLEMENTACION
 
 PENDIENTES DEL USUARIO (en Studio / web de Roblox)
 --------------------------------------------------
-- Modelar el mall (zonas con tags para misiones/spawns), iluminacion y animaciones.
-- Crear los Developer Products (Revivir, Slot de clase, paquetes de diamantes) y Game Passes en la web
-  de Roblox y poner los IDs en Config.DevProducts / Config.GamePasses.
+- Modelar el mall (zonas con tags para misiones/spawns/escondites/camaras), iluminacion y animaciones.
+  Modelos propios de enemigos: ServerStorage.EnemyTemplates.<Mannequin|Blackout|Echo|Tracker|Watcher>
+  (viven en el archivo del place, no en Rojo: hay que GUARDAR/PUBLICAR el place). Desde el 2026-11-24
+  estan separados en piezas para EnemyAnimator; las originales quedan en ServerStorage.EnemyTemplatesBackup.
+  Igual con ServerStorage.PropTemplates (mobiliario 3D) y los materiales de MaterialService.
+- Lighting -> Technology = Future (no se puede poner desde script).
+- Developer Products y Game Passes: creados en la web de Roblox, con sus IDs en Config.DevProducts /
+  Config.GamePasses. Para probar pases en Studio: Config.Debug.StudioOwnedPasses.
 - Instalar Rojo (extension de VS Code + plugin de Studio).
+- Lobby y mall (dos places en la misma experiencia):
+  * El place de inicio (Start Place) debe ser el LOBBY; el otro es el MALL.
+  * Sus IDs van en Config.Places (LobbyPlaceId, MallPlaceId). Ya estan puestos.
+  * En Studio, en cada place: Workspace -> Attributes -> "+" -> PlaceRole (string) = "Lobby" o "Mall".
+  * Sincronizar el mismo proyecto de Rojo en los dos places y publicar ambos.
+  * En el place del mall: Game Settings -> Places -> Max Players = 5.
+  * Los teleports y las salas solo funcionan en el juego publicado (no en Studio).
+- Antes de publicar: dejar Config.Debug en sus valores por defecto (StartNight = 1, OnlyEnemies = nil...).
 
 
 VERIFICACION
