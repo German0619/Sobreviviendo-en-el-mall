@@ -1163,53 +1163,285 @@ end
 -- dibuja VendingService las probabilidades), teclado, monedero y bandeja.
 -- `cf` = centro de la maquina a 3.5 del suelo, frente (-Z) hacia los jugadores.
 
-local SODA_COLORS = {
-	Color3.fromRGB(200, 30, 40),
-	Color3.fromRGB(40, 110, 210),
-	Color3.fromRGB(245, 195, 40),
-	Color3.fromRGB(60, 170, 80),
-	Color3.fromRGB(240, 120, 30),
-	Color3.fromRGB(225, 225, 232),
+-- Productos de la vitrina: { cuerpo, franja de la etiqueta }
+local CAN_FLAVORS = {
+	{ Color3.fromRGB(196, 22, 34), Color3.fromRGB(245, 245, 245) }, -- cola
+	{ Color3.fromRGB(28, 92, 200), Color3.fromRGB(200, 210, 225) }, -- azul
+	{ Color3.fromRGB(70, 175, 60), Color3.fromRGB(250, 220, 60) }, -- lima
+	{ Color3.fromRGB(240, 120, 25), Color3.fromRGB(255, 245, 230) }, -- naranja
+	{ Color3.fromRGB(120, 50, 170), Color3.fromRGB(240, 240, 245) }, -- uva
+	{ Color3.fromRGB(235, 235, 240), Color3.fromRGB(210, 30, 40) }, -- light
+	{ Color3.fromRGB(25, 25, 30), Color3.fromRGB(80, 230, 120) }, -- energetica
 }
+local BOTTLE_FLAVORS = {
+	{ Color3.fromRGB(150, 85, 25), Color3.fromRGB(245, 235, 210) }, -- ambar
+	{ Color3.fromRGB(40, 140, 70), Color3.fromRGB(250, 250, 250) }, -- verde
+	{ Color3.fromRGB(120, 190, 230), Color3.fromRGB(30, 60, 150) }, -- agua
+	{ Color3.fromRGB(190, 40, 60), Color3.fromRGB(250, 215, 120) }, -- frutos rojos
+	{ Color3.fromRGB(230, 200, 70), Color3.fromRGB(40, 40, 45) }, -- limonada
+}
+
+-- SurfaceGui en una cara. light = cuanto le afecta la luz de la escena (0 = brilla sola)
+local function surface(part: BasePart, face: Enum.NormalId, ppS: number, light: number, brightness: number?): SurfaceGui
+	local gui = Instance.new("SurfaceGui")
+	gui.Face = face
+	gui.SizingMode = Enum.SurfaceGuiSizingMode.PixelsPerStud
+	gui.PixelsPerStud = ppS
+	gui.LightInfluence = light
+	gui.Brightness = brightness or 1
+	gui.Parent = part
+	return gui
+end
+
+local function guiFrame(parent: Instance, props): Frame
+	local f = Instance.new("Frame")
+	f.BorderSizePixel = 0
+	f.Size = UDim2.fromScale(1, 1)
+	for k, v in props do
+		(f :: any)[k] = v
+	end
+	f.Parent = parent
+	return f
+end
+
+local function guiText(parent: Instance, text: string, props): TextLabel
+	local l = Instance.new("TextLabel")
+	l.BackgroundTransparency = 1
+	l.Font = Enum.Font.GothamBlack
+	l.TextScaled = true
+	l.TextColor3 = Color3.new(1, 1, 1)
+	l.Text = text
+	for k, v in props do
+		(l :: any)[k] = v
+	end
+	l.Parent = parent
+	return l
+end
+
+local function gradient(parent: Instance, a: Color3, b: Color3, rotation: number)
+	local g = Instance.new("UIGradient")
+	g.Color = ColorSequence.new(a, b)
+	g.Rotation = rotation
+	g.Parent = parent
+	return g
+end
+
+-- Marco de 4 listones alrededor de un rectangulo (x, y centro; w, h interior) en z
+local function trimFrame(cf: CFrame, name: string, x: number, y: number, w: number, h: number, z: number, t: number, depth: number, color: Color3, material)
+	for _, bar in {
+		{ Vector3.new(w + 2 * t, t, depth), Vector3.new(x, y + h / 2 + t / 2, z) },
+		{ Vector3.new(w + 2 * t, t, depth), Vector3.new(x, y - h / 2 - t / 2, z) },
+		{ Vector3.new(t, h, depth), Vector3.new(x - w / 2 - t / 2, y, z) },
+		{ Vector3.new(t, h, depth), Vector3.new(x + w / 2 + t / 2, y, z) },
+	} do
+		deco(name, bar[1], cf * CFrame.new(bar[2]), material, color, { Reflectance = 0.25, CastShadow = false })
+	end
+end
 
 local function vendingMachine(cf: CFrame, machineType: string, accent: Color3, title: string)
 	local W, H, D = 4.4, 7, 3
+	local premium = machineType == "Premium"
 	local body = box("Vending_" .. machineType, Vector3.new(W, H, D), cf, M.SmoothPlastic, accent, { Transparency = 1, Variant = false })
 	body:SetAttribute("MachineType", machineType)
-	local dark = Color3.fromRGB(32, 32, 38)
+	local dark = Color3.fromRGB(26, 26, 31)
+	local black = Color3.fromRGB(12, 12, 15)
+	-- Remates: cromo en las normales, dorado en la premium
+	local trim = if premium then Color3.fromRGB(214, 172, 82) else Color3.fromRGB(205, 210, 218)
+	local accentDark = accent:Lerp(Color3.new(0, 0, 0), 0.35)
+	local accentLight = accent:Lerp(Color3.new(1, 1, 1), 0.25)
+	local glossy = { Reflectance = 0.14, Variant = false }
 
-	-- Carcasa (frente en z = -1.2) y bandas laterales
-	local shell = deco("VendingShell", Vector3.new(W, H, D - 0.3), cf * CFrame.new(0, 0, 0.15), M.SmoothPlastic, accent, { Reflectance = 0.06 })
+	-- Carcasa con las esquinas verticales redondeadas (nucleo + laterales + 4 cilindros).
+	-- Ocupa z de -1.2 (frente) a 1.5 (espalda).
+	local shell = deco("VendingShell", Vector3.new(W - 0.3, H - 0.1, D - 0.3), cf * CFrame.new(0, -0.05, 0.15), M.SmoothPlastic, accent, glossy)
+	local side = deco("VendingShellSide", Vector3.new(W, H - 0.1, D - 0.6), cf * CFrame.new(0, -0.05, 0.15), M.SmoothPlastic, accent, glossy)
 	for _, sx in { -1, 1 } do
-		deco("VendingSideStripe", Vector3.new(0.05, H - 0.6, 0.6), cf * CFrame.new(sx * (W / 2 + 0.02), 0, -0.4), M.SmoothPlastic, Color3.fromRGB(240, 240, 240))
+		for _, sz in { -1.05, 1.35 } do
+			deco("VendingCorner", Vector3.new(H - 0.1, 0.3, 0.3), cf * CFrame.new(sx * (W / 2 - 0.15), -0.05, sz) * CFrame.Angles(0, 0, math.rad(90)), M.SmoothPlastic, accent, {
+				Shape = Enum.PartType.Cylinder,
+				Reflectance = 0.14,
+				Variant = false,
+			})
+		end
 	end
-	deco("VendingKick", Vector3.new(W, 0.3, 0.06), cf * CFrame.new(0, -H / 2 + 0.15, -1.24), M.SmoothPlastic, Color3.fromRGB(15, 15, 18))
+	-- Tapa de arriba y zocalo
+	deco("VendingTop", Vector3.new(W - 0.2, 0.08, D - 0.4), cf * CFrame.new(0, H / 2 - 0.06, 0.15), M.Metal, trim, { Reflectance = 0.3, CastShadow = false })
+	deco("VendingPlinth", Vector3.new(W - 0.5, 0.3, D - 0.6), cf * CFrame.new(0, -H / 2 + 0.05, 0.15), M.SmoothPlastic, black)
+	deco("VendingKick", Vector3.new(W - 0.4, 0.32, 0.06), cf * CFrame.new(0, -H / 2 + 0.26, -1.23), M.SmoothPlastic, black, { Reflectance = 0.1, Variant = false })
+	deco("VendingKickTrim", Vector3.new(W - 0.4, 0.04, 0.07), cf * CFrame.new(0, -H / 2 + 0.44, -1.235), M.Metal, trim, { Reflectance = 0.3, CastShadow = false })
 
-	-- Logo luminoso arriba
-	local logo = deco("VendingLogo", Vector3.new(W - 0.3, 0.75, 0.1), cf * CFrame.new(0, 3, -1.26), M.SmoothPlastic, accent:Lerp(Color3.new(0, 0, 0), 0.35))
-	litSign(logo, title, Color3.new(1, 1, 1), Enum.Font.GothamBlack, Enum.NormalId.Front)
-	neonStrip(Vector3.new(W - 0.3, 0.06, 0.06), cf * CFrame.new(0, 2.6, -1.3), Color3.fromRGB(255, 255, 255), "Mall")
+	-- Laterales con grafica: degradado, franjas en diagonal y la marca en vertical
+	-- (les afecta la luz de la escena: no brillan solos)
+	for _, face in { Enum.NormalId.Left, Enum.NormalId.Right } do
+		local gui = surface(side, face, 40, 1, 1)
+		local bg = guiFrame(gui, { BackgroundColor3 = Color3.new(1, 1, 1), ClipsDescendants = true })
+		gradient(bg, accentLight, accentDark, 90)
+		for i, spec in { { 0.62, 0.11, 0.05 }, { 0.7, 0.035, 0.25 } } do
+			local wave = guiFrame(bg, {
+				AnchorPoint = Vector2.new(0.5, 0.5),
+				Position = UDim2.fromScale(0.5, spec[1]),
+				Size = UDim2.fromScale(2.2, spec[2]),
+				Rotation = if face == Enum.NormalId.Left then -22 else 22,
+				BackgroundColor3 = if i == 1 then Color3.new(1, 1, 1) else trim,
+				BackgroundTransparency = spec[3],
+			})
+			wave.ZIndex = 2
+		end
+		local brand = guiText(bg, title, {
+			AnchorPoint = Vector2.new(0.5, 0.5),
+			Position = UDim2.fromScale(0.5, 0.3),
+			Size = UDim2.fromScale(2.2, 0.32), -- (girado: el ancho pasa a ser el alto)
+			Rotation = -90,
+			TextTransparency = 0.05,
+			ZIndex = 3,
+		})
+		local stroke = Instance.new("UIStroke")
+		stroke.Color = accentDark
+		stroke.Thickness = 2
+		stroke.Parent = brand
+		guiText(bg, if premium then "EDICIÓN ORO · BEBIDAS FRÍAS" else "BEBIDAS FRÍAS · 24 H", {
+			AnchorPoint = Vector2.new(0.5, 1),
+			Position = UDim2.fromScale(0.5, 0.95),
+			Size = UDim2.fromScale(0.85, 0.035),
+			Font = Enum.Font.GothamBold,
+			TextColor3 = Color3.fromRGB(255, 255, 255),
+			TextTransparency = 0.15,
+			ZIndex = 3,
+		})
+	end
 
-	-- Vitrina: fondo, baldas con latas, luz interior, marco y vidrio
-	-- (vista de frente: vitrina a la izquierda, panel a la derecha = -X local)
+	-- Puerta: placa algo mas oscura con un filo metalico alrededor
+	deco("VendingDoor", Vector3.new(W - 0.34, H - 0.8, 0.06), cf * CFrame.new(0, -0.12, -1.23), M.SmoothPlastic, accent:Lerp(Color3.new(0, 0, 0), 0.15), glossy)
+	trimFrame(cf, "VendingDoorTrim", 0, -0.12, W - 0.34, H - 0.8, -1.25, 0.04, 0.05, trim, M.Metal)
+
+	-- Marquesina luminosa arriba (degradado, marca y subtitulo; se ve a oscuras)
+	local logo = deco("VendingLogo", Vector3.new(W - 0.5, 0.8, 0.1), cf * CFrame.new(0, 3.0, -1.3), M.SmoothPlastic, accent, { Variant = false })
+	do
+		local gui = surface(logo, Enum.NormalId.Front, 60, 0, 1.6)
+		local bg = guiFrame(gui, { BackgroundColor3 = Color3.new(1, 1, 1) })
+		gradient(bg, accentLight, accentDark, 90)
+		guiFrame(bg, { Size = UDim2.fromScale(1, 0.42), BackgroundColor3 = Color3.new(1, 1, 1), BackgroundTransparency = 0.82 }) -- brillo
+		local titleLabel = guiText(bg, title, {
+			Position = UDim2.fromScale(0.05, 0.08),
+			Size = UDim2.fromScale(0.9, 0.62),
+			ZIndex = 2,
+		})
+		local stroke = Instance.new("UIStroke")
+		stroke.Color = accentDark:Lerp(Color3.new(0, 0, 0), 0.4)
+		stroke.Thickness = 3
+		stroke.Parent = titleLabel
+		guiText(bg, if premium then "★  SELECCIÓN DE LA CASA  ★" else "SIEMPRE FRÍAS", {
+			Position = UDim2.fromScale(0.1, 0.7),
+			Size = UDim2.fromScale(0.8, 0.22),
+			Font = Enum.Font.GothamBold,
+			TextColor3 = if premium then trim else Color3.fromRGB(255, 235, 235),
+			ZIndex = 2,
+		})
+	end
+	trimFrame(cf, "VendingLogoTrim", 0, 3.0, W - 0.5, 0.8, -1.32, 0.05, 0.08, trim, M.Metal)
+	neonStrip(Vector3.new(W - 0.5, 0.05, 0.05), cf * CFrame.new(0, 2.555, -1.33), Color3.fromRGB(255, 255, 255), "Mall")
+
+	-- Vitrina (vista de frente: vitrina a la izquierda, panel a la derecha = -X local).
+	-- Mimic.luau usa estas medidas (WIN_X, WIN_W, WIN_H y el vidrio en z = -1.5).
 	local winX, winY, winW, winH = 0.75, 0.05, 2.6, 4.7
-	deco("VendingBack", Vector3.new(winW - 0.1, winH - 0.1, 0.05), cf * CFrame.new(winX, winY, -1.22), M.SmoothPlastic, Color3.fromRGB(20, 20, 26))
+	-- Fondo iluminado (degradado frio, brilla solo)
+	-- (delante de la placa de la puerta, que acaba en z = -1.26)
+	local back = deco("VendingBack", Vector3.new(winW - 0.1, winH - 0.1, 0.05), cf * CFrame.new(winX, winY, -1.29), M.SmoothPlastic, Color3.fromRGB(20, 20, 26), { Variant = false })
+	do
+		local gui = surface(back, Enum.NormalId.Front, 20, 0, 1)
+		local bg = guiFrame(gui, { BackgroundColor3 = Color3.new(1, 1, 1) })
+		gradient(bg, Color3.fromRGB(205, 225, 245), Color3.fromRGB(70, 85, 110), 90)
+		-- Ilumina los productos desde el fondo (cerca del centro: el Mimico la hace parpadear)
+		local backLight = Instance.new("SurfaceLight")
+		backLight.Face = Enum.NormalId.Front
+		backLight.Range = 3
+		backLight.Brightness = 1.4
+		backLight.Angle = 120
+		backLight.Color = Color3.fromRGB(225, 238, 255)
+		backLight.Parent = back
+	end
+	-- Tiras LED a los lados, por dentro del vidrio
+	for _, sx in { -1, 1 } do
+		deco("VendingLED", Vector3.new(0.05, winH - 0.25, 0.05), cf * CFrame.new(winX + sx * (winW / 2 - 0.08), winY, -1.42), M.Neon, Color3.fromRGB(225, 240, 255), { CastShadow = false })
+	end
+	local flavors = if premium then BOTTLE_FLAVORS else CAN_FLAVORS
+	local rowLetters = { "E", "D", "C", "B", "A" }
 	for row = 0, 4 do
 		local y = -1.95 + row * 0.9
-		deco("VendingShelf", Vector3.new(winW - 0.1, 0.06, 0.3), cf * CFrame.new(winX, y - 0.03, -1.36), M.Metal, STEEL, { CastShadow = false })
-		local color = SODA_COLORS[(row + (if machineType == "Premium" then 3 else 0)) % #SODA_COLORS + 1]
+		deco("VendingShelf", Vector3.new(winW - 0.1, 0.05, 0.26), cf * CFrame.new(winX, y - 0.025, -1.33), M.Metal, STEEL, { CastShadow = false })
+		-- Etiquetas del borde de la balda: codigo de cada hueco
+		local strip = deco("VendingShelfLabel", Vector3.new(winW - 0.1, 0.12, 0.02), cf * CFrame.new(winX, y - 0.1, -1.465), M.SmoothPlastic, black, { CastShadow = false, Variant = false })
+		do
+			local gui = surface(strip, Enum.NormalId.Front, 80, 0.4, 1.2)
+			local holder = guiFrame(gui, { BackgroundTransparency = 1 })
+			local layout = Instance.new("UIListLayout")
+			layout.FillDirection = Enum.FillDirection.Horizontal
+			layout.HorizontalAlignment = Enum.HorizontalAlignment.Center
+			layout.Padding = UDim.new(0.02, 0)
+			layout.Parent = holder
+			for k = 1, 6 do
+				local tagFrame = guiFrame(holder, {
+					Size = UDim2.fromScale(0.14, 0.8),
+					BackgroundColor3 = Color3.fromRGB(245, 245, 240),
+					LayoutOrder = k,
+				})
+				guiText(tagFrame, rowLetters[row + 1] .. k, {
+					Size = UDim2.fromScale(1, 1),
+					Font = Enum.Font.GothamBold,
+					TextColor3 = Color3.fromRGB(20, 20, 25),
+				})
+			end
+		end
 		for k = 0, 5 do
-			deco("Can", Vector3.new(0.5, 0.3, 0.3), cf * CFrame.new(winX - 1.1 + k * 0.44, y + 0.25, -1.37) * CFrame.Angles(0, 0, math.rad(90)), M.SmoothPlastic, color, {
-				Shape = Enum.PartType.Cylinder,
-				Reflectance = 0.15,
-				CastShadow = false,
-			})
+			-- Cada par de huecos lleva un producto distinto
+			local flavor = flavors[(row * 3 + k // 2) % #flavors + 1]
+			local x = winX - 1.1 + k * 0.44
+			local upright = CFrame.Angles(0, 0, math.rad(90))
+			if premium then
+				-- Botella: cuerpo de vidrio de color, etiqueta y tapon dorado
+				deco("Bottle", Vector3.new(0.5, 0.26, 0.26), cf * CFrame.new(x, y + 0.25, -1.32) * upright, M.SmoothPlastic, flavor[1], {
+					Shape = Enum.PartType.Cylinder,
+					Transparency = 0.12,
+					Reflectance = 0.3,
+					CastShadow = false,
+					Variant = false,
+				})
+				deco("BottleLabel", Vector3.new(0.2, 0.27, 0.27), cf * CFrame.new(x, y + 0.22, -1.32) * upright, M.SmoothPlastic, flavor[2], {
+					Shape = Enum.PartType.Cylinder,
+					CastShadow = false,
+					Variant = false,
+				})
+				deco("BottleCap", Vector3.new(0.16, 0.12, 0.12), cf * CFrame.new(x, y + 0.56, -1.32) * upright, M.Metal, trim, {
+					Shape = Enum.PartType.Cylinder,
+					Reflectance = 0.3,
+					CastShadow = false,
+				})
+			else
+				-- Lata: cuerpo brillante, franja de la etiqueta y tapa de aluminio
+				deco("Can", Vector3.new(0.5, 0.3, 0.3), cf * CFrame.new(x, y + 0.25, -1.32) * upright, M.SmoothPlastic, flavor[1], {
+					Shape = Enum.PartType.Cylinder,
+					Reflectance = 0.22,
+					CastShadow = false,
+					Variant = false,
+				})
+				deco("CanBand", Vector3.new(0.14, 0.31, 0.31), cf * CFrame.new(x, y + 0.27, -1.32) * upright, M.SmoothPlastic, flavor[2], {
+					Shape = Enum.PartType.Cylinder,
+					Reflectance = 0.1,
+					CastShadow = false,
+					Variant = false,
+				})
+				deco("CanLid", Vector3.new(0.04, 0.27, 0.27), cf * CFrame.new(x, y + 0.51, -1.32) * upright, M.Metal, Color3.fromRGB(200, 204, 210), {
+					Shape = Enum.PartType.Cylinder,
+					Reflectance = 0.35,
+					CastShadow = false,
+				})
+			end
 		end
 	end
 	local innerLight = deco("VendingInnerLight", Vector3.new(winW - 0.2, 0.06, 0.08), cf * CFrame.new(winX, winY + winH / 2 - 0.12, -1.3), M.Neon, Color3.fromRGB(235, 245, 255))
 	local inner = Instance.new("PointLight")
-	inner.Range = 6
-	inner.Brightness = 1.2
+	inner.Range = 7
+	inner.Brightness = 2.2
 	inner.Color = Color3.fromRGB(235, 245, 255)
 	inner.Parent = innerLight
 	local glow = Instance.new("PointLight")
@@ -1217,24 +1449,37 @@ local function vendingMachine(cf: CFrame, machineType: string, accent: Color3, t
 	glow.Brightness = 0.6
 	glow.Color = accent:Lerp(Color3.new(1, 1, 1), 0.3)
 	glow.Parent = shell
-	for _, bar in {
-		{ Vector3.new(winW + 0.3, 0.15, 0.32), Vector3.new(winX, winY + winH / 2 + 0.07, -1.36) },
-		{ Vector3.new(winW + 0.3, 0.15, 0.32), Vector3.new(winX, winY - winH / 2 - 0.07, -1.36) },
-		{ Vector3.new(0.15, winH + 0.3, 0.32), Vector3.new(winX - winW / 2 - 0.07, winY, -1.36) },
-		{ Vector3.new(0.15, winH + 0.3, 0.32), Vector3.new(winX + winW / 2 + 0.07, winY, -1.36) },
-	} do
-		deco("VendingFrame", bar[1], cf * CFrame.new(bar[2]), M.Metal, dark)
-	end
-	deco("VendingGlass", Vector3.new(winW, winH, 0.05), cf * CFrame.new(winX, winY, -1.5), M.Glass, Color3.fromRGB(200, 220, 230), {
-		Transparency = 0.78,
+	-- Marco de la vitrina: perfil oscuro con un filo metalico por dentro
+	trimFrame(cf, "VendingFrame", winX, winY, winW, winH, -1.36, 0.15, 0.32, dark, M.Metal)
+	trimFrame(cf, "VendingFrameLip", winX, winY, winW - 0.02, winH - 0.02, -1.53, 0.035, 0.03, trim, M.Metal)
+	-- (SmoothPlastic y no Glass: el material Glass no deja ver las SurfaceGui ni las
+	-- piezas transparentes que tiene detras: el fondo iluminado, etiquetas y botellas)
+	local glass = deco("VendingGlass", Vector3.new(winW, winH, 0.05), cf * CFrame.new(winX, winY, -1.5), M.SmoothPlastic, Color3.fromRGB(200, 220, 230), {
+		Transparency = 0.88,
 		Reflectance = 0.25,
 		CastShadow = false,
 		Variant = false,
 	})
+	-- Reflejos en diagonal sobre el vidrio
+	do
+		local gui = surface(glass, Enum.NormalId.Front, 20, 0.5, 1)
+		local holder = guiFrame(gui, { BackgroundTransparency = 1, ClipsDescendants = true })
+		for _, spec in { { 0.3, 0.16, 0.86 }, { 0.48, 0.05, 0.84 }, { 0.82, 0.08, 0.9 } } do
+			guiFrame(holder, {
+				AnchorPoint = Vector2.new(0.5, 0.5),
+				Position = UDim2.fromScale(spec[1], 0.45),
+				Size = UDim2.fromScale(spec[2], 1.6),
+				Rotation = 24,
+				BackgroundColor3 = Color3.new(1, 1, 1),
+				BackgroundTransparency = spec[3],
+			})
+		end
+	end
 
-	-- Panel derecho: pantalla (probabilidades), teclado, monedero y billetero
+	-- Panel derecho: pantalla (probabilidades), teclado, monedero, tarjeta y billetero
 	local panelX = -1.45
-	deco("VendingPanel", Vector3.new(1.4, 5.4, 0.1), cf * CFrame.new(panelX, -0.2, -1.25), M.SmoothPlastic, dark)
+	deco("VendingPanel", Vector3.new(1.3, 5.3, 0.08), cf * CFrame.new(panelX, -0.15, -1.27), M.SmoothPlastic, dark, { Reflectance = 0.08, Variant = false })
+	deco("VendingScreenBezel", Vector3.new(1.42, 3.02, 0.04), cf * CFrame.new(panelX, 1, -1.3), M.Metal, trim, { Reflectance = 0.3, CastShadow = false })
 	local screen = box("OddsScreen", Vector3.new(1.3, 2.9, 0.05), cf * CFrame.new(panelX, 1, -1.32), M.SmoothPlastic, Color3.fromRGB(8, 10, 14), {
 		CanCollide = false,
 		CanQuery = false,
@@ -1242,18 +1487,58 @@ local function vendingMachine(cf: CFrame, machineType: string, accent: Color3, t
 		Variant = false,
 	})
 	screen.Parent = body
-	for r = 0, 2 do
-		for c = 0, 2 do
-			deco("Key", Vector3.new(0.2, 0.16, 0.06), cf * CFrame.new(panelX - 0.27 + c * 0.27, -0.8 - r * 0.22, -1.32), M.SmoothPlastic, Color3.fromRGB(200, 200, 205))
+	-- Teclado: una placa con las teclas dibujadas (1-9, *, 0, #)
+	local keypad = deco("VendingKeypad", Vector3.new(0.9, 0.95, 0.05), cf * CFrame.new(panelX, -0.95, -1.33), M.SmoothPlastic, Color3.fromRGB(40, 40, 46), { Variant = false })
+	do
+		local gui = surface(keypad, Enum.NormalId.Front, 100, 0.6, 1.3)
+		local holder = guiFrame(gui, { BackgroundTransparency = 1 })
+		local grid = Instance.new("UIGridLayout")
+		grid.CellSize = UDim2.fromScale(0.28, 0.2)
+		grid.CellPadding = UDim2.fromScale(0.05, 0.045)
+		grid.HorizontalAlignment = Enum.HorizontalAlignment.Center
+		grid.VerticalAlignment = Enum.VerticalAlignment.Center
+		grid.Parent = holder
+		for i, key in { "1", "2", "3", "4", "5", "6", "7", "8", "9", "*", "0", "#" } do
+			local k = guiFrame(holder, { BackgroundColor3 = Color3.fromRGB(215, 218, 224), LayoutOrder = i })
+			local c = Instance.new("UICorner")
+			c.CornerRadius = UDim.new(0.25, 0)
+			c.Parent = k
+			guiText(k, key, {
+				Size = UDim2.fromScale(1, 1),
+				Font = Enum.Font.GothamBold,
+				TextColor3 = Color3.fromRGB(30, 30, 36),
+			})
 		end
 	end
-	deco("CoinSlot", Vector3.new(0.35, 0.5, 0.08), cf * CFrame.new(panelX, -1.65, -1.32), M.Metal, STEEL)
-	deco("BillSlot", Vector3.new(0.7, 0.22, 0.08), cf * CFrame.new(panelX, -2.15, -1.32), M.SmoothPlastic, Color3.fromRGB(15, 15, 18))
-	neonStrip(Vector3.new(0.5, 0.04, 0.04), cf * CFrame.new(panelX, -2.15, -1.37), Color3.fromRGB(80, 255, 120), "Mall")
+	-- Monedero (cromo con ranura) y lector de tarjetas (luz verde)
+	deco("CoinSlot", Vector3.new(0.45, 0.55, 0.08), cf * CFrame.new(panelX + 0.3, -1.85, -1.33), M.Metal, trim, { Reflectance = 0.3 })
+	deco("CoinSlotHole", Vector3.new(0.05, 0.3, 0.02), cf * CFrame.new(panelX + 0.3, -1.85, -1.375), M.SmoothPlastic, black)
+	deco("CardReader", Vector3.new(0.45, 0.55, 0.12), cf * CFrame.new(panelX - 0.3, -1.85, -1.35), M.SmoothPlastic, black, { Reflectance = 0.1, Variant = false })
+	neonStrip(Vector3.new(0.3, 0.035, 0.03), cf * CFrame.new(panelX - 0.3, -1.68, -1.415), Color3.fromRGB(80, 255, 120), "Mall")
+	deco("BillSlot", Vector3.new(0.8, 0.2, 0.08), cf * CFrame.new(panelX, -2.35, -1.33), M.SmoothPlastic, black)
+	neonStrip(Vector3.new(0.55, 0.04, 0.04), cf * CFrame.new(panelX, -2.35, -1.38), Color3.fromRGB(80, 255, 120), "Mall")
+	-- Cajetin del cambio
+	trimFrame(cf, "ChangeCupTrim", panelX, -2.62, 0.45, 0.25, -1.31, 0.04, 0.05, trim, M.Metal)
+	deco("ChangeCup", Vector3.new(0.45, 0.25, 0.06), cf * CFrame.new(panelX, -2.62, -1.29), M.SmoothPlastic, black)
 
-	-- Bandeja de salida
-	deco("VendingTray", Vector3.new(winW, 0.7, 0.12), cf * CFrame.new(winX, -2.95, -1.3), M.SmoothPlastic, Color3.fromRGB(12, 12, 15))
-	deco("VendingFlap", Vector3.new(winW - 0.2, 0.5, 0.05), cf * CFrame.new(winX, -2.95, -1.38), M.SmoothPlastic, Color3.fromRGB(45, 45, 52), { Transparency = 0.25 })
+	-- Bandeja de salida: hueco oscuro con marco metalico y tapa ahumada "EMPUJAR"
+	deco("VendingTray", Vector3.new(winW, 0.7, 0.1), cf * CFrame.new(winX, -2.95, -1.28), M.SmoothPlastic, black)
+	trimFrame(cf, "VendingTrayTrim", winX, -2.95, winW, 0.7, -1.3, 0.05, 0.08, trim, M.Metal)
+	local flap = deco("VendingFlap", Vector3.new(winW - 0.2, 0.5, 0.04), cf * CFrame.new(winX, -2.95, -1.34), M.SmoothPlastic, Color3.fromRGB(45, 45, 52), {
+		Transparency = 0.15,
+		Reflectance = 0.15,
+		Variant = false,
+	})
+	do
+		local gui = surface(flap, Enum.NormalId.Front, 60, 0.7, 1)
+		guiText(gui, "EMPUJAR", {
+			Position = UDim2.fromScale(0.3, 0.3),
+			Size = UDim2.fromScale(0.4, 0.4),
+			Font = Enum.Font.GothamBold,
+			TextColor3 = Color3.fromRGB(200, 200, 210),
+			TextTransparency = 0.3,
+		})
+	end
 
 	tag(body, Tags.VendingMachine)
 

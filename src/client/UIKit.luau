@@ -4,11 +4,17 @@ local UIKit = {}
 
 UIKit.COLORS = {
 	Panel = Color3.fromRGB(12, 12, 16),
+	PanelHi = Color3.fromRGB(20, 20, 27), -- cabeceras y cajas de icono
 	Row = Color3.fromRGB(26, 26, 32),
+	RowHi = Color3.fromRGB(34, 34, 42),
+	Track = Color3.fromRGB(8, 8, 11), -- fondo de las barras
+	Stroke = Color3.fromRGB(70, 70, 82),
 	Text = Color3.fromRGB(235, 235, 235),
 	Dim = Color3.fromRGB(150, 150, 160),
 	Good = Color3.fromRGB(90, 210, 120),
 	Bad = Color3.fromRGB(230, 80, 80),
+	Info = Color3.fromRGB(110, 180, 255),
+	Event = Color3.fromRGB(190, 120, 255),
 	Accent = Color3.fromRGB(255, 200, 80),
 	Button = Color3.fromRGB(60, 140, 80),
 	ButtonOff = Color3.fromRGB(60, 60, 68),
@@ -16,6 +22,133 @@ UIKit.COLORS = {
 
 UIKit.FONT = Enum.Font.GothamBold
 UIKit.FONT_LIGHT = Enum.Font.Gotham
+UIKit.FONT_BLACK = Enum.Font.GothamBlack
+
+local TweenService = game:GetService("TweenService")
+
+-- Tween corto de un solo paso (devuelve el Tween ya en marcha)
+function UIKit.tween(obj: Instance, seconds: number, props, style: Enum.EasingStyle?, direction: Enum.EasingDirection?)
+	local t = TweenService:Create(
+		obj,
+		TweenInfo.new(seconds, style or Enum.EasingStyle.Quad, direction or Enum.EasingDirection.Out),
+		props
+	)
+	t:Play()
+	return t
+end
+
+-- Mayusculas con tildes y ñ (string.upper solo cambia las letras ASCII)
+local ACCENTS = { ["á"] = "Á", ["é"] = "É", ["í"] = "Í", ["ó"] = "Ó", ["ú"] = "Ú", ["ñ"] = "Ñ", ["ü"] = "Ü" }
+function UIKit.upper(s: string): string
+	s = string.upper(s)
+	for lower, upperChar in ACCENTS do
+		s = string.gsub(s, lower, upperChar)
+	end
+	return s
+end
+
+-- Aclara (amount > 0) u oscurece (amount < 0) un color
+function UIKit.shade(color: Color3, amount: number): Color3
+	if amount >= 0 then
+		return color:Lerp(Color3.new(1, 1, 1), amount)
+	end
+	return color:Lerp(Color3.new(0, 0, 0), -amount)
+end
+
+-- Degradado vertical (arriba mas claro) para rellenos de barras y botones
+function UIKit.gloss(parent: Instance, amount: number?)
+	local a = amount or 0.25
+	local g = Instance.new("UIGradient")
+	g.Rotation = 90
+	g.Color = ColorSequence.new(Color3.new(1, 1, 1), Color3.new(1 - a, 1 - a, 1 - a))
+	g.Parent = parent
+	return g
+end
+
+function UIKit.stroke(parent: Instance, color: Color3?, thickness: number?, transparency: number?)
+	local s = Instance.new("UIStroke")
+	s.ApplyStrokeMode = Enum.ApplyStrokeMode.Border
+	s.Color = color or UIKit.COLORS.Stroke
+	s.Thickness = thickness or 1
+	s.Transparency = transparency or 0.3
+	s.Parent = parent
+	return s
+end
+
+-- Caja cuadrada con un simbolo (icono hecho con texto/emoji)
+function UIKit.iconBox(props: { [string]: any }, glyph: string, color: Color3)
+	local size = props.Size or UDim2.fromOffset(36, 36)
+	local box = UIKit.make("Frame", {
+		Name = "Icon",
+		Size = size,
+		Position = props.Position or UDim2.new(),
+		AnchorPoint = props.AnchorPoint or Vector2.zero,
+		BackgroundColor3 = UIKit.shade(color, -0.72),
+		ZIndex = props.ZIndex or 1,
+		LayoutOrder = props.LayoutOrder or 0,
+		Parent = props.Parent,
+	}, { UIKit.corner(props.Radius or 8) })
+	UIKit.stroke(box, color, 1, 0.45)
+	local label = UIKit.make("TextLabel", {
+		Name = "Glyph",
+		Size = UDim2.fromScale(1, 1),
+		BackgroundTransparency = 1,
+		Font = UIKit.FONT_BLACK,
+		Text = glyph,
+		TextColor3 = color,
+		TextScaled = true,
+		ZIndex = (props.ZIndex or 1) + 1,
+		Parent = box,
+	}, {
+		UIKit.make("UIPadding", {
+			PaddingTop = UDim.new(0.16, 0),
+			PaddingBottom = UDim.new(0.16, 0),
+			PaddingLeft = UDim.new(0.12, 0),
+			PaddingRight = UDim.new(0.12, 0),
+		}),
+	})
+	return box, label
+end
+
+-- Recuerda la transparencia "visible" de cada parte de un arbol de UI y la anima
+-- hacia invisible (alpha = 1) o de vuelta (alpha = 0). Sirve para aparecer/desaparecer
+-- tarjetas enteras sin CanvasGroup.
+local FADE_PROPS = {
+	Frame = { "BackgroundTransparency" },
+	TextLabel = { "BackgroundTransparency", "TextTransparency", "TextStrokeTransparency" },
+	TextButton = { "BackgroundTransparency", "TextTransparency", "TextStrokeTransparency" },
+	ImageLabel = { "BackgroundTransparency", "ImageTransparency" },
+	UIStroke = { "Transparency" },
+}
+local fadeBase = setmetatable({}, { __mode = "k" })
+function UIKit.fade(root: Instance, alpha: number, seconds: number)
+	local nodes = root:GetDescendants()
+	table.insert(nodes, root)
+	for _, obj in nodes do
+		local list = FADE_PROPS[obj.ClassName]
+		if list then
+			local base = fadeBase[obj]
+			if not base then
+				base = {}
+				for _, prop in list do
+					base[prop] = (obj :: any)[prop]
+				end
+				fadeBase[obj] = base
+			end
+			local goal = {}
+			for prop, value in base do
+				goal[prop] = value + (1 - value) * alpha
+			end
+			if seconds <= 0 then
+				for prop, value in goal do
+					(obj :: any)[prop] = value
+				end
+			else
+				TweenService:Create(obj, TweenInfo.new(seconds), goal):Play()
+			end
+		end
+	end
+end
 
 function UIKit.make(className: string, props, children)
 	local inst = Instance.new(className)
@@ -240,12 +373,55 @@ function UIKit.window(parent: Instance, title: string, size: Vector2, onClose: (
 		UIKit.make("UIStroke", { Color = UIKit.COLORS.Accent, Thickness = 1.5, Transparency = 0.4 }),
 		UIKit.make("UISizeConstraint", { MaxSize = Vector2.new(size.X, size.Y) }),
 	})
+	-- Cabecera: franja algo mas clara con una linea de acento debajo
+	local header = UIKit.make("Frame", {
+		Name = "Header",
+		Size = UDim2.new(1, 0, 0, 50),
+		BackgroundColor3 = UIKit.COLORS.PanelHi,
+		BorderSizePixel = 0,
+		ZIndex = 20,
+		Parent = frame,
+	}, { UIKit.corner(12) })
+	UIKit.make("Frame", { -- tapa las esquinas redondeadas de abajo de la cabecera
+		Position = UDim2.new(0, 0, 1, -12),
+		Size = UDim2.new(1, 0, 0, 12),
+		BackgroundColor3 = UIKit.COLORS.PanelHi,
+		BorderSizePixel = 0,
+		ZIndex = 20,
+		Parent = header,
+	})
+	local accentLine = UIKit.make("Frame", {
+		Name = "AccentLine",
+		Position = UDim2.new(0, 0, 1, -2),
+		Size = UDim2.new(1, 0, 0, 2),
+		BackgroundColor3 = UIKit.COLORS.Accent,
+		BorderSizePixel = 0,
+		ZIndex = 21,
+		Parent = header,
+	})
+	UIKit.make("UIGradient", {
+		Transparency = NumberSequence.new({
+			NumberSequenceKeypoint.new(0, 0),
+			NumberSequenceKeypoint.new(0.6, 0.55),
+			NumberSequenceKeypoint.new(1, 1),
+		}),
+		Parent = accentLine,
+	})
+	UIKit.make("Frame", { -- marca de color a la izquierda del titulo
+		Position = UDim2.fromOffset(14, 15),
+		Size = UDim2.fromOffset(4, 20),
+		BackgroundColor3 = UIKit.COLORS.Accent,
+		BorderSizePixel = 0,
+		ZIndex = 21,
+		Parent = frame,
+	}, { UIKit.corner(2) })
 	local titleLabel = UIKit.text({
-		Position = UDim2.fromOffset(20, 12),
+		Position = UDim2.fromOffset(26, 12),
 		Size = UDim2.new(1, -80, 0, 30),
 		TextXAlignment = Enum.TextXAlignment.Left,
 		TextSize = 24,
 		TextScaled = true,
+		Font = UIKit.FONT_BLACK,
 		Text = title,
 		ZIndex = 21,
 		Parent = frame,
@@ -254,14 +430,21 @@ function UIKit.window(parent: Instance, title: string, size: Vector2, onClose: (
 	local closeButton = UIKit.button({
 		Name = "Close",
 		AnchorPoint = Vector2.new(1, 0),
-		Position = UDim2.new(1, -12, 0, 12),
+		Position = UDim2.new(1, -10, 0, 9),
 		Size = UDim2.fromOffset(32, 32),
 		BackgroundColor3 = UIKit.COLORS.ButtonOff,
-		Text = "X",
+		Text = "×",
 		Modal = true,
 		ZIndex = 21,
 		Parent = frame,
 	}, onClose)
+	-- Al abrirse: sube un poco desde abajo (los modulos solo cambian Visible)
+	frame:GetPropertyChangedSignal("Visible"):Connect(function()
+		if frame.Visible then
+			frame.Position = UDim2.new(0.5, 0, 0.5, 22)
+			UIKit.tween(frame, 0.25, { Position = UDim2.fromScale(0.5, 0.5) }, Enum.EasingStyle.Back)
+		end
+	end)
 	local content = UIKit.make("Frame", {
 		Name = "Content",
 		Position = UDim2.fromOffset(16, 54),

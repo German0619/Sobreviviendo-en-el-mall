@@ -26,12 +26,44 @@ local function setStatus(message: string, good: boolean?)
 	statusLabel.TextColor3 = if good then C.Good else C.Bad
 end
 
+-- Icono de cada objeto (los que no estan, un "+")
+local ICONS = {
+	Battery = { "🔋", Color3.fromRGB(120, 190, 255) },
+	Medkit = { "✚", Color3.fromRGB(230, 80, 80) },
+	Flare = { "🔥", Color3.fromRGB(255, 120, 60) },
+	Firecracker = { "🧨", Color3.fromRGB(255, 90, 90) },
+	FlashlightPro = { "🔦", Color3.fromRGB(255, 220, 120) },
+	Taser = { "⚡", Color3.fromRGB(110, 200, 255) },
+	Extinguisher = { "🧯", Color3.fromRGB(230, 70, 70) },
+	WetFloorSign = { "⚠", Color3.fromRGB(255, 210, 60) },
+	UVFlashlight = { "🔦", Color3.fromRGB(180, 110, 255) },
+	Mop = { "🧹", Color3.fromRGB(120, 200, 160) },
+	Machete = { "🔪", Color3.fromRGB(200, 200, 210) },
+	Pistol = { "🔫", Color3.fromRGB(200, 200, 210) },
+}
+
+local function priceCaption(money: number, price: number): string
+	return if money >= price then "COMPRAR" else "TE FALTA " .. Util.formatMoney(price - money)
+end
+
+-- Boton de compra: precio grande y leyenda pequena debajo
+local function setButton(row, priceText: string, caption: string, affordable: boolean, owned: boolean)
+	row.Price.Text = priceText
+	row.Caption.Text = caption
+	row.Caption.Visible = caption ~= ""
+	row.Price.Position = UDim2.new(0, 0, 0, if caption ~= "" then 5 else 0)
+	row.Price.Size = UDim2.new(1, 0, if caption ~= "" then 0 else 1, if caption ~= "" then 24 else 0)
+	row.Button.BackgroundColor3 = if affordable then C.Button else C.ButtonOff
+	row.Price.TextColor3 = if owned then C.Good elseif affordable then C.Text else C.Dim
+	row.Stroke.Transparency = if affordable then 0.4 else 0.8
+end
+
 local function refresh()
 	if not window then
 		return
 	end
 	local money = player:GetAttribute("Money") or 0
-	moneyLabel.Text = "Billetes: " .. Util.formatMoney(money)
+	moneyLabel.Text = Util.formatMoney(money)
 	for itemId, row in rows do
 		local item = Config.ShopItems[itemId]
 		-- Armas: cada una en su casilla de la mochila; la misma se recarga. El taser no se
@@ -58,11 +90,9 @@ local function refresh()
 				row.Recharge.Visible = carried and not infinite
 			end
 			if full then
-				row.Button.Text = "LA LLEVAS"
-				row.Button.BackgroundColor3 = C.ButtonOff
+				setButton(row, "LA LLEVAS", "", false, true)
 			else
-				row.Button.Text = Util.formatMoney(price)
-				row.Button.BackgroundColor3 = if money >= price then C.Button else C.ButtonOff
+				setButton(row, Util.formatMoney(price), priceCaption(money, price), money >= price, false)
 			end
 			continue
 		end
@@ -80,11 +110,9 @@ local function refresh()
 			row.Owned.Text = string.format("Tienes %d / %d", owned, item.MaxStack or 99)
 		end
 		if full then
-			row.Button.Text = if item.Unique then "TUYA" else "LLENO"
-			row.Button.BackgroundColor3 = C.ButtonOff
+			setButton(row, if item.Unique then "TUYA" else "LLENO", "", false, true)
 		else
-			row.Button.Text = Util.formatMoney(item.Price)
-			row.Button.BackgroundColor3 = if money >= item.Price then C.Button else C.ButtonOff
+			setButton(row, Util.formatMoney(item.Price), priceCaption(money, item.Price), money >= item.Price, false)
 		end
 	end
 end
@@ -102,7 +130,14 @@ local function buy(itemId: string)
 		warn("[ShopUI] RequestPurchase fallo:", result)
 		setStatus("Error: " .. tostring(result))
 	else
-		setStatus(message or "", result == true)
+		setStatus((if result == true then "✓ " else "") .. (message or ""), result == true)
+		local row = rows[itemId]
+		if result == true and row then
+			-- Destello de la fila comprada
+			local icon = ICONS[itemId] or { "+", C.Accent }
+			row.Frame.BackgroundColor3 = UIKit.shade(icon[2], -0.5)
+			UIKit.tween(row.Frame, 0.6, { BackgroundColor3 = C.Row })
+		end
 	end
 	refresh()
 end
@@ -120,7 +155,7 @@ function ShopUI.Close()
 	counterPosition = nil
 end
 
-local ROW = 84 -- alto de cada fila de la lista (con su separacion)
+local ROW = 94 -- alto de cada fila de la lista (con su separacion)
 
 local function build()
 	local gui = UIKit.make("ScreenGui", {
@@ -136,23 +171,38 @@ local function build()
 	-- Alto segun el numero de objetos (ROW px por fila), con tope: el resto con scroll
 	local height = math.min(130 + #Config.ShopOrder * ROW, 560)
 	-- (scroll = true: en pantallas bajas la ventana baja de alto y la lista hace scroll)
-	window, content = UIKit.window(gui, "TIENDA DEL MALL", Vector2.new(480, height), ShopUI.Close, true)
+	window, content = UIKit.window(gui, "TIENDA DEL MALL", Vector2.new(540, height), ShopUI.Close, true)
 
-	moneyLabel = UIKit.text({
-		Size = UDim2.new(1, 0, 0, 24),
-		TextXAlignment = Enum.TextXAlignment.Left,
-		TextColor3 = C.Accent,
+	-- Billetes en una pastilla dorada
+	local moneyPill = UIKit.make("Frame", {
+		Size = UDim2.fromOffset(0, 28),
+		AutomaticSize = Enum.AutomaticSize.X,
+		BackgroundColor3 = UIKit.shade(C.Accent, -0.8),
 		ZIndex = 22,
 		Parent = content,
+	}, {
+		UIKit.corner(14),
+		UIKit.make("UIPadding", { PaddingLeft = UDim.new(0, 14), PaddingRight = UDim.new(0, 14) }),
+	})
+	UIKit.stroke(moneyPill, C.Accent, 1, 0.4)
+	moneyLabel = UIKit.text({
+		Size = UDim2.fromOffset(0, 28),
+		AutomaticSize = Enum.AutomaticSize.X,
+		TextSize = 17,
+		Font = UIKit.FONT_BLACK,
+		TextColor3 = C.Accent,
+		ZIndex = 23,
+		Parent = moneyPill,
 	})
 
 	-- Lista con scroll entre el dinero y la linea de estado
 	local list = UIKit.make("ScrollingFrame", {
-		Position = UDim2.fromOffset(0, 32),
-		Size = UDim2.new(1, 0, 1, -60),
+		Position = UDim2.fromOffset(0, 36),
+		Size = UDim2.new(1, 0, 1, -64),
 		BackgroundTransparency = 1,
 		BorderSizePixel = 0,
 		ScrollBarThickness = 6,
+		ScrollBarImageColor3 = C.Accent,
 		ScrollingDirection = Enum.ScrollingDirection.Y,
 		CanvasSize = UDim2.fromOffset(0, #Config.ShopOrder * ROW),
 		ZIndex = 22,
@@ -161,42 +211,56 @@ local function build()
 
 	for i, itemId in Config.ShopOrder do
 		local item = Config.ShopItems[itemId]
+		local icon = ICONS[itemId] or { "+", C.Accent }
 		local row = UIKit.make("Frame", {
 			Position = UDim2.fromOffset(0, (i - 1) * ROW),
 			Size = UDim2.new(1, -10, 0, ROW - 8),
 			BackgroundColor3 = C.Row,
 			ZIndex = 22,
 			Parent = list,
-		}, { UIKit.corner(8) })
+		}, { UIKit.corner(10) })
+		local rowStroke = UIKit.stroke(row, icon[2], 1, 0.8)
+		UIKit.iconBox({
+			AnchorPoint = Vector2.new(0, 0.5),
+			Position = UDim2.new(0, 10, 0.5, 0),
+			Size = UDim2.fromOffset(54, 54),
+			Radius = 10,
+			ZIndex = 23,
+			Parent = row,
+		}, icon[1], icon[2])
 		local name = item.DisplayName
 		UIKit.text({
-			Position = UDim2.fromOffset(12, 6),
-			Size = UDim2.new(1, -140, 0, 22),
+			Position = UDim2.fromOffset(76, 8),
+			Size = UDim2.new(1, -220, 0, 22),
 			TextXAlignment = Enum.TextXAlignment.Left,
+			TextSize = 17,
+			Font = UIKit.FONT_BLACK,
+			TextTruncate = Enum.TextTruncate.AtEnd,
 			Text = name,
 			ZIndex = 23,
 			Parent = row,
 		})
 		-- Descripcion en hasta dos lineas
 		UIKit.text({
-			Position = UDim2.fromOffset(12, 28),
-			Size = UDim2.new(1, -140, 0, 30),
+			Position = UDim2.fromOffset(76, 30),
+			Size = UDim2.new(1, -220, 0, 30),
 			TextXAlignment = Enum.TextXAlignment.Left,
 			TextYAlignment = Enum.TextYAlignment.Top,
 			TextWrapped = true,
 			TextSize = 13,
 			Font = UIKit.FONT_LIGHT,
-			TextColor3 = C.Dim,
+			TextColor3 = Color3.fromRGB(185, 185, 195),
 			Text = item.Description,
 			ZIndex = 23,
 			Parent = row,
 		})
 		local owned = UIKit.text({
-			Position = UDim2.fromOffset(12, 58),
-			Size = UDim2.new(1, -140, 0, 14),
+			Position = UDim2.fromOffset(76, 64),
+			Size = UDim2.new(1, -220, 0, 14),
 			TextXAlignment = Enum.TextXAlignment.Left,
 			TextSize = 12,
-			Font = UIKit.FONT_LIGHT,
+			Font = UIKit.FONT,
+			TextTruncate = Enum.TextTruncate.AtEnd,
 			TextColor3 = C.Accent,
 			ZIndex = 23,
 			Parent = row,
@@ -204,19 +268,38 @@ local function build()
 		local button = UIKit.button({
 			AnchorPoint = Vector2.new(1, 0.5),
 			Position = UDim2.new(1, -10, 0.5, 0),
-			Size = UDim2.fromOffset(110, 36),
+			Size = UDim2.fromOffset(124, 52),
+			Text = "",
 			ZIndex = 23,
 			Parent = row,
 		}, function()
 			buy(itemId)
 		end)
+		UIKit.gloss(button, 0.3)
+		local price = UIKit.text({
+			Position = UDim2.fromOffset(0, 5),
+			Size = UDim2.new(1, 0, 0, 24),
+			TextSize = 18,
+			Font = UIKit.FONT_BLACK,
+			ZIndex = 24,
+			Parent = button,
+		})
+		local caption = UIKit.text({
+			Position = UDim2.fromOffset(0, 29),
+			Size = UDim2.new(1, 0, 0, 16),
+			TextSize = 11,
+			Font = UIKit.FONT,
+			TextColor3 = Color3.fromRGB(215, 235, 215),
+			ZIndex = 24,
+			Parent = button,
+		})
 		-- Taser: boton de recarga con Robux (producto TaserRecharge)
 		local recharge = nil
 		if itemId == "Taser" and Config.DevProducts.TaserRecharge ~= 0 then
 			recharge = UIKit.button({
-				AnchorPoint = Vector2.new(1, 0.5),
-				Position = UDim2.new(1, -126, 0.5, 0),
-				Size = UDim2.fromOffset(96, 36),
+				AnchorPoint = Vector2.new(1, 1),
+				Position = UDim2.new(1, -140, 1, -8),
+				Size = UDim2.fromOffset(96, 26),
 				Text = string.format("+%d usos R$", Config.DevProducts.TaserRechargeUses),
 				TextSize = 13,
 				BackgroundColor3 = Color3.fromRGB(40, 130, 70),
@@ -227,7 +310,15 @@ local function build()
 				Remotes.event("RequestBuyProduct"):FireServer("TaserRecharge")
 			end)
 		end
-		rows[itemId] = { Owned = owned, Button = button, Recharge = recharge }
+		rows[itemId] = {
+			Frame = row,
+			Owned = owned,
+			Button = button,
+			Price = price,
+			Caption = caption,
+			Stroke = rowStroke,
+			Recharge = recharge,
+		}
 	end
 
 	statusLabel = UIKit.text({

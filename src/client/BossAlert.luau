@@ -157,7 +157,7 @@ function BossAlert.Start()
 	folder:GetAttributeChangedSignal("BossName"):Connect(function()
 		local name = folder:GetAttribute("BossName")
 		if type(name) == "string" then
-			show("⚠ " .. string.upper(name), folder:GetAttribute("BossObjective") or "", RED, 5)
+			show("⚠ " .. UIKit.upper(name), folder:GetAttribute("BossObjective") or "", RED, 5)
 			flashBorders(3)
 			playOnce(STINGER, 0.6, 0.9)
 			startMusic()
