@@ -18,12 +18,12 @@ Config.Debug = {
 	BuildTestMap = true, -- construye el mall (MallBuilder) o el lobby si el place no tiene uno propio
 	-- true = la partida empieza sola en cuanto hay alguien (sin esperar a que el anfitrion pulse Iniciar)
 	AutoStart = false,
-	StartNight = 7, -- pon 2 (Apagon), 3 (Eco), 5 (Rastro) o 7 (Vigilante) para probarlos desde el inicio
+	StartNight = 1, -- pon 2 (Apagon), 3 (Eco), 5 (Rastro) o 7 (Vigilante) para probarlos desde el inicio
 	OnlyEnemies = nil :: { string }?, -- ej. { "Echo" }: solo salen esos tipos (para probar uno)
 	Tier3MaxOverride = nil :: number?, -- ej. 3: permite varios de nivel 3 a la vez (para probarlos)
 	MissionGoalOverride = nil :: number?, -- ej. 2: tareas necesarias para pasar la noche (para probar)
-	OnlyEvents = { "IsolatedFloor" } :: { string }?, -- ej. { "Fog" }: solo salen esos eventos (para probarlos)
-	EventDelayOverride = 10 :: number?, -- ej. 10: segundos hasta el primer evento y entre eventos
+	OnlyEvents = nil :: { string }?, -- ej. { "Fog" }: solo salen esos eventos (para probarlos)
+	EventDelayOverride = nil :: number?, -- ej. 10: segundos hasta el primer evento y entre eventos
 	-- ej. "Manager" o { "Luni", "Manager" }: TODAS las noches son de ese jefe o pareja (para
 	-- probarlo). Para ver el refuerzo de las vueltas, mejor StartNight = 25, 45...
 	ForceBoss = nil :: (string | { string })?,
@@ -33,7 +33,7 @@ Config.Debug = {
 	-- ej. 3: La Garra se agarra sola esos segundos despues de empezar la noche (cualquier noche)
 	ClawGrabOnStart = nil :: number?,
 	-- SOLO en Studio:
-	StudioStartCash = 15000, -- billetes al empezar cada partida (ej. 5000 para probar la tienda)
+	StudioStartCash = 0, -- billetes al empezar cada partida (ej. 5000 para probar la tienda)
 	-- Diamantes que se suman al entrar (ej. 1000 para probar la ruleta).
 	-- Ojo: con API Services activado se guardan en tus datos de verdad.
 	StudioBonusDiamonds = 0,
@@ -44,7 +44,7 @@ Config.Debug = {
 	-- Ojo: con API Services activado se guarda en tus datos de verdad.
 	StudioBestiary = nil :: string?,
 	-- Pases que se simulan como comprados en Studio (ej. { "DoubleMoney", "VIP" })
-	StudioOwnedPasses = { "Pistol" } :: { string },
+	StudioOwnedPasses = {} :: { string },
 }
 
 ----------------------------------------------------------------------
