@@ -18,12 +18,12 @@ Config.Debug = {
 	BuildTestMap = true, -- construye el mall (MallBuilder) o el lobby si el place no tiene uno propio
 	-- true = la partida empieza sola en cuanto hay alguien (sin esperar a que el anfitrion pulse Iniciar)
 	AutoStart = false,
-	StartNight = 1, -- pon 2 (Apagon), 3 (Eco), 5 (Rastro) o 7 (Vigilante) para probarlos desde el inicio
+	StartNight = 7, -- pon 2 (Apagon), 3 (Eco), 5 (Rastro) o 7 (Vigilante) para probarlos desde el inicio
 	OnlyEnemies = nil :: { string }?, -- ej. { "Echo" }: solo salen esos tipos (para probar uno)
 	Tier3MaxOverride = nil :: number?, -- ej. 3: permite varios de nivel 3 a la vez (para probarlos)
 	MissionGoalOverride = nil :: number?, -- ej. 2: tareas necesarias para pasar la noche (para probar)
-	OnlyEvents = nil :: { string }?, -- ej. { "Fog" }: solo salen esos eventos (para probarlos)
-	EventDelayOverride = nil :: number?, -- ej. 10: segundos hasta el primer evento y entre eventos
+	OnlyEvents = { "IsolatedFloor" } :: { string }?, -- ej. { "Fog" }: solo salen esos eventos (para probarlos)
+	EventDelayOverride = 10 :: number?, -- ej. 10: segundos hasta el primer evento y entre eventos
 	-- ej. "Manager" o { "Luni", "Manager" }: TODAS las noches son de ese jefe o pareja (para
 	-- probarlo). Para ver el refuerzo de las vueltas, mejor StartNight = 25, 45...
 	ForceBoss = nil :: (string | { string })?,
@@ -33,7 +33,7 @@ Config.Debug = {
 	-- ej. 3: La Garra se agarra sola esos segundos despues de empezar la noche (cualquier noche)
 	ClawGrabOnStart = nil :: number?,
 	-- SOLO en Studio:
-	StudioStartCash = 0, -- billetes al empezar cada partida (ej. 5000 para probar la tienda)
+	StudioStartCash = 15000, -- billetes al empezar cada partida (ej. 5000 para probar la tienda)
 	-- Diamantes que se suman al entrar (ej. 1000 para probar la ruleta).
 	-- Ojo: con API Services activado se guardan en tus datos de verdad.
 	StudioBonusDiamonds = 0,
@@ -44,7 +44,7 @@ Config.Debug = {
 	-- Ojo: con API Services activado se guarda en tus datos de verdad.
 	StudioBestiary = nil :: string?,
 	-- Pases que se simulan como comprados en Studio (ej. { "DoubleMoney", "VIP" })
-	StudioOwnedPasses = {} :: { string },
+	StudioOwnedPasses = { "Pistol" } :: { string },
 }
 
 ----------------------------------------------------------------------
@@ -1737,7 +1737,8 @@ Config.Enemies = {
 --   * con cuerpo: tenerla a la vista, de cerca y sin paredes en medio;
 --   * Eco, Mimico, Megafonia y La Garra (se disfrazan o no tienen cuerpo): al sufrirla;
 --   * jefes: al empezar su noche.
--- Image: foto de la entidad en el mall (rbxassetid://...). Vacia = aun sin foto.
+-- Photos: foto de cada entidad, sacada en el mall (assets/bestiary/*.png, subidas como Image
+-- el 2026-11-26). La Garra usa su dibujo de la mano (Config.Claw.HandImage).
 Config.Bestiary = {
 	SeeRange = 30, -- studs: a esta distancia (o menos) y a la vista, cuenta como encontrada
 	CloseRange = 8, -- tan cerca cuenta aunque no la estes mirando de frente
@@ -1746,6 +1747,28 @@ Config.Bestiary = {
 	-- Tipos de enemigo que no se descubren por verlos (se disfrazan, no tienen cuerpo o
 	-- son parte de otro): los descubre su propio modulo al sufrirlos.
 	NotBySight = { Echo = true, Mimic = true, Intercom = true, SecurityCamera = true, Converted = true },
+	Photos = {
+		Mannequin = "rbxassetid://99401020032570",
+		Blackout = "rbxassetid://87674493158599",
+		Cart = "rbxassetid://118662214738337",
+		Balloon = "rbxassetid://129338872831112",
+		Echo = "rbxassetid://127960114838982",
+		Claw = "rbxassetid://77120250449575",
+		Moth = "rbxassetid://137930811462250",
+		Reflection = "rbxassetid://91553475068571",
+		Cashier = "rbxassetid://114779486741624",
+		Duct = "rbxassetid://92377648504175",
+		Tracker = "rbxassetid://97373458421431",
+		Luni = "rbxassetid://99715678659053",
+		Intercom = "rbxassetid://89392111433218",
+		Statue = "rbxassetid://78422514948105",
+		Watcher = "rbxassetid://140074764926630",
+		Mimic = "rbxassetid://78516582833922",
+		Hunter = "rbxassetid://106659802566824",
+		Manager = "rbxassetid://122977971721115",
+		Collector = "rbxassetid://117257794026492",
+		Central = "rbxassetid://130370274494055",
+	} :: { [string]: string },
 	Order = {
 		"Mannequin", "Blackout", "Cart", "Balloon", "Echo",
 		"Claw", "Moth", "Reflection", "Cashier", "Duct",
@@ -1758,77 +1781,66 @@ Config.Bestiary = {
 			Night = 1,
 			Description = "Los maniquíes de los escaparates cobran vida de noche y se acercan sin hacer ruido.",
 			Counter = "Solo se mueven cuando nadie los mira. Mantenlos a la vista y aléjate de espaldas.",
-			Image = "",
 		},
 		Blackout = {
 			Name = "Apagón",
 			Night = 2,
 			Description = "Una sombra flotante que apaga las luces de la zona donde está.",
 			Counter = "Alúmbralo con la linterna unos segundos o usa el destello: huye de la luz.",
-			Image = "",
 		},
 		Cart = {
 			Name = "Carrito",
 			Night = 2,
 			Description = "Un carrito de la compra poseído que embiste en línea recta.",
 			Counter = "Cuando tiemble, apártate de su camino. Si choca contra una pared, queda aturdido.",
-			Image = "",
 		},
 		Balloon = {
 			Name = "Globo",
 			Night = 3,
 			Description = "Un globo que flota quieto en los pasillos. Si se hincha demasiado, revienta.",
 			Counter = "No lo mires fijamente: el estallido atrae a todos los enemigos. Reviéntalo de lejos.",
-			Image = "",
 		},
 		Echo = {
 			Name = "Eco",
 			Night = 3,
 			Description = "Copia el aspecto de tus compañeros (o el tuyo si juegas solo) para acercarse.",
 			Counter = "Si un \"compañero\" se te acerca sin decir nada, alúmbralo con la linterna: desaparece.",
-			Image = "",
 		},
 		Claw = {
 			Name = "La Garra",
 			Night = 3,
 			Description = "Castiga al equipo que deja caducar tareas: se agarra a quien menos haya hecho.",
 			Counter = "No dejen caducar 3 tareas. Si te agarra, completa 2 tareas en 1 minuto.",
-			Image = "",
 		},
 		Moth = {
 			Name = "Polillas",
 			Night = 4,
 			Description = "Un enjambre que persigue las linternas encendidas y les chupa la batería.",
 			Counter = "Apaga la linterna para despistarlas, o lánzales una bengala o un petardo.",
-			Image = "",
 		},
 		Reflection = {
 			Name = "Reflejo",
 			Night = 4,
 			Description = "Vive dentro de los vidrios y los espejos del mall. Sale si lo miras.",
 			Counter = "Si ves una silueta en un cristal, no la mires fijamente. El destello lo devuelve al vidrio.",
-			Image = "",
 		},
 		Cashier = {
 			Name = "Cajero",
 			Night = 4,
 			Description = "No hace daño: va a por quien lleve más billetes y le roba una parte.",
 			Counter = "Atúrdelo mientras huye (destello, porrazo, taser...) y te quedas con todo lo que robó.",
-			Image = "",
 		},
 		Duct = {
 			Name = "Ducto",
 			Night = 5,
 			Description = "Se arrastra por dentro del techo. Se le oye moverse en las rejillas.",
 			Counter = "Si oyes ruido arriba, camina sin correr: correr cerca de una rejilla lo hace caer sobre ti.",
-			Image = "",
 		},
 		Tracker = {
 			Name = "Rastro",
 			Night = 5,
 			Description = "Huele los derrames. A quien pisa uno lo sigue a donde vaya, incluso a un escondite.",
 			Counter = "Limpia los derrames y no los pises. El extintor tapa tu olor.",
-			Image = "",
 		},
 		Luni = {
 			Name = "Luni, la mascota",
@@ -1836,42 +1848,36 @@ Config.Bestiary = {
 			Boss = true,
 			Description = "La mascota gigante de Plaza Luna. Corre detrás del grupo más numeroso.",
 			Counter = "Atráiganla al cuarto del generador y activen el apagón de sector con ella dentro.",
-			Image = "",
 		},
 		Intercom = {
 			Name = "Megafonía",
 			Night = 6,
 			Description = "La voz de los altavoces pone marcas de tareas que no existen.",
 			Counter = "Si ves una marca de tarea que no está en tu lista, no vayas: es una trampa que atrae a los enemigos. La linterna UV la delata.",
-			Image = "",
 		},
 		Statue = {
 			Name = "Estatua",
 			Night = 6,
 			Description = "La estatua de la fuente despierta y te sigue sin descanso, aunque haya paredes.",
 			Counter = "Es lenta: déjala atrás. Nada la detiene salvo la luz de una bengala.",
-			Image = "",
 		},
 		Watcher = {
 			Name = "Vigilante",
 			Night = 7,
 			Description = "Patrulla el mall y ve a través de las cámaras de seguridad.",
 			Counter = "Evita los haces rojos de las cámaras o ciégalas con el destello.",
-			Image = "",
 		},
 		Mimic = {
 			Name = "Mímico",
 			Night = 8,
 			Description = "Una de las máquinas expendedoras está viva y muerde.",
 			Counter = "Si sus luces parpadean o gotea, no compres en ella. La linterna UV la delata.",
-			Image = "",
 		},
 		Hunter = {
 			Name = "Cazador",
 			Night = 9,
 			Description = "Marca al jugador que esté más solo y lo persigue sabiendo siempre dónde está.",
 			Counter = "Si te marca, reúnete con tu equipo o escóndete lejos de él.",
-			Image = "",
 		},
 		Manager = {
 			Name = "El Gerente",
@@ -1879,7 +1885,6 @@ Config.Bestiary = {
 			Boss = true,
 			Description = "Patrulla con su walkie y da órdenes: refuerzos y persianas cerradas.",
 			Counter = "Destruyan sus radios escondidas: no se ven de lejos, búsquenlas por el sonido.",
-			Image = "",
 		},
 		Collector = {
 			Name = "El Coleccionista",
@@ -1887,7 +1892,6 @@ Config.Bestiary = {
 			Boss = true,
 			Description = "Altísimo, con máscara de porcelana. Convierte a los caídos en maniquíes.",
 			Counter = "Devuelvan los objetos perdidos a sus tiendas y revivan rápido a los caídos.",
-			Image = "",
 		},
 		Central = {
 			Name = "La Central",
@@ -1895,7 +1899,6 @@ Config.Bestiary = {
 			Boss = true,
 			Description = "El sistema del mall se vuelve contra ustedes: luces, persianas y megafonía.",
 			Counter = "Reinicien sus servidores casi a la vez: tendrán que separarse por plantas.",
-			Image = "",
 		},
 	},
 }

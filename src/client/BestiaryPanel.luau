@@ -59,10 +59,11 @@ local function foundSet(): { [string]: boolean }
 	return set
 end
 
--- Foto (o, si aun no hay, la inicial del nombre) en un marco de foto
-local function setPhoto(image: ImageLabel, placeholder: TextLabel, entry, unlocked: boolean)
-	local hasImage = unlocked and type(entry.Image) == "string" and entry.Image ~= ""
-	image.Image = if hasImage then entry.Image else ""
+-- Foto (Config.Bestiary.Photos; si falta, la inicial del nombre) en un marco de foto
+local function setPhoto(image: ImageLabel, placeholder: TextLabel, id: string, entry, unlocked: boolean)
+	local photo = B.Photos[id]
+	local hasImage = unlocked and type(photo) == "string" and photo ~= ""
+	image.Image = if hasImage then photo else ""
 	image.ImageTransparency = if hasImage then 0 else 1
 	image.BackgroundColor3 = if unlocked then Color3.fromRGB(30, 32, 40) else LOCKED
 	placeholder.Visible = not hasImage
@@ -81,7 +82,7 @@ local function refreshDetail(found: { [string]: boolean })
 		return
 	end
 	local unlocked = found[id :: string] == true
-	setPhoto(detail.Photo, detail.NoPhoto, entry, unlocked)
+	setPhoto(detail.Photo, detail.NoPhoto, id :: string, entry, unlocked)
 	detail.Caption.Text = if unlocked then entry.Name else "???"
 	detail.Name.Text = if unlocked then entry.Name else "???"
 	detail.Name.TextColor3 = if entry.Boss and unlocked then BOSS else COLORS.Text
@@ -114,7 +115,7 @@ local function refresh()
 		if unlocked then
 			count += 1
 		end
-		setPhoto(card.Photo :: ImageLabel, (card.Photo :: ImageLabel).Placeholder :: TextLabel, entry, unlocked)
+		setPhoto(card.Photo :: ImageLabel, (card.Photo :: ImageLabel).Placeholder :: TextLabel, id, entry, unlocked)
 		local name = card:FindFirstChild("EntryName") :: TextLabel
 		name.Text = if unlocked then entry.Name else "???"
 		name.TextColor3 = if unlocked then COLORS.Text else COLORS.Dim
