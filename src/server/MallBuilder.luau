@@ -260,10 +260,41 @@ local function ceilingPanel(ceilingCF: CFrame, zoneName: string, size: Vector2, 
 end
 
 -- Rejilla de ventilacion del techo (por ella baja el Ducto). ceilingCF = punto del techo.
+-- Rejilla de difusor: marco de aluminio con biseles, hueco oscuro, lamas inclinadas y
+-- 4 tornillos. Las piezas van soldadas a la rejilla (tag) para temblar con ella cuando el
+-- Ducto la sacude (mueve su CFrame).
 local function ceilingVent(ceilingCF: CFrame): Part
-	local vent = deco("CeilingVent", Vector3.new(2.4, 0.08, 2.4), ceilingCF * CFrame.new(0, -0.04, 0), M.DiamondPlate, Color3.fromRGB(215, 215, 215))
-	for i = -2, 2 do
-		deco("VentSlat", Vector3.new(2.2, 0.06, 0.12), ceilingCF * CFrame.new(0, -0.1, i * 0.42), M.Metal, Color3.fromRGB(70, 72, 76), { CastShadow = false })
+	local frameColor = Color3.fromRGB(200, 202, 204)
+	local vent = deco("CeilingVent", Vector3.new(2.6, 0.06, 2.6), ceilingCF * CFrame.new(0, -0.03, 0), M.Metal, Color3.fromRGB(18, 18, 20), { Variant = false })
+	local function attach(part: BasePart)
+		part.Anchored = false
+		part.Massless = true
+		local weld = Instance.new("WeldConstraint")
+		weld.Part0 = vent
+		weld.Part1 = part
+		weld.Parent = part
+		part.Parent = vent
+	end
+	-- Marco (4 listones con bisel)
+	for _, side in { -1, 1 } do
+		attach(deco("VentFrame", Vector3.new(2.8, 0.14, 0.22), ceilingCF * CFrame.new(0, -0.08, side * 1.29), M.Metal, frameColor, { Variant = false }))
+		attach(deco("VentFrame", Vector3.new(0.22, 0.14, 2.8), ceilingCF * CFrame.new(side * 1.29, -0.08, 0), M.Metal, frameColor, { Variant = false }))
+	end
+	-- Lamas inclinadas (se ve la oscuridad entre ellas)
+	for i = -3, 3 do
+		attach(deco("VentSlat", Vector3.new(2.36, 0.04, 0.3), ceilingCF * CFrame.new(0, -0.12, i * 0.33) * CFrame.Angles(math.rad(35), 0, 0), M.Metal, Color3.fromRGB(175, 178, 182), {
+			CastShadow = false,
+			Variant = false,
+		}))
+	end
+	-- Tornillos de las esquinas
+	for _, sx in { -1, 1 } do
+		for _, sz in { -1, 1 } do
+			attach(deco("VentScrew", Vector3.new(0.05, 0.12, 0.12), ceilingCF * CFrame.new(sx * 1.29, -0.16, sz * 1.29) * CFrame.Angles(0, 0, math.rad(90)), M.Metal, Color3.fromRGB(120, 122, 126), {
+				Shape = Enum.PartType.Cylinder,
+				CastShadow = false,
+			}))
+		end
 	end
 	tag(vent, Tags.CeilingVent)
 	return vent
@@ -492,6 +523,21 @@ local function tintModel(model: Instance, color: Color3)
 end
 
 -- prop o, si no existe, la version de piezas (fallback(cframe)).
+-- prop escalado (uniforme) para caber en `size`. `base` = centro de la base, frente -Z.
+local function fitProp(name: string, base: CFrame, size: Vector3, collide: boolean?): Model?
+	local model = prop(name, base, collide)
+	if not model then
+		return nil
+	end
+	local _, extents = model:GetBoundingBox()
+	local k = math.min(size.X / extents.X, size.Y / extents.Y, size.Z / extents.Z)
+	if math.abs(k - 1) > 0.01 then
+		model:ScaleTo(model:GetScale() * k)
+		model:PivotTo(base)
+	end
+	return model
+end
+
 local function propOr(name: string, cframe: CFrame, fallback: (CFrame) -> (), collide: boolean?)
 	if not prop(name, cframe, collide) then
 		fallback(cframe)
@@ -539,6 +585,27 @@ local function camera(x: number, y: number, z: number, lx: number, ly: number, l
 		Variant = false,
 	})
 	tag(p, Tags.SecurityCamera)
+	-- Modelo 3D (PropTemplates.SecurityCam): soldado a la pieza (invisible), gira con el barrido
+	local mesh = fitProp("SecurityCam", cf * CFrame.new(0, -0.55, 0), Vector3.new(1.3, 1.2, 2.4), false)
+	if mesh then
+		p.Transparency = 1
+		for _, d in mesh:GetDescendants() do
+			if d:IsA("BasePart") then
+				d.Anchored = false
+				d.Massless = true
+				local weld = Instance.new("WeldConstraint")
+				weld.Part0 = p
+				weld.Part1 = d
+				weld.Parent = d
+				d.Parent = p
+			end
+		end
+		mesh:Destroy()
+		-- Soporte: brazo y placa en el techo/pared
+		deco("CamMount", Vector3.new(0.25, 1.2, 0.25), CFrame.new(position + Vector3.new(0, 1, 0)), M.Metal, Color3.fromRGB(210, 210, 206))
+		deco("CamMountPlate", Vector3.new(0.7, 0.12, 0.7), CFrame.new(position + Vector3.new(0, 1.6, 0)), M.Metal, Color3.fromRGB(210, 210, 206))
+		return
+	end
 	-- Visera y lente: soldadas a la camara para que giren con el barrido
 	local hood = deco("CamHood", Vector3.new(1.4, 0.15, 2.3), cf * CFrame.new(0, 0.58, -0.1), M.SmoothPlastic, Color3.fromRGB(210, 210, 206))
 	local lens = deco("CamLens", Vector3.new(0.2, 0.7, 0.7), cf * CFrame.new(0, 0, -1.02) * CFrame.Angles(0, math.rad(90), 0), M.Glass, Color3.fromRGB(15, 15, 18), {
@@ -558,10 +625,37 @@ local function camera(x: number, y: number, z: number, lx: number, ly: number, l
 end
 
 -- Escondite (casillero, probador, armario). `cframe` mira hacia donde se sale.
+-- Modelo 3D de cada tipo de escondite (PropTemplates). La caja etiquetada se queda
+-- (invisible) como colision y punto del escondite.
+local HIDE_MODELS = {
+	Taquilla = "Locker",
+	Casillero = "Locker",
+	Armario = "Cabinet",
+	["Armario de limpieza"] = "Cabinet",
+	["Armario de obra"] = "Cabinet",
+	["Baño portátil"] = "PortableToilet",
+	["Fotomatón"] = "PhotoBooth",
+}
+
 local function hidingSpot(name: string, cframe: CFrame, size: Vector3, material, color: Color3)
 	local p = box(name, size, cframe, material, color)
 	p:SetAttribute("DisplayName", name)
 	tag(p, Tags.HidingSpot)
+	local base = cframe * CFrame.new(0, -size.Y / 2, 0)
+	local modelName = HIDE_MODELS[name]
+	if modelName and fitProp(modelName, base, size, false) then
+		p.Transparency = 1
+		return p
+	end
+	-- Probador y cortina del cine: cabina (o tela) con una cortina 3D delante
+	if (name == "Probador" or name == "Cortina") and fitProp("FittingCurtain", base * CFrame.new(0, 0, -(size.Z / 2 + 0.3)), Vector3.new(size.X, size.Y, 0.6), false) then
+		if name == "Probador" then
+			p.Material = M.Wood
+			p.Color = Color3.fromRGB(150, 118, 88)
+			deco("BoothRail", Vector3.new(size.X + 0.2, 0.25, 0.25), cframe * CFrame.new(0, size.Y / 2 - 0.4, -(size.Z / 2 + 0.3)), M.Metal, STEEL)
+		end
+		return p
+	end
 	for i = 0, 2 do
 		deco("Vent", Vector3.new(size.X * 0.6, 0.15, 0.1), cframe * CFrame.new(0, size.Y * 0.3 - i * 0.35, -(size.Z / 2 + 0.05)), M.SmoothPlastic, DARK)
 	end
@@ -862,14 +956,19 @@ end
 
 -- Reloj de control de la ronda de seguridad (mision Ronda de seguridad): poste con una
 -- caja y un piloto (hijo "Led": rojo, verde al fichar).
+-- Es un punto de fichaje fino y SIN colision (antes era un poste negro que estorbaba).
 local function patrolClock(x: number, z: number, zoneName: string)
-	box("ClockPost", Vector3.new(0.5, 4.4, 0.5), at(x, 2.2, z), M.Metal, DARK)
-	local clock = box("PatrolClock", Vector3.new(1.6, 1.8, 1.2), at(x, 5.3, z), M.SmoothPlastic, Color3.fromRGB(60, 64, 72), { Variant = false })
-	local led = deco("Led", Vector3.new(0.35, 0.35, 1.3), at(x, 5.95, z), M.Neon, Color3.fromRGB(220, 40, 40), { CastShadow = false })
-	led.Parent = clock
-	for _, face in { Enum.NormalId.Front, Enum.NormalId.Back } do
-		sign(clock, "RONDA", Color3.fromRGB(230, 230, 230), Enum.Font.Code, face)
+	local steel = Color3.fromRGB(165, 170, 178)
+	deco("ClockBase", Vector3.new(0.12, 1.1, 1.1), at(x, 0.06, z) * CFrame.Angles(0, 0, math.rad(90)), M.Metal, steel, { Shape = Enum.PartType.Cylinder })
+	deco("ClockPost", Vector3.new(3.6, 0.22, 0.22), at(x, 1.9, z) * CFrame.Angles(0, 0, math.rad(90)), M.Metal, steel, { Shape = Enum.PartType.Cylinder })
+	local clock = deco("PatrolClock", Vector3.new(0.9, 1.1, 0.5), at(x, 4.15, z), M.SmoothPlastic, Color3.fromRGB(32, 34, 40), { Variant = false })
+	-- Lector de tarjeta a cada lado (con la leyenda) y piloto arriba (rojo; verde al fichar)
+	for _, side in { -1, 1 } do
+		local reader = deco("ClockReader", Vector3.new(0.6, 0.45, 0.04), at(x, 4.0, z + side * 0.27), M.SmoothPlastic, Color3.fromRGB(20, 60, 110))
+		litSign(reader, "RONDA", Color3.fromRGB(170, 220, 255), Enum.Font.Code, if side < 0 then Enum.NormalId.Front else Enum.NormalId.Back)
 	end
+	local led = deco("Led", Vector3.new(0.3, 0.12, 0.54), at(x, 4.6, z), M.Neon, Color3.fromRGB(220, 40, 40), { CastShadow = false })
+	led.Parent = clock
 	tag(clock, Tags.PatrolClock, { Zone = zoneName })
 	return clock
 end
@@ -879,13 +978,19 @@ end
 -- Extintor de pared con soporte y cartel (mision Revisar extintores). floorName = "Planta baja" / "Planta alta".
 local function wallExtinguisher(cf: CFrame, floorName: string)
 	deco("ExtBracket", Vector3.new(0.9, 0.3, 0.3), cf * CFrame.new(0, 3.4, -0.15), M.Metal, DARK)
+	-- Extintor 3D (el mismo de la mano, PropTemplates.WallExtinguisher) colgado del soporte
+	local mesh = fitProp("WallExtinguisher", cf * CFrame.new(0, 1.55, -0.5), Vector3.new(1, 2.3, 1), false)
 	local body = box("WallExtinguisher", Vector3.new(2, 0.7, 0.7), cf * CFrame.new(0, 2.6, -0.5) * CFrame.Angles(0, 0, math.rad(90)), M.SmoothPlastic, Color3.fromRGB(200, 25, 25), {
 		Shape = Enum.PartType.Cylinder,
 		CanCollide = false,
 		Variant = false,
 	})
-	deco("ExtHead", Vector3.new(0.35, 0.4, 0.35), cf * CFrame.new(0, 3.75, -0.5), M.Metal, DARK)
-	deco("ExtHose", Vector3.new(0.12, 1.4, 0.12), cf * CFrame.new(0.3, 3.1, -0.85) * CFrame.Angles(0, 0, math.rad(15)), M.Rubber, Color3.fromRGB(25, 25, 25))
+	if mesh then
+		body.Transparency = 1
+	else
+		deco("ExtHead", Vector3.new(0.35, 0.4, 0.35), cf * CFrame.new(0, 3.75, -0.5), M.Metal, DARK)
+		deco("ExtHose", Vector3.new(0.12, 1.4, 0.12), cf * CFrame.new(0.3, 3.1, -0.85) * CFrame.Angles(0, 0, math.rad(15)), M.Rubber, Color3.fromRGB(25, 25, 25))
+	end
 	local signPart = deco("ExtSign", Vector3.new(1.4, 0.8, 0.06), cf * CFrame.new(0, 5, -0.05), M.SmoothPlastic, Color3.fromRGB(200, 25, 25))
 	litSign(signPart, "EXTINTOR", Color3.new(1, 1, 1), Enum.Font.GothamBlack, Enum.NormalId.Front)
 	tag(body, Tags.Extinguisher, { Floor = floorName })
@@ -894,9 +999,15 @@ end
 -- Telefono publico de pared (mision Telefono sonando).
 local function payPhone(cf: CFrame, zoneName: string)
 	local phone = box("PayPhone", Vector3.new(1.6, 2.6, 0.8), cf * CFrame.new(0, 4.2, -0.4), M.Metal, Color3.fromRGB(45, 70, 110), { Variant = false })
-	deco("PhoneHandset", Vector3.new(0.3, 1.4, 0.35), cf * CFrame.new(-0.55, 4.4, -0.95), M.SmoothPlastic, DARK)
-	deco("PhoneKeypad", Vector3.new(0.7, 0.9, 0.05), cf * CFrame.new(0.25, 4.2, -0.82), M.SmoothPlastic, Color3.fromRGB(180, 182, 186))
-	deco("PhoneCord", Vector3.new(0.08, 1.2, 0.08), cf * CFrame.new(-0.55, 3.4, -0.9), M.Rubber, DARK)
+	-- Telefono 3D (PropTemplates.PayPhone); la caja etiquetada queda invisible
+	if fitProp("PayPhone", cf * CFrame.new(0, 2.8, -0.5), Vector3.new(1.8, 2.9, 1), false) then
+		phone.Transparency = 1
+		phone.CanCollide = false
+	else
+		deco("PhoneHandset", Vector3.new(0.3, 1.4, 0.35), cf * CFrame.new(-0.55, 4.4, -0.95), M.SmoothPlastic, DARK)
+		deco("PhoneKeypad", Vector3.new(0.7, 0.9, 0.05), cf * CFrame.new(0.25, 4.2, -0.82), M.SmoothPlastic, Color3.fromRGB(180, 182, 186))
+		deco("PhoneCord", Vector3.new(0.08, 1.2, 0.08), cf * CFrame.new(-0.55, 3.4, -0.9), M.Rubber, DARK)
+	end
 	local signPart = deco("PhoneSign", Vector3.new(1.6, 0.5, 0.06), cf * CFrame.new(0, 5.8, -0.4), M.SmoothPlastic, Color3.fromRGB(30, 60, 120))
 	litSign(signPart, "TELÉFONO", Color3.new(1, 1, 1), Enum.Font.GothamBold, Enum.NormalId.Front)
 	tag(phone, Tags.PayPhone, { Zone = zoneName })
@@ -956,6 +1067,10 @@ end
 
 -- Banca de listones de madera sobre patas de acero.
 local function bench(cframe: CFrame)
+	-- Banca 3D (PropTemplates.MallBench: patas de acero, listones, respaldo y apoyabrazos)
+	if prop("MallBench", cframe) then
+		return
+	end
 	local wood = Color3.fromRGB(140, 98, 62)
 	for i = -1, 1 do
 		box("BenchSlat", Vector3.new(6, 0.22, 0.55), cframe * CFrame.new(0, 1.55, i * 0.68), M.Wood, wood)
@@ -1005,17 +1120,38 @@ local function railing(p1: Vector3, p2: Vector3)
 	end
 	local mid = (a + b) / 2
 	local cf = CFrame.lookAt(mid, mid + (b - a))
-	box("RailingGlass", Vector3.new(0.15, 3.8, length), cf * CFrame.new(0, 1.9, 0), M.Glass, GLASS, {
-		Transparency = 0.72,
-		Reflectance = 0.2,
+	-- Vidrio templado (colision) sobre perfil de aluminio, en paneles con juntas y pinzas,
+	-- pasamanos redondo de acero sobre soportes y tira LED calida debajo
+	box("RailingGlass", Vector3.new(0.15, 3.8, length), cf * CFrame.new(0, 1.9, 0), M.Glass, Color3.fromRGB(200, 225, 220), {
+		Transparency = 0.75,
+		Reflectance = 0.25,
 		CastShadow = false,
 		Variant = false,
 	})
-	deco("Handrail", Vector3.new(0.4, 0.25, length), cf * CFrame.new(0, 3.95, 0), M.Metal, STEEL)
-	deco("RailShoe", Vector3.new(0.35, 0.35, length), cf * CFrame.new(0, 0.18, 0), M.Metal, STEEL)
-	local posts = math.max(1, math.floor(length / 6))
-	for i = 0, posts do
-		deco("RailPost", Vector3.new(0.18, 3.8, 0.18), cf * CFrame.new(0, 1.9, -length / 2 + i * (length / posts)), M.Metal, STEEL)
+	deco("RailShoe", Vector3.new(0.5, 0.45, length), cf * CFrame.new(0, 0.22, 0), M.Metal, Color3.fromRGB(150, 154, 160), { Variant = false })
+	deco("RailShoeCap", Vector3.new(0.56, 0.06, length), cf * CFrame.new(0, 0.47, 0), M.Metal, Color3.fromRGB(205, 208, 212), { Variant = false })
+	deco("Handrail", Vector3.new(length, 0.32, 0.32), cf * CFrame.new(0, 4.25, 0) * CFrame.Angles(0, math.rad(90), 0), M.Metal, STEEL, {
+		Shape = Enum.PartType.Cylinder,
+	})
+	deco("RailCap", Vector3.new(0.22, 0.14, length), cf * CFrame.new(0, 3.86, 0), M.Metal, STEEL)
+	deco("RailLight", Vector3.new(0.05, 0.05, length), cf * CFrame.new(0, 4.06, 0), M.Neon, Color3.fromRGB(255, 225, 180), {
+		CastShadow = false,
+		Variant = false,
+	})
+	local panels = math.max(1, math.floor(length / 6))
+	for i = 0, panels do
+		local z = -length / 2 + i * (length / panels)
+		-- Soporte del pasamanos y, entre paneles, la junta del vidrio con sus pinzas
+		deco("RailBracket", Vector3.new(0.1, 0.4, 0.1), cf * CFrame.new(0, 4.03, z), M.Metal, STEEL)
+		if i > 0 and i < panels then
+			deco("GlassJoint", Vector3.new(0.17, 3.3, 0.04), cf * CFrame.new(0, 2.15, z), M.SmoothPlastic, Color3.fromRGB(60, 70, 72), {
+				Transparency = 0.4,
+				Variant = false,
+			})
+		end
+		for _, y in { 0.9, 3.4 } do
+			deco("GlassClamp", Vector3.new(0.3, 0.3, 0.45), cf * CFrame.new(0, y, z), M.Metal, STEEL)
+		end
 	end
 end
 
@@ -1893,6 +2029,14 @@ local function buildStore(def, index: number, frontCenter: Vector3, inward: Vect
 
 	-- Persiana (mision Bajar persianas): control junto a la entrada, persiana hija
 	local control = box("ShutterControl", Vector3.new(1, 1.4, 0.4), L(base, 10.2, 4.5, -0.3) * OUT, M.Metal, Color3.fromRGB(200, 170, 40))
+	-- Botonera 3D de la persiana (PropTemplates.ShutterSwitch); la caja queda invisible
+	if fitProp("ShutterSwitch", control.CFrame * CFrame.new(0, -0.75, 0), Vector3.new(1, 1.5, 0.5), false) then
+		control.Transparency = 1
+	end
+	-- Pedestal de acero hasta el suelo (esta delante del escaparate: antes parecia flotar)
+	local postH = 3.75 -- de la base de la botonera (4.5 - 0.75) al suelo
+	deco("ShutterPost", Vector3.new(0.28, postH, 0.28), control.CFrame * CFrame.new(0, -0.75 - postH / 2, 0.05), M.Metal, Color3.fromRGB(60, 62, 68))
+	deco("ShutterPostBase", Vector3.new(0.8, 0.1, 0.8), control.CFrame * CFrame.new(0, -4.45, 0.05), M.Metal, Color3.fromRGB(60, 62, 68))
 	if not def.Closed then
 		tag(control, Tags.ShutterControl, { Wing = wing })
 	end
@@ -1927,8 +2071,11 @@ local function buildStore(def, index: number, frontCenter: Vector3, inward: Vect
 	end
 
 	-- Mostrador con caja registradora, bolsas y cartel de la marca
-	box("Counter", Vector3.new(12, 3.5, 3), L(base, -14, 1.75, 40), M.Wood, def.Accent:Lerp(Color3.fromRGB(240, 235, 225), 0.6))
-	deco("CounterTop", Vector3.new(12.4, 0.2, 3.4), L(base, -14, 3.6, 40), M.Marble, Color3.fromRGB(45, 44, 44))
+	-- Mostrador 3D (PropTemplates.CheckoutCounter: frente blanco y encimera de madera) o el de piezas
+	if not prop("CheckoutCounter", L(base, -14, 0, 40) * OUT) then
+		box("Counter", Vector3.new(12, 3.5, 3), L(base, -14, 1.75, 40), M.Wood, def.Accent:Lerp(Color3.fromRGB(240, 235, 225), 0.6))
+		deco("CounterTop", Vector3.new(12.4, 0.2, 3.4), L(base, -14, 3.6, 40), M.Marble, Color3.fromRGB(45, 44, 44))
+	end
 	local front = deco("CounterLogo", Vector3.new(6, 1.4, 0.06), L(base, -14, 2.2, 38.46) * OUT, M.SmoothPlastic, def.Accent:Lerp(DARK, 0.6))
 	litSign(front, def.Name, def.Accent, def.Font, Enum.NormalId.Front)
 	propOr("CashRegister", L(base, -12, 3.7, 40) * OUT, function(cf)
@@ -2345,54 +2492,146 @@ local function escalator(lowX: number, highX: number, zc: number, up: boolean)
 	local mid = (low + high) / 2
 	local surface = CFrame.lookAt(mid, mid + u) -- LookVector: rampa arriba; UpVector: normal
 
-	local body = rampBody("EscalatorBody", lowX, highX, zc, W, M.Metal, Color3.fromRGB(62, 64, 70))
+	-- Cuerpo (la rampa: colision y arrastre) revestido de acero cepillado
+	local body = rampBody("EscalatorBody", lowX, highX, zc, W, M.SmoothPlastic, Color3.fromRGB(196, 200, 205))
+	body.MaterialVariant = ""
+	body.Reflectance = 0.12
 	body.AssemblyLinearVelocity = u * ESC_SPEED * (if up then 1 else -1)
+	-- Juntas de los paneles del revestimiento lateral (cada 3 studs, hasta la rampa)
+	local runLength = math.abs(highX - lowX)
+	for k = 1, math.floor(runLength / 3) do
+		local t = k * 3 / runLength
+		local x = lowX + (highX - lowX) * t
+		local h = F2 * t
+		if h > 0.6 then
+			for _, side in { -1, 1 } do
+				deco("CladSeam", Vector3.new(0.06, h - 0.3, 0.04), CFrame.new(x, Y0 + (h - 0.3) / 2, zc + side * (W / 2 + 0.02)), M.SmoothPlastic, Color3.fromRGB(120, 124, 130), {
+					CastShadow = false,
+					Variant = false,
+				})
+			end
+		end
+	end
+	for _, side in { -1, 1 } do
+		-- Zocalo oscuro a lo largo del suelo
+		deco("CladPlinth", Vector3.new(runLength, 0.3, 0.06), CFrame.new((lowX + highX) / 2, Y0 + 0.15, zc + side * (W / 2 + 0.03)), M.SmoothPlastic, Color3.fromRGB(45, 46, 52), {
+			Variant = false,
+		})
+	end
 
-	-- Escalones (los mueve el cliente)
+	-- Escalones (los mueve el cliente: EscalatorFX mueve la pieza "StepNN" por la rampa).
+	-- Cada escalon es un soporte invisible con la huella horizontal, la contrahuella y las
+	-- lineas amarillas soldadas: se ve como una escalera de verdad y se mueve entera.
 	local stepsFolder = Instance.new("Folder")
 	stepsFolder.Name = "Steps"
 	stepsFolder.Parent = model
 	local count = math.floor(length / 1.35)
 	local spacing = length / count
+	local slope = math.asin(F2 / length) -- inclinacion de la rampa
+	local run = spacing * math.cos(slope) -- huella (horizontal)
+	local rise = spacing * math.sin(slope) -- contrahuella
+	local treadW = W - 0.5
+	local treadColor = Color3.fromRGB(58, 60, 66)
+	local yellow = Color3.fromRGB(245, 200, 30)
 	for i = 1, count do
 		local s = -length / 2 + (i - 1) * spacing
-		local step = deco(string.format("Step%02d", i), Vector3.new(W - 0.5, 0.15, spacing - 0.1), surface * CFrame.new(0, 0.1, -s), M.DiamondPlate, Color3.fromRGB(80, 82, 88), {
+		local carrierCF = surface * CFrame.new(0, 0.1, -s)
+		local step = deco(string.format("Step%02d", i), Vector3.new(treadW, 0.1, spacing - 0.1), carrierCF, M.SmoothPlastic, treadColor, {
+			Transparency = 1,
 			CastShadow = false,
+			Variant = false,
 		})
 		step.Parent = stepsFolder
-		deco("StepEdge", Vector3.new(W - 0.5, 0.17, 0.12), surface * CFrame.new(0, 0.1, -s + (spacing - 0.1) / 2 - 0.06), M.SmoothPlastic, Color3.fromRGB(240, 200, 30), {
-			CastShadow = false,
-		}).Parent = step
-	end
-	-- Los bordes amarillos van soldados al escalon (se mueven con el)
-	for _, step in stepsFolder:GetChildren() do
-		local edge = step:FindFirstChild("StepEdge")
-		if edge and edge:IsA("BasePart") then
-			edge.Anchored = false
-			edge.Massless = true
+		-- Marco horizontal del escalon (-Z hacia lo alto de la rampa)
+		local horiz = carrierCF * CFrame.Angles(-slope, 0, 0)
+		local h = 0.12
+		local pieces = {
+			deco("StepTread", Vector3.new(treadW, 0.14, run), horiz * CFrame.new(0, h, 0), M.DiamondPlate, treadColor, { CastShadow = false }),
+			deco("StepRiser", Vector3.new(treadW, rise, 0.1), horiz * CFrame.new(0, h - rise / 2, run / 2), M.Metal, Color3.fromRGB(40, 42, 46), { CastShadow = false }),
+			deco("StepEdge", Vector3.new(treadW, 0.16, 0.16), horiz * CFrame.new(0, h + 0.01, run / 2 - 0.08), M.SmoothPlastic, yellow, { CastShadow = false, Variant = false }),
+		}
+		for _, sx in { -1, 1 } do
+			table.insert(pieces, deco("StepSide", Vector3.new(0.14, 0.16, run), horiz * CFrame.new(sx * (treadW / 2 - 0.07), h + 0.01, 0), M.SmoothPlastic, yellow, {
+				CastShadow = false,
+				Variant = false,
+			}))
+		end
+		for _, piece in pieces do
+			piece.Anchored = false
+			piece.Massless = true
 			local weld = Instance.new("WeldConstraint")
-			weld.Part0 = step :: BasePart
-			weld.Part1 = edge
-			weld.Parent = edge
+			weld.Part0 = step
+			weld.Part1 = piece
+			weld.Parent = piece
+			piece.Parent = step
 		end
 	end
 
-	-- Balaustradas de vidrio (con colision: nadie se cae por los lados), zocalo y pasamanos
+	-- Balaustradas de vidrio (con colision: nadie se cae por los lados), zocalo de acero con
+	-- tira LED, cubierta interior y pasamanos de goma redondo que da la vuelta en los extremos
+	local rubber = Color3.fromRGB(18, 18, 20)
 	for _, side in { -1, 1 } do
 		box("Balustrade", Vector3.new(0.2, 3.2, length), surface * CFrame.new(side * (W / 2 + 0.1), 1.75, 0), M.Glass, GLASS, {
-			Transparency = 0.65,
-			Reflectance = 0.2,
+			Transparency = 0.7,
+			Reflectance = 0.25,
 			CastShadow = false,
 			Variant = false,
 		})
 		deco("Skirt", Vector3.new(0.3, 0.6, length), surface * CFrame.new(side * (W / 2 - 0.1), 0.35, 0), M.Metal, STEEL)
-		deco("Handrail", Vector3.new(0.4, 0.3, length + 1.5), surface * CFrame.new(side * (W / 2 + 0.1), 3.45, 0), M.Rubber, Color3.fromRGB(20, 20, 22), {
+		deco("SkirtLight", Vector3.new(0.06, 0.06, length - 0.4), surface * CFrame.new(side * (W / 2 - 0.27), 0.62, 0), M.Neon, Color3.fromRGB(150, 210, 255), {
+			CastShadow = false,
+			Variant = false,
+		})
+		deco("Decking", Vector3.new(0.6, 0.12, length), surface * CFrame.new(side * (W / 2 + 0.05), 0.12, 0), M.Metal, Color3.fromRGB(150, 152, 158))
+		-- Pinzas del vidrio
+		local clamps = math.max(2, math.floor(length / 4))
+		for k = 0, clamps do
+			deco("GlassClamp", Vector3.new(0.34, 0.35, 0.3), surface * CFrame.new(side * (W / 2 + 0.1), 0.35, -length / 2 + k * (length / clamps)), M.Metal, STEEL)
+		end
+		-- Pasamanos (cilindro a lo largo de la rampa) y su perfil de apoyo
+		deco("HandrailGuide", Vector3.new(0.16, 0.18, length), surface * CFrame.new(side * (W / 2 + 0.1), 3.32, 0), M.Metal, STEEL)
+		deco("Handrail", Vector3.new(length, 0.38, 0.38), surface * CFrame.new(side * (W / 2 + 0.1), 3.5, 0) * CFrame.Angles(0, math.rad(90), 0), M.Rubber, rubber, {
+			Shape = Enum.PartType.Cylinder,
 			Variant = false,
 		})
 	end
-	-- Placas de entrada/salida y cartel
-	deco("LandingPlate", Vector3.new(2.5, 0.08, W), CFrame.new(lowX - dirX * 1.25, Y0 + 0.04, zc), M.Metal, STEEL)
-	deco("LandingPlate", Vector3.new(2.5, 0.08, W), CFrame.new(highX + dirX * 1.25, Y0 + F2 + 0.04, zc), M.Metal, STEEL)
+	-- Extremos (cabeza de la balaustrada): tramo horizontal y la curva del pasamanos, en
+	-- las dos plantas, con el peine amarillo y la placa de entrada
+	for _, isTop in { false, true } do
+		local endX = if isTop then highX else lowX
+		local y = if isTop then Y0 + F2 else Y0
+		local out = if isTop then dirX else -dirX -- hacia fuera de la escalera
+		local NEWEL = 2.2 -- largo del tramo horizontal
+		for _, side in { -1, 1 } do
+			-- Donde acaba el pasamanos inclinado: de ahi sale el tramo horizontal
+			local railEnd = (surface * CFrame.new(side * (W / 2 + 0.1), 3.5, if isTop then -length / 2 else length / 2)).Position
+			local glassEnd = (surface * CFrame.new(side * (W / 2 + 0.1), 0, if isTop then -length / 2 else length / 2)).Position
+			local railY = railEnd.Y
+			local startX = railEnd.X
+			local z = zc + side * (W / 2 + 0.1)
+			local glassH = railY - y - 0.25
+			deco("NewelGlass", Vector3.new(NEWEL + math.abs(startX - glassEnd.X), glassH, 0.2), CFrame.new((startX + out * NEWEL + glassEnd.X) / 2, y + glassH / 2, z), M.Glass, GLASS, {
+				Transparency = 0.7,
+				Reflectance = 0.25,
+				CastShadow = false,
+				Variant = false,
+			})
+			deco("NewelRail", Vector3.new(NEWEL, 0.38, 0.38), CFrame.new(startX + out * NEWEL / 2, railY, z), M.Rubber, rubber, {
+				Shape = Enum.PartType.Cylinder,
+				Variant = false,
+			})
+			-- Codo entre el tramo inclinado y el horizontal, y la curva del final (el
+			-- pasamanos da la vuelta y vuelve por dentro)
+			deco("NewelElbow", Vector3.new(0.4, 0.4, 0.4), CFrame.new(startX, railY, z), M.Rubber, rubber, { Shape = Enum.PartType.Ball, Variant = false })
+			deco("NewelCurve", Vector3.new(0.38, 0.85, 0.85), CFrame.new(startX + out * NEWEL, railY - 0.24, z) * CFrame.Angles(0, math.rad(90), 0), M.Rubber, rubber, {
+				Shape = Enum.PartType.Cylinder,
+				Variant = false,
+			})
+			deco("NewelBase", Vector3.new(NEWEL + 0.4, 0.5, 0.6), CFrame.new(startX + out * NEWEL / 2, y + 0.25, z), M.Metal, STEEL)
+		end
+		deco("CombPlate", Vector3.new(0.35, 0.06, W - 0.4), CFrame.new(endX + out * 0.2, y + 0.06, zc), M.SmoothPlastic, Color3.fromRGB(245, 200, 30), { Variant = false })
+		deco("LandingPlate", Vector3.new(2.5, 0.08, W), CFrame.new(endX + out * 1.25, y + 0.04, zc), M.DiamondPlate, STEEL)
+	end
 	local signCF = CFrame.lookAt(Vector3.new(lowX - dirX * 3.2, Y0 + 2.4, zc), Vector3.new(lowX - dirX * 10, Y0 + 2.4, zc))
 	local post = deco("EscalatorSign", Vector3.new(1.6, 0.8, 0.1), signCF, M.SmoothPlastic, DARK)
 	litSign(post, if up then "▲ SUBE" else "▼ BAJA", if up then Color3.fromRGB(90, 230, 120) else Color3.fromRGB(255, 150, 70), Enum.Font.GothamBold, Enum.NormalId.Front)
@@ -2798,8 +3037,9 @@ local function buildUpperGallery()
 	directoryTotem(at(114, 0, -18.4) * CFrame.Angles(0, math.pi, 0), 2)
 	-- Bancos en el pasillo (los puentes ahora son cortos: alli llegan las escaleras)
 	for _, x in { -84, 84 } do
-		bench(at(x, 0, 17.4) * CFrame.Angles(0, math.pi, 0))
-		bench(at(-x, 0, -17.4))
+		-- De espaldas a las tiendas, mirando al atrio
+		bench(at(x, 0, 17.4))
+		bench(at(-x, 0, -17.4) * CFrame.Angles(0, math.pi, 0))
 	end
 
 	-- Puntos de mision de la planta alta
@@ -3745,16 +3985,63 @@ local function buildArcade()
 			deco("ClawGlass", Vector3.new(3.6, 3, 3.6), cf * CFrame.new(0, 5, 0), M.Glass, GLASS, { Transparency = 0.6 })
 		end)
 	end
+	-- Mesas de hockey de aire (modelo 3D con su marcador; los marcadores hacia fuera)
 	for _, z in { -12, 12 } do
-		local cf = at(150, 0, z)
-		box("AirHockey", Vector3.new(5, 2.8, 9), cf * CFrame.new(0, 1.4, 0), M.SmoothPlastic, Color3.fromRGB(30, 30, 36))
-		local top = deco("AirHockeyTop", Vector3.new(4.6, 0.1, 8.6), cf * CFrame.new(0, 2.85, 0), M.SmoothPlastic, Color3.fromRGB(230, 235, 240))
-		glowScreen(top, Enum.NormalId.Top, Color3.fromRGB(200, 230, 255), Color3.fromRGB(140, 180, 255), nil)
+		local cf = at(150, 0, z) * (if z < 0 then CFrame.Angles(0, math.pi, 0) else CFrame.identity)
+		if not fitProp("AirHockey", cf, Vector3.new(5, 9, 8.5)) then
+			box("AirHockey", Vector3.new(5, 2.8, 9), cf * CFrame.new(0, 1.4, 0), M.SmoothPlastic, Color3.fromRGB(30, 30, 36))
+			local top = deco("AirHockeyTop", Vector3.new(4.6, 0.1, 8.6), cf * CFrame.new(0, 2.85, 0), M.SmoothPlastic, Color3.fromRGB(230, 235, 240))
+			glowScreen(top, Enum.NormalId.Top, Color3.fromRGB(200, 230, 255), Color3.fromRGB(140, 180, 255), nil)
+		end
 	end
-	-- Mostrador de premios
-	box("PrizeCounter", Vector3.new(3, 3.6, 20), at(176, 1.8, 30), M.Wood, Color3.fromRGB(60, 40, 90))
-	local prizes = deco("PrizeWall", Vector3.new(0.3, 7, 20), at(179.3, 6, 30), M.SmoothPlastic, Color3.fromRGB(40, 30, 60))
-	glowScreen(prizes, Enum.NormalId.Left, Color3.fromRGB(255, 200, 60), Color3.fromRGB(255, 80, 160), "PREMIOS")
+
+	-- Zona de premios: mostrador de canje con vitrina de cristal llena de premios, maquina
+	-- de tickets, vitrinas de premios contra la pared, peluches y cartel luminoso
+	local gold = Color3.fromRGB(235, 185, 60)
+	local counterCF = at(172.5, 0, 30)
+	box("PrizeCounter", Vector3.new(2.6, 2.6, 16), counterCF * CFrame.new(0, 1.3, 0), M.SmoothPlastic, Color3.fromRGB(70, 40, 110))
+	deco("PrizeCounterKick", Vector3.new(2.7, 0.3, 16.1), counterCF * CFrame.new(0, 0.15, 0), M.SmoothPlastic, Color3.fromRGB(30, 18, 50))
+	-- Base de terciopelo de la vitrina, cristal y canto dorado arriba y abajo
+	deco("PrizeCounterTrim", Vector3.new(2.8, 0.15, 16.2), counterCF * CFrame.new(0, 2.65, 0), M.Fabric, Color3.fromRGB(45, 20, 70))
+	deco("PrizeGlass", Vector3.new(2.5, 1.1, 15.9), counterCF * CFrame.new(0, 3.28, 0), M.Glass, Color3.fromRGB(210, 230, 255), { Transparency = 0.8 })
+	deco("PrizeGlassTop", Vector3.new(2.6, 0.06, 16), counterCF * CFrame.new(0, 3.86, 0), M.Glass, Color3.fromRGB(220, 235, 255), { Transparency = 0.6 })
+	for _, side in { -1, 1 } do
+		deco("PrizeEdge", Vector3.new(0.1, 0.1, 16.1), counterCF * CFrame.new(side * 1.3, 3.88, 0), M.Metal, gold)
+		deco("PrizeEdge", Vector3.new(0.1, 0.1, 16.1), counterCF * CFrame.new(side * 1.3, 2.72, 0), M.Metal, gold)
+	end
+	neonStrip(Vector3.new(0.12, 0.12, 15.8), counterCF * CFrame.new(-1.32, 2.4, 0), Color3.fromRGB(255, 60, 200), Z, 0.4)
+	-- Premios pequeños dentro de la vitrina (pelotas, cajitas, peluchitos)
+	local prizeColors = { Color3.fromRGB(255, 90, 160), Color3.fromRGB(90, 200, 255), Color3.fromRGB(255, 220, 70), Color3.fromRGB(120, 230, 120), Color3.fromRGB(200, 120, 255) }
+	for i = 0, 17 do
+		local z = -7.4 + i * 0.87
+		local color = prizeColors[i % #prizeColors + 1]
+		local x = if i % 2 == 0 then -0.5 else 0.5
+		if i % 3 == 0 then
+			deco("Prize", Vector3.new(0.55, 0.55, 0.55), counterCF * CFrame.new(x, 3.0, z), M.SmoothPlastic, color, { Shape = Enum.PartType.Ball })
+		else
+			deco("Prize", Vector3.new(0.5, 0.65, 0.4), counterCF * CFrame.new(x, 3.05, z) * CFrame.Angles(0, math.rad(i * 23), 0), M.SmoothPlastic, color)
+		end
+	end
+	-- Maquina contadora de tickets sobre el mostrador
+	local ticketMachine = deco("TicketMachine", Vector3.new(1.1, 1.4, 1.1), counterCF * CFrame.new(0, 4.6, -6.2), M.SmoothPlastic, Color3.fromRGB(28, 28, 36))
+	litSign(ticketMachine, "TICKETS", gold, Enum.Font.Bangers, Enum.NormalId.Left)
+	deco("TicketSlot", Vector3.new(0.05, 0.12, 0.7), counterCF * CFrame.new(-0.57, 4.1, -6.2), M.Neon, Color3.fromRGB(255, 80, 80))
+	for k = 0, 4 do
+		deco("TicketStrip", Vector3.new(0.02, 0.5, 0.35), counterCF * CFrame.new(-0.3 + k * 0.12, 3.92, -4.8 + k * 0.15) * CFrame.Angles(0, 0, math.rad(80)), M.SmoothPlastic, Color3.fromRGB(240, 120, 150))
+	end
+	-- Vitrinas de premios contra la pared (modelo 3D) con peluches encima
+	for i = 0, 4 do
+		local z = 22.6 + i * 3.7
+		local cab = fitProp("PrizeCabinet", at(178.3, 0, z) * CFrame.Angles(0, math.rad(90), 0), Vector3.new(3.4, 5.4, 2.6))
+		if cab and i % 2 == 0 then
+			fitProp("TeddyBear", at(178.3, 5.4, z) * CFrame.Angles(0, math.rad(90), 0), Vector3.new(1.6, 1.9, 1.6), false)
+		end
+	end
+	-- Cartel luminoso
+	local prizeSign = deco("PrizeSign", Vector3.new(0.3, 2.2, 18), at(179.6, 9.2, 30), M.SmoothPlastic, Color3.fromRGB(30, 15, 50))
+	litSign(prizeSign, "★ PREMIOS ★", gold, Enum.Font.Bangers, Enum.NormalId.Left)
+	neonStrip(Vector3.new(0.2, 0.2, 18.4), at(179.4, 10.5, 30), Color3.fromRGB(255, 60, 200), Z)
+	neonStrip(Vector3.new(0.2, 0.2, 18.4), at(179.4, 7.9, 30), Color3.fromRGB(60, 220, 255), Z)
 	-- Fotomaton (escondite)
 	hidingSpot("Fotomatón", at(124, 3.75, -62) * CFrame.Angles(0, math.rad(-90), 0), Vector3.new(4, 7.5, 4), M.SmoothPlastic, Color3.fromRGB(200, 40, 120))
 	hidingSpot("Armario", at(176.8, 3.75, -64) * CFrame.Angles(0, math.rad(90), 0), Vector3.new(4, 7.5, 3), M.Metal, Color3.fromRGB(80, 95, 110))
@@ -4119,10 +4406,41 @@ local function buildService()
 
 	-- Instalaciones vistas: tuberia, bandeja de cables, conductos y franjas de seguridad
 	-- (cortadas donde pasa el pasaje al Ala Norte)
+	-- Tuberia redonda con manguitos cada 8 studs, conducto de chapa con bridas cada 6 y
+	-- colgadores al techo; bandeja de cables lisa.
 	local function run(name: string, x1: number, x2: number, y: number, z: number, size: Vector2, material, color: Color3)
 		for _, seg in { { x1, -WING - 0.5 }, { WING + 0.5, x2 } } do
-			if seg[2] - seg[1] > 1 then
-				deco(name, Vector3.new(seg[2] - seg[1], size.X, size.Y), at((seg[1] + seg[2]) / 2, y, z), material, color)
+			local length = seg[2] - seg[1]
+			if length > 1 then
+				local mid = at((seg[1] + seg[2]) / 2, y, z)
+				if name == "Pipe" then
+					deco(name, Vector3.new(length, size.X, size.Y), mid, material, color, { Shape = Enum.PartType.Cylinder })
+				else
+					deco(name, Vector3.new(length, size.X, size.Y), mid, material, color)
+				end
+				local step = if name == "Pipe" then 8 elseif name == "AirDuct" then 6 else 0
+				if step > 0 then
+					local k = 0
+					local x = seg[1] + step / 2
+					while x < seg[2] - 0.5 do
+						if name == "Pipe" then
+							deco("PipeCoupling", Vector3.new(0.4, size.X + 0.2, size.Y + 0.2), at(x, y, z), M.Metal, Color3.fromRGB(95, 98, 104), { Shape = Enum.PartType.Cylinder })
+						else
+							deco("DuctFlange", Vector3.new(0.22, size.X + 0.16, size.Y + 0.16), at(x, y, z), M.Metal, color:Lerp(Color3.new(0, 0, 0), 0.12))
+						end
+						-- Colgador: varilla roscada hasta el techo y abrazadera
+						if k % 2 == 0 then
+							local top = SERVICE_H
+							local bottom = y + size.X / 2
+							if top - bottom > 0.1 then
+								deco("Hanger", Vector3.new(0.08, top - bottom, 0.08), at(x + 0.6, (top + bottom) / 2, z), M.Metal, Color3.fromRGB(70, 72, 76))
+							end
+							deco("HangerClamp", Vector3.new(0.12, size.X + 0.12, size.Y + 0.12), at(x + 0.6, y, z), M.Metal, Color3.fromRGB(70, 72, 76))
+						end
+						k += 1
+						x += step
+					end
+				end
 			end
 		end
 	end
@@ -4314,8 +4632,10 @@ local function buildOffices()
 	end
 
 	-- Archivo (x 54.5..80)
+	-- (estanterias de x 62.5 a 79: pasillo libre de x 54.5 a 62.5, frente a la puerta x 55..63,
+	-- para llegar al fondo de la sala)
 	for _, z in { 90, 100 } do
-		storageRack(at(67.5, 0, z), 22)
+		storageRack(at(70.75, 0, z), 16.5)
 	end
 	propOr("OfficeDesk", at(60, 0, 106) * CFrame.Angles(0, math.rad(-90), 0), deskFallback)
 	spot(72, 106, "LostItem", "Archivo")
@@ -4626,6 +4946,12 @@ local function stoppedEscalator(lowX: number, highX: number, zc: number)
 	local body = model:FindFirstChild("EscalatorBody")
 	if body and body:IsA("BasePart") then
 		body.AssemblyLinearVelocity = Vector3.zero
+	end
+	for _, d in model:GetDescendants() do
+		if d:IsA("BasePart") and d.Name == "SkirtLight" then
+			d.Material = M.SmoothPlastic
+			d.Color = Color3.fromRGB(40, 44, 50)
+		end
 	end
 	local signPart = model:FindFirstChild("EscalatorSign")
 	local label = signPart and signPart:FindFirstChildWhichIsA("TextLabel", true)
