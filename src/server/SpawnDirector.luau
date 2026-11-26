@@ -98,7 +98,12 @@ function SpawnDirector.Plan(night: number, playersPerFloor: { number }, opts: Pl
 	local function hasRoom(enemyType: string, floor: number): boolean
 		local def = Config.Enemies[enemyType]
 		local perFloor = count[enemyType] or {}
-		if (perFloor[floor] or 0) >= (def.MaxPerFloor or math.huge) then
+		-- (los topes de los niveles 1 y 2 se multiplican por CapMultiplier; el nivel 3 no)
+		local cap = def.MaxPerFloor or math.huge
+		if (def.Tier or 1) < 3 then
+			cap *= Config.SpawnDirector.CapMultiplier or 1
+		end
+		if (perFloor[floor] or 0) >= cap then
 			return false
 		end
 		-- MaxTotal: tope entre las dos plantas (p. ej. solo hay una Estatua)

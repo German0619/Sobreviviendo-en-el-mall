@@ -460,16 +460,18 @@ Que toda la interfaz use las herramientas nativas de Roblox para adaptarse a cad
   - Tiene 60 s para completar 2 tareas ÉL MISMO; si no, muere (zarpazos rojos en pantalla) y se le puede revivir como siempre (Médico o Robux).
   - Se va si las completa, si se llega a la cuota, si cae por otra cosa o al acabar la noche. Al irse, la cuenta de falladas vuelve a 0 (otras 3 y vuelve); las falladas mientras está agarrada no cuentan.
   - Prueba: `Config.Debug.ClawGrabOnStart` (segundos tras empezar la noche: se agarra sola), `Config.Debug.ClawFailsOverride` (1 = se agarra con la primera fallada, desde cualquier noche) o `game.ServerStorage.DebugClaw:Invoke()` en la barra de comandos del servidor durante la noche. Avisos `[Garra]` en la salida.
-- [PROGRAMADO, falta probar] Pantalla de carga (2026-11-25; antes se veía todo negro al entrar). `src/first/LoadingScreen.client.luau` en ReplicatedFirst (nuevo en `default.project.json`), la misma en el lobby y en el mall:
+- [HECHO] (probado jugando) Pantalla de carga (2026-11-25; antes se veía todo negro al entrar). `src/first/LoadingScreen.client.luau` en ReplicatedFirst (nuevo en `default.project.json`), la misma en el lobby y en el mall:
   - Fondo azul noche, luna creciente y "PLAZA LUNA" que parpadean como un fluorescente, barra de progreso con el paso ("Despertando a los maniquíes...") y un consejo al azar cada 5 s.
   - Espera a que cargue el juego, a que exista el mapa (`Workspace.Mall` o `Workspace.Lobby`), a tu personaje y a que bajen las descargas pendientes (máx. 8 s); se ve al menos 2.5 s y se desvanece.
   - También en los viajes lobby ↔ mall (`TeleportService:SetTeleportGui`): al llegar la reemplaza la del place sin que se vea negro.
+  - Arreglo (2026-11-25): en el mall se quitaba antes de tiempo y se veía negro unos segundos (StreamingEnabled: el modelo del mapa existe enseguida pero sus piezas llegan poco a poco). Ahora pide el streaming alrededor del personaje y espera a que haya suelo bajo los pies y a que las piezas cercanas dejen de llegar (máx. 20 s).
+- [PROGRAMADO, falta probar] El doble de enemigos (2026-11-25: "spawnean poquísimos"). `Config.SpawnDirector.CountMultiplier = 2` (presupuesto x2) y `CapMultiplier = 2` (topes por planta x2 en los niveles 1 y 2; el nivel 3 sigue con su tope). Solo / 3 jugadores: noche 1 = 3 / 4, noche 2 = 6 / 8, noche 3 = 9 / 12, noche 5 = 15 / 21, noche 10 = 30 / 42 (antes la mitad).
 - [PENDIENTE, para luego] (pedido el 2026-11-25):
   - Añadir más misiones (hecha la tanda 2 de arriba; más si hace falta).
   - Agrandar el mall (hecho arriba, falta probar).
   - Subir la dificultad si hace falta (tras probar el balance con amigos).
   - Pantalla de carga (programada abajo, falta probar).
-  - Aclarar qué pasa al fallar una tarea: hoy solo sale "Tarea fallida: X. Algo se vuelve más fuerte..." y no se entiende (en realidad: +4 % de velocidad a todos los enemigos por tarea fallada, `Config.Threat`, y algunas tienen efecto propio: luces rotas, derrame que huele el Rastro...).
+  - Aclarar qué pasa al fallar una tarea: pasa a la Fase 14.
 - [HECHO] Subir el precio de las armas: en una sola noche se ganan fácilmente más de 300 billetes.
   - Escalonadas: Trapeador 400, Cartel 700, Extintor 1100, Linterna UV 1600, Taser 3200 (no alcanza antes de terminar la noche 5 sin el pase x2). Mercader en proporción (3800, 1400, 1100, 1000).
   - El taser se vuelve a comprar cuando se le acaban los usos, un 25 % más caro cada vez en la misma partida (`RebuyGrowth`, `Config.getShopPrice`, atributo `TaserBuys`).
@@ -478,11 +480,38 @@ Que toda la interfaz use las herramientas nativas de Roblox para adaptarse a cad
 - [HECHO] Poder llevar más de un arma (hoy solo hay un hueco de arma).
   - Sin límite (una de cada tipo), cada una en su casilla de la mochila. [R] usa la de la mano o la última que tuviste (`WeaponService.SetActive`). Comprar una que ya llevas la recarga (el taser no).
 
+**Fase 14: arreglos rápidos** — [HECHO] (pedidos el 2026-11-25; cambios pequeños, se prueban juntos).
+- [HECHO] (probado jugando) Jugador marcado (evento): hay que estar 10 s seguidos junto a un compañero para quitar la marca (era 1.5 s; `Config.Events.MarkedPlayer.ClearSeconds`).
+- [HECHO] (probado jugando) Los marcadores de las tareas ("!", "▼" del destino) se ven desde cualquier lugar del mapa (`MaxDistance = math.huge` en `MissionService.addMarker` y `Missions/Common.makeMarker`; antes 90 y 120). El Teléfono sonando sigue solo de cerca (`MarkerDistance = 25`).
+- [HECHO] (probado jugando) Sodas: las positivas duran el doble (Turbo 60 s, Ojos de gato 90, Regeneración 40, Estamina infinita 40; las negativas igual) y la soda a elección de Robux dura el doble que la normal (`Config.ChoiceSoda.DurationMultiplier` 1.5 → 2).
+- [HECHO] (probado jugando) Escondite del coche: dentro se veían las rendijas de un casillero (la vista de escondite era igual para todos). Ahora el coche tiene su vista (`client/Defense`): techo, montantes, salpicadero con volante, cristal tintado y la cámara a la altura de la ventanilla.
+- [HECHO] (probado jugando) Fallo del maletín perdido: no se podía entregar. La misión Objeto perdido dejaba un prompt "Entregar" fijo en el mismo mostrador y Roblox solo muestra un prompt por tecla: salía el suyo ("No llevas lo que hace falta aquí"). Ahora los prompts de entrega de las misiones de llevar objetos (`Missions/Carry`) solo se encienden mientras alguien lleva uno de sus objetos.
+- [HECHO] (probado jugando) Aviso de tarea fallida concreto: "Tarea fallida: X. Los enemigos van un 4 % más rápido (total esta noche: +12 %)." y, si la tarea tiene efecto propio, lo dice (`Config.MissionFailEffects`: luces, generador, charcos que huele el Rastro).
+- Probado con StartNight 2, OnlyEvents { "LostBriefcase", "MarkedPlayer" } y EventDelayOverride 15 (ya devueltos a lo normal).
+
+**Fase 15: enemigos y eventos rediseñados** (pedidos el 2026-11-25).
+- [PENDIENTE] El Gerente (jefe noche 10): más radios (hoy 3) y que no se vean en el mapa salvo muy de cerca (~5 studs): sin marcador lejano ni nombre de zona en la tarea; hay que buscarlas.
+- [PENDIENTE] El Cajero: persigue al jugador con MÁS billetes (no al más cercano) y quien lo aturde se queda con lo que robó (hoy se lo devuelve a la víctima).
+- [PENDIENTE] Maletín perdido, nuevas reglas:
+  - Entregarlo en Objetos perdidos: +500 para quien lo entrega (arreglar el fallo de la Fase 14).
+  - Si se acaba el tiempo y nadie lo entregó: TODOS quedan malditos (reciben el doble de daño) el resto de la noche.
+  - Opción de quedárselo (en vez de entregarlo): +500 para ti y solo tú quedas maldito.
+  - Decidir antes: cuánto dura la maldición (¿la noche?), cómo se ve (marca en el HUD / aura) y si se quita con algo.
+- [PENDIENTE] Luni (jefa noche 5): al activar el apagón del generador con ella dentro, se va la luz en TODO el centro comercial (no solo en el sector), obligando a jugar a oscuras.
+  - Decidir antes: cuánto dura (¿el resto de la noche, o hasta reiniciar otro generador?), si quedan las luces de emergencia y si afecta también a los enemigos que dependen de la luz (Apagón, Polillas).
+
+**Fase 16: armas con daño** (pedido el 2026-11-25; la más grande: cambia la base del combate, hoy las armas solo aturden).
+- [PENDIENTE] Vida para los enemigos (stat nueva en `Config.Enemies`) y que puedan morir.
+- [PENDIENTE] Machete: 5000 billetes en la tienda del conserje.
+- [PENDIENTE] Arma de fuego: con un pase de Robux (pase nuevo en `Config.GamePasses`, creado por Open Cloud).
+- Preguntas de diseño antes de empezar: qué enemigos pueden morir (¿los jefes? ¿la Estatua? ¿los sin cuerpo como el Apagón o la Megafonía?), cuánta vida y daño, qué pasa al morir (¿reaparecen más tarde?, ¿dan billetes?), munición del arma de fuego y cómo se apunta en teléfono, precio del pase.
+
 **Orden elegido:**
 - La Fase 3 cambia la base de cómo aparece el peligro; el resto se apoya en ella.
 - Las armas van antes que los enemigos nuevos porque cada enemigo necesita su contramedida.
 - Los eventos van antes que los jefes porque los jefes usan las misiones de evento.
 - El lobby es independiente y se puede intercalar.
+- Fases 14 → 15 → 16 (2026-11-25): primero los arreglos rápidos (se prueban en una partida), luego los rediseños de enemigos y eventos, y al final las armas con daño, que cambian la base del combate y necesitan decisiones de diseño.
 - La interfaz adaptable (Fase 12) también es independiente. Conviene hacerla antes de la Fase 10 (lobby) y de las armas (Fase 4), que añaden más UI y botones: si `UIKit.screen` e `InputHints` ya existen, la UI nueva nace adaptable. Es obligatoria antes de publicar, porque gran parte de los jugadores de Roblox juegan en teléfono.
 
 ---

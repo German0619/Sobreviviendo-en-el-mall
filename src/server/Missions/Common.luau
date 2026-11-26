@@ -35,14 +35,15 @@ function Common.makePrompt(parent: Instance, actionText: string, objectText: str
 	return prompt
 end
 
--- Marcador "!" (o el texto que se pase) visible a traves de las paredes.
+-- Marcador "!" (o el texto que se pase) visible a traves de las paredes y desde cualquier
+-- punto del mapa (quien quiera limitarlo cambia MaxDistance, p. ej. el Telefono sonando).
 function Common.makeMarker(part: BasePart, text: string?, color: Color3?): BillboardGui
 	local gui = Instance.new("BillboardGui")
 	gui.Name = "MissionMarker"
 	gui.Size = UDim2.fromOffset(36, 36)
 	gui.StudsOffsetWorldSpace = Vector3.new(0, 3, 0)
 	gui.AlwaysOnTop = true
-	gui.MaxDistance = 120
+	gui.MaxDistance = math.huge
 	gui.LightInfluence = 0
 	local label = Instance.new("TextLabel")
 	label.Size = UDim2.fromScale(1, 1)

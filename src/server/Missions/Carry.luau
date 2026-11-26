@@ -29,6 +29,17 @@ local Carry = {}
 
 -- [Player] = entrada del objeto que lleva (compartido por todas las misiones Carry)
 local carrying = {}
+-- Cada tipo de mision enciende sus prompts de entrega solo mientras alguien lleva uno
+-- de sus objetos. (Siempre encendidos tapaban otros prompts del mismo sitio: Roblox
+-- solo muestra uno por tecla, y el maletin perdido no se podia entregar en Objetos
+-- perdidos porque salia el "Entregar" de la mision Objeto perdido.)
+local refreshers: { () -> () } = {}
+
+local function refreshDropoffs()
+	for _, refresh in refreshers do
+		refresh()
+	end
+end
 
 local function notify(player: Player, message: string)
 	Remotes.event("Notify"):FireClient(player, message, "info")
@@ -59,6 +70,7 @@ local function release(player: Player, returnHome: boolean)
 		entry.Item.CFrame = entry.HomeCFrame
 		entry.Prompt.Enabled = true
 	end
+	refreshDropoffs()
 end
 
 local function nearestTagged(tag: string, position: Vector3): BasePart?
@@ -77,6 +89,19 @@ end
 function Carry.new(opts)
 	local dropoffPrompts: { [BasePart]: ProximityPrompt } = {}
 	local module = {}
+
+	table.insert(refreshers, function()
+		local anyCarrying = false
+		for _, entry in carrying do
+			if entry.Type == opts.Type then
+				anyCarrying = true
+				break
+			end
+		end
+		for _, prompt in dropoffPrompts do
+			prompt.Enabled = anyCarrying
+		end
+	end)
 
 	local function tryDeliver(player: Player, spot: BasePart?)
 		local entry = carrying[player]
@@ -97,6 +122,7 @@ function Carry.new(opts)
 		for _, part in CollectionService:GetTagged(opts.DropoffTag) do
 			if part:IsA("BasePart") and not dropoffPrompts[part] then
 				local prompt = Common.makePrompt(part, opts.DropoffAction, opts.DropoffObject, Config.Missions[opts.Type].Duration)
+				prompt.Enabled = false -- (se enciende al recoger el objeto: refreshDropoffs)
 				prompt.Triggered:Connect(function(player)
 					tryDeliver(player, nil)
 				end)
@@ -190,6 +216,7 @@ function Carry.new(opts)
 			}
 			mission.Carried = true
 			player:SetAttribute("Carrying", opts.PickupText)
+			refreshDropoffs()
 			if opts.CarryHint then
 				notify(player, opts.CarryHint)
 			end

@@ -75,6 +75,7 @@ local active = {} -- [id] = mission
 local spotBusy = {} -- [BasePart] = true
 local teamEarnings = 0 -- fondo comun del equipo esta noche
 local doneCount = 0 -- tareas completadas esta noche
+local failedCount = 0 -- tareas falladas esta noche (para el aviso de "Tarea fallida")
 local goal = 1 -- cuota de la noche
 local teamSize = 1
 local running = false
@@ -116,7 +117,7 @@ local function addMarker(mission, part: BasePart)
 	gui.Size = UDim2.fromOffset(36, 36)
 	gui.StudsOffsetWorldSpace = Vector3.new(0, 3, 0)
 	gui.AlwaysOnTop = true
-	gui.MaxDistance = 90
+	gui.MaxDistance = math.huge -- se ve desde cualquier punto del mapa
 	gui.LightInfluence = 0
 	local label = Instance.new("TextLabel")
 	label.Size = UDim2.fromScale(1, 1)
@@ -174,7 +175,20 @@ local function endMission(mission, player: Player?, silent: boolean?)
 		)
 		MissionService.Completed:Fire(mission, player)
 	elseif not silent then
-		notifyAll(string.format("Tarea fallida: %s. Algo se vuelve mas fuerte...", mission.DisplayName), "bad")
+		-- Aviso concreto: cuanto se aceleran los enemigos (esta y en total) y el efecto propio
+		failedCount += 1
+		local per = math.floor(Config.Threat.SpeedPerFailedMission * 100 + 0.5)
+		local text = string.format(
+			"Tarea fallida: %s. Los enemigos van un %d %% más rápido (total esta noche: +%d %%).",
+			mission.DisplayName,
+			per,
+			per * failedCount
+		)
+		local extra = Config.MissionFailEffects and Config.MissionFailEffects[mission.Type]
+		if extra then
+			text ..= " " .. extra
+		end
+		notifyAll(text, "bad")
 		MissionService.Failed:Fire(mission)
 	end
 end
@@ -296,6 +310,7 @@ function MissionService.StartNight(night: number, players: number?, goalMultipli
 	teamSize = math.max(players or 1, 1)
 	goal = math.max(1, math.ceil(Config.getMissionGoal(night, teamSize) * (goalMultiplier or 1)))
 	doneCount = 0
+	failedCount = 0
 	GameState.Folder:SetAttribute("MissionGoal", goal)
 	GameState.Folder:SetAttribute("MissionsDone", 0)
 	running = true

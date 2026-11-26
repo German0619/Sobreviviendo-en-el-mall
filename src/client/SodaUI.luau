@@ -32,7 +32,9 @@ local function refresh()
 	end
 	footer.Text = if tokens > 0
 		then string.format("Tienes %d ficha(s) de soda: se usa una en vez de pagar.", tokens)
-		else string.format("Dura %.1fx más que una soda normal.", Config.ChoiceSoda.DurationMultiplier)
+		else if Config.ChoiceSoda.DurationMultiplier == 2
+			then "Dura el doble que una soda normal."
+			else string.format("Dura %gx más que una soda normal.", Config.ChoiceSoda.DurationMultiplier)
 end
 
 function SodaUI.Open(position: Vector3)

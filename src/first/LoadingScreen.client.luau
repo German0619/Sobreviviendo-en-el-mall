@@ -194,13 +194,13 @@ if arriving then
 	arriving:Destroy()
 end
 
-local root = gui:WaitForChild("Root") :: Frame
-local logo = root:WaitForChild("Logo") :: Frame
+local screen = gui:WaitForChild("Root") :: Frame
+local logo = screen:WaitForChild("Logo") :: Frame
 local title = logo:WaitForChild("Title") :: TextLabel
 local moon = logo:WaitForChild("Moon") :: Frame
-local tipLabel = root:WaitForChild("TipBox"):WaitForChild("Tip") :: TextLabel
-local fill = root:WaitForChild("Bar"):WaitForChild("Fill") :: Frame
-local stepLabel = root:WaitForChild("Step") :: TextLabel
+local tipLabel = screen:WaitForChild("TipBox"):WaitForChild("Tip") :: TextLabel
+local fill = screen:WaitForChild("Bar"):WaitForChild("Fill") :: Frame
+local stepLabel = screen:WaitForChild("Step") :: TextLabel
 
 local startedAt = os.clock()
 local progress = 0.04 -- objetivo de la barra (0..1); se anima hacia el
@@ -272,6 +272,42 @@ while not (character and character:FindFirstChild("HumanoidRootPart")) and not t
 	task.wait(0.2)
 	character = player.Character
 end
+step(4, 0.7)
+
+-- 3b) El mapa ALREDEDOR del personaje (StreamingEnabled): el modelo del mapa existe
+-- enseguida, pero sus piezas llegan poco a poco; si se quita la pantalla antes, se ve
+-- negro unos segundos. Se espera a que haya suelo bajo los pies y a que el numero de
+-- piezas cercanas deje de crecer.
+local root = character and character:FindFirstChild("HumanoidRootPart") :: BasePart?
+if root then
+	pcall(function()
+		player:RequestStreamAroundAsync(root.Position, 10)
+	end)
+	local params = RaycastParams.new()
+	params.FilterType = Enum.RaycastFilterType.Exclude
+	params.FilterDescendantsInstances = { character }
+	local overlap = OverlapParams.new()
+	overlap.FilterType = Enum.RaycastFilterType.Exclude
+	overlap.FilterDescendantsInstances = { character }
+	local streamUntil = os.clock() + 20
+	local lastCount, stableFor = -1, 0
+	while os.clock() < streamUntil and not timedOut() and root.Parent do
+		local ground = Workspace:Raycast(root.Position, Vector3.new(0, -12, 0), params)
+		local count = #Workspace:GetPartBoundsInRadius(root.Position, 60, overlap)
+		-- "estable": casi no llegan piezas nuevas en el ultimo cuarto de segundo
+		if ground and count >= 25 and lastCount >= 0 and count - lastCount <= math.max(2, lastCount * 0.02) then
+			stableFor += 0.25
+		else
+			stableFor = 0
+		end
+		lastCount = count
+		progress = math.max(progress, 0.7 + 0.1 * math.clamp(count / 400, 0, 1))
+		if stableFor >= 1.5 then
+			break
+		end
+		task.wait(0.25)
+	end
+end
 step(4, 0.8)
 
 -- 4) Descargas pendientes (texturas, sonidos, modelos): hasta que casi no quede nada
@@ -302,11 +338,11 @@ for _, d in gui:GetDescendants() do
 		TweenService:Create(d, fade, { TextTransparency = 1 }):Play()
 	elseif d:IsA("UIStroke") then
 		TweenService:Create(d, fade, { Transparency = 1 }):Play()
-	elseif d:IsA("Frame") and d ~= root then
+	elseif d:IsA("Frame") and d ~= screen then
 		TweenService:Create(d, fade, { BackgroundTransparency = 1 }):Play()
 	end
 end
-TweenService:Create(root, TweenInfo.new(1.4, Enum.EasingStyle.Sine), { BackgroundTransparency = 1 }):Play()
+TweenService:Create(screen, TweenInfo.new(1.4, Enum.EasingStyle.Sine), { BackgroundTransparency = 1 }):Play()
 task.wait(1.5)
 barConn:Disconnect()
 gui:Destroy()

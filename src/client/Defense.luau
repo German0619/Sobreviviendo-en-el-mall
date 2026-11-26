@@ -29,6 +29,8 @@ local Defense = {}
 local SLITS = 14 -- rendijas de la puerta del escondite
 
 local gui, abilitiesLabel, overlay, overlayLabel, flashFrame
+local slitsView, carView -- vista dentro del escondite: rendijas (casillero...) o coche
+local CAR_SPOTS = { Coche = true } -- escondites con vista de coche (DisplayName)
 local lastFlashReadyAt = 0
 
 ----------------------------------------------------------------------
@@ -71,6 +73,12 @@ local function build()
 		ZIndex = 3,
 		Parent = gui,
 	})
+	slitsView = UIKit.make("Frame", {
+		Size = UDim2.fromScale(1, 1),
+		BackgroundTransparency = 1,
+		ZIndex = 3,
+		Parent = overlay,
+	})
 	for i = 0, SLITS - 1 do
 		UIKit.make("Frame", {
 			Position = UDim2.fromScale(0, i / SLITS),
@@ -79,9 +87,52 @@ local function build()
 			BackgroundTransparency = 0.03,
 			BorderSizePixel = 0,
 			ZIndex = 3,
-			Parent = overlay,
+			Parent = slitsView,
 		})
 	end
+	-- Dentro de un coche: techo, montantes, salpicadero con volante y el cristal tintado
+	carView = UIKit.make("Frame", {
+		Size = UDim2.fromScale(1, 1),
+		BackgroundTransparency = 1,
+		Visible = false,
+		ZIndex = 3,
+		Parent = overlay,
+	})
+	local interior = Color3.fromRGB(10, 10, 13)
+	local function piece(props)
+		props.BorderSizePixel = 0
+		props.ZIndex = props.ZIndex or 3
+		props.Parent = props.Parent or carView
+		props.BackgroundColor3 = props.BackgroundColor3 or interior
+		return UIKit.make("Frame", props)
+	end
+	piece({ Size = UDim2.fromScale(1, 1), BackgroundColor3 = Color3.fromRGB(20, 40, 60), BackgroundTransparency = 0.82 }) -- tinte
+	piece({ Size = UDim2.fromScale(1, 0.16) }) -- techo
+	piece({ Position = UDim2.fromScale(0, 0.7), Size = UDim2.fromScale(1, 0.3) }) -- salpicadero
+	piece({ Position = UDim2.fromScale(0, 0.68), Size = UDim2.fromScale(1, 0.025), BackgroundColor3 = Color3.fromRGB(28, 28, 32) }) -- borde
+	for _, x in { 0, 0.94 } do
+		piece({ Position = UDim2.fromScale(x, 0), Size = UDim2.fromScale(0.06, 1) }) -- montantes
+	end
+	local wheel = piece({
+		AnchorPoint = Vector2.new(0.5, 0.5),
+		Position = UDim2.fromScale(0.3, 0.88),
+		Size = UDim2.fromScale(0.42, 0.42),
+		SizeConstraint = Enum.SizeConstraint.RelativeYY,
+		BackgroundTransparency = 1,
+		ZIndex = 4,
+	})
+	UIKit.make("UICorner", { CornerRadius = UDim.new(0.5, 0), Parent = wheel })
+	UIKit.make("UIStroke", { Color = Color3.fromRGB(32, 32, 36), Thickness = 10, Parent = wheel })
+	piece({
+		AnchorPoint = Vector2.new(0.5, 0.5),
+		Position = UDim2.fromScale(0.5, 0.5),
+		Size = UDim2.fromScale(1, 0.12),
+		BackgroundColor3 = Color3.fromRGB(32, 32, 36),
+		ZIndex = 4,
+		Parent = wheel,
+	})
+	local mirrorPart = piece({ AnchorPoint = Vector2.new(0.5, 0), Position = UDim2.fromScale(0.5, 0.15), Size = UDim2.fromScale(0.14, 0.05), ZIndex = 4 })
+	UIKit.make("UICorner", { CornerRadius = UDim.new(0, 6), Parent = mirrorPart })
 	overlayLabel = UIKit.text({
 		AnchorPoint = Vector2.new(0.5, 1),
 		Position = UDim2.new(0.5, 0, 1, -110),
@@ -197,6 +248,7 @@ local HIDE_CAMERA = "HideCamera"
 local PEEK_YAW, PEEK_PITCH = math.rad(25), math.rad(12)
 local PEEK_SENSITIVITY = 0.004
 local EYE_HEIGHT = 4.6 -- sobre el suelo del escondite
+local CAR_EYE_HEIGHT = 2.9 -- en un coche: a la altura de la ventanilla
 
 local peekYaw, peekPitch = 0, 0
 
@@ -226,6 +278,10 @@ local function startHideCamera()
 		return
 	end
 	peekYaw, peekPitch = 0, 0
+	local inCar = CAR_SPOTS[spot:GetAttribute("DisplayName") or spot.Name] == true
+	slitsView.Visible = not inCar
+	carView.Visible = inCar
+	local eyeHeight = if inCar then CAR_EYE_HEIGHT else EYE_HEIGHT
 	camera.CameraType = Enum.CameraType.Scriptable
 	RunService:BindToRenderStep(HIDE_CAMERA, Enum.RenderPriority.Camera.Value + 1, function()
 		if not spot.Parent then
@@ -238,7 +294,7 @@ local function startHideCamera()
 		-- Respiracion: un vaiven muy leve
 		local breathe = math.sin(os.clock() * 1.6) * 0.03
 		local size = spot.Size
-		local eye = spot.CFrame * CFrame.new(0, -size.Y / 2 + EYE_HEIGHT + breathe, -(size.Z / 2) + 0.35)
+		local eye = spot.CFrame * CFrame.new(0, -size.Y / 2 + eyeHeight + breathe, -(size.Z / 2) + 0.35)
 		camera.CFrame = CFrame.new(eye.Position) * spot.CFrame.Rotation * CFrame.Angles(0, peekYaw, 0) * CFrame.Angles(peekPitch, 0, 0)
 	end)
 end

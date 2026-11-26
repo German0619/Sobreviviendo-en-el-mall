@@ -1098,34 +1098,35 @@ Config.Defense = {
 -- Maquinas expendedoras
 ----------------------------------------------------------------------
 -- Effects: { Stat = multiplicador } o banderas especiales; Duration en segundos.
+-- (2026-11-25: las positivas duran el doble que antes: 30/45/20/20 -> 60/90/40/40)
 Config.SodaEffects = {
 	-- Positivos
 	Speed = {
 		DisplayName = "Turbo",
 		Description = "+25% de velocidad.",
 		Positive = true,
-		Duration = 30,
+		Duration = 60,
 		Modifiers = { WalkSpeed = 1.25 },
 	},
 	Vision = {
 		DisplayName = "Ojos de gato",
 		Description = "Ves en la oscuridad.",
 		Positive = true,
-		Duration = 45,
+		Duration = 90,
 		Flags = { NightVision = true },
 	},
 	Regen = {
 		DisplayName = "Regeneracion",
 		Description = "+4 de vida por segundo.",
 		Positive = true,
-		Duration = 20,
+		Duration = 40,
 		Flags = { RegenPerSecond = 4 },
 	},
 	InfiniteStamina = {
 		DisplayName = "Estamina infinita",
 		Description = "Corres sin cansarte.",
 		Positive = true,
-		Duration = 20,
+		Duration = 40,
 		Flags = { InfiniteStamina = true },
 	},
 	-- Negativos
@@ -1139,7 +1140,7 @@ Config.SodaEffects = {
 Config.ChoiceSoda = {
 	DisplayName = "Soda a elección",
 	Effects = { "Speed", "Vision", "Regen", "InfiniteStamina" },
-	DurationMultiplier = 1.5,
+	DurationMultiplier = 2, -- la de Robux dura el doble que la normal (era x1.5)
 }
 
 -- Las probabilidades se muestran en la maquina (politica de Roblox para objetos aleatorios).
@@ -1292,6 +1293,15 @@ end
 Config.Threat = {
 	SpeedPerFailedMission = 0.04, -- +4% velocidad a todos por mision fallada
 	BlackoutPerFailedLights = 0.15, -- +15% velocidad/resistencia del Apagon por luces sin reparar
+}
+
+-- Lo que pasa ADEMAS al fallar algunas tareas (se dice en el aviso de "Tarea fallida").
+Config.MissionFailEffects = {
+	FixLights = "La zona se queda a oscuras y el Apagón se hace más fuerte.",
+	RestartGenerator = "Esas zonas se quedan sin luz.",
+	CleanSpill = "El charco se queda: el Rastro lo huele.",
+	UnclogToilet = "Queda un charco que huele el Rastro.",
+	CloseFaucets = "Queda un charco que huele el Rastro.",
 }
 
 -- La Garra (server/ClawService, client/ClawFX): entidad sin cuerpo que castiga dejar
@@ -1754,7 +1764,7 @@ Config.Events = {
 		Duration = 45,
 		LureRadius = 80,
 		ClearDistance = 10, -- junto a un companero a esta distancia...
-		ClearSeconds = 1.5, -- ...durante este tiempo
+		ClearSeconds = 10, -- ...durante este tiempo seguido (era 1.5: se quitaba demasiado facil)
 	},
 	HackedIntercom = {
 		DisplayName = "Megafonía hackeada",
@@ -2041,13 +2051,18 @@ end
 -- Valores de partida para ajustar jugando.
 Config.SpawnDirector = {
 	TierCost = { 1, 3, 6 },
-	-- Con 3 jugadores: noche 1 = 2, noche 2 = 4, noche 3 = 6, noche 5 = 10 (solo: 1, 3, 4, 7).
+	-- Con 3 jugadores: noche 1 = 4, noche 2 = 8, noche 3 = 12, noche 5 = 21 (solo: 3, 6, 9, 15).
 	Budget = {
 		Base = 1,
 		PerNight = 1,
 		PerExtraPlayer = 0.2,
 		Max = 60,
 	},
+	-- x2 enemigos (2026-11-25: salian poquisimos, y con las alas nuevas el mapa es mas grande).
+	-- CountMultiplier multiplica el presupuesto; CapMultiplier, los topes por planta
+	-- (MaxPerFloor) de los niveles 1 y 2, para que el doble quepa. El nivel 3 sigue igual.
+	CountMultiplier = 2,
+	CapMultiplier = 2,
 	-- { desde la noche, { % nivel 1, % nivel 2, % nivel 3 } } (tabla del documento de diseno)
 	TierOdds = {
 		{ 1, { 85, 15, 0 } },
@@ -2075,7 +2090,8 @@ function Config.getDangerBudget(night: number, players: number, multiplier: numb
 	local b = Config.SpawnDirector.Budget
 	local base = b.Base + b.PerNight * math.max(night - 1, 0)
 	local playerFactor = 1 + b.PerExtraPlayer * math.max(players - 1, 0)
-	local budget = math.floor(base * playerFactor * Config.MapScale * (multiplier or 1))
+	local count = Config.SpawnDirector.CountMultiplier or 1
+	local budget = math.floor(base * playerFactor * Config.MapScale * count * (multiplier or 1))
 	return math.clamp(budget, 1, b.Max)
 end
 
