@@ -824,6 +824,11 @@ function WeaponService.Use(player: Player, weaponId: string?, aim: Vector3?)
 		SfxService.PlayAt(USE_SOUNDS[weaponId], root)
 	end
 	if used then
+		-- Animacion del arma (client/WeaponAnims: primera persona y el brazo para los demas).
+		-- La UV solo se enciende y apaga: no se anima.
+		if weaponId ~= "UVFlashlight" then
+			player:SetAttribute("WeaponAnim", string.format("%s|%.3f", weaponId, serverNow()))
+		end
 		consume(player, weaponId)
 	end
 end

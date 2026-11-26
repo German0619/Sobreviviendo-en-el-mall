@@ -33,7 +33,7 @@ Config.Debug = {
 	-- ej. 3: La Garra se agarra sola esos segundos despues de empezar la noche (cualquier noche)
 	ClawGrabOnStart = nil :: number?,
 	-- SOLO en Studio:
-	StudioStartCash = 0, -- billetes al empezar cada partida (ej. 5000 para probar la tienda)
+	StudioStartCash = 15000, -- billetes al empezar cada partida (ej. 5000 para probar la tienda)
 	-- Diamantes que se suman al entrar (ej. 1000 para probar la ruleta).
 	-- Ojo: con API Services activado se guardan en tus datos de verdad.
 	StudioBonusDiamonds = 0,
@@ -41,7 +41,7 @@ Config.Debug = {
 	-- noche del nivel 2). Ojo: con API Services activado se guardan en tus datos de verdad.
 	StudioMasteryNights = nil :: number?,
 	-- Pases que se simulan como comprados en Studio (ej. { "DoubleMoney", "VIP" })
-	StudioOwnedPasses = {} :: { string },
+	StudioOwnedPasses = { "Pistol" } :: { string },
 }
 
 ----------------------------------------------------------------------

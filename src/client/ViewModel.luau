@@ -108,6 +108,26 @@ end
 
 local leftSkin: string? = nil
 
+-- Animacion del arma de la derecha (la pone client/WeaponAnims al usarla):
+-- fn(alpha 0..1) -> CFrame relativo a RIGHT_OFFSET
+local anim: { Fn: (number) -> CFrame, Start: number, Duration: number }? = nil
+
+function ViewModel.Play(fn: (number) -> CFrame, duration: number)
+	anim = { Fn = fn, Start = os.clock(), Duration = duration }
+end
+
+local function animOffset(): CFrame
+	if not anim then
+		return CFrame.identity
+	end
+	local a = (os.clock() - anim.Start) / anim.Duration
+	if a >= 1 then
+		anim = nil
+		return CFrame.identity
+	end
+	return anim.Fn(math.clamp(a, 0, 1))
+end
+
 local function updateLeft()
 	local premium = player:GetAttribute("Pass_PremiumFlashlight") == true
 	-- Skin equipada en el lobby; si no tiene, la dorada del pase Linterna Premium
@@ -158,7 +178,7 @@ function ViewModel.Start()
 
 		local camCF = (camera :: Camera).CFrame
 		if rightModel then
-			rightModel:PivotTo(camCF * sway * RIGHT_OFFSET)
+			rightModel:PivotTo(camCF * sway * RIGHT_OFFSET * animOffset())
 		end
 		if leftModel then
 			leftModel:PivotTo(camCF * sway:Inverse() * LEFT_OFFSET)

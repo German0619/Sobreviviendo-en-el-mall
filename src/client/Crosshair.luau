@@ -4,10 +4,14 @@
 --   * Al usar la herramienta (clic / tocar) manda UseWeapon("Pistol", direccion de la
 --     camara): el servidor dispara hacia la mirilla (con un poco de ayuda al apuntar).
 --   * Pequeño retroceso de la mirilla al disparar.
+--   * Sin cursor del raton en el centro de la pantalla mientras juegas en primera persona
+--     (raton bloqueado en el centro); vuelve en cuanto un menu libera el raton.
 
 local Players = game:GetService("Players")
 local ReplicatedStorage = game:GetService("ReplicatedStorage")
+local RunService = game:GetService("RunService")
 local TweenService = game:GetService("TweenService")
+local UserInputService = game:GetService("UserInputService")
 local Workspace = game:GetService("Workspace")
 
 local Remotes = require(ReplicatedStorage:WaitForChild("Shared").Remotes)
@@ -118,6 +122,55 @@ function Crosshair.Start()
 	if player.Character then
 		watchCharacter(player.Character)
 	end
+
+	-- Cursor: oculto con el raton bloqueado en el centro (primera persona); visible con
+	-- un menu abierto. Los menus liberan el raton con un boton Modal (el de cerrar de
+	-- UIKit.window, revivir, espectador...), pero MouseBehavior sigue diciendo LockCenter:
+	-- por eso se miran los botones Modal que esten a la vista.
+	local modalButtons: { [GuiButton]: boolean } = {}
+	local playerGui = player:WaitForChild("PlayerGui")
+	local function track(inst: Instance)
+		if inst:IsA("GuiButton") then
+			modalButtons[inst] = true
+			inst.Destroying:Connect(function()
+				modalButtons[inst] = nil
+			end)
+		end
+	end
+	for _, d in playerGui:GetDescendants() do
+		track(d)
+	end
+	playerGui.DescendantAdded:Connect(track)
+
+	local function shown(button: GuiButton): boolean
+		if not button.Modal or not button.Visible then
+			return false
+		end
+		local node = button.Parent
+		while node and node ~= playerGui do
+			if node:IsA("GuiObject") and not node.Visible then
+				return false
+			elseif node:IsA("ScreenGui") then
+				return node.Enabled
+			end
+			node = node.Parent
+		end
+		return false
+	end
+
+	RunService.RenderStepped:Connect(function()
+		local menuOpen = false
+		for button in modalButtons do
+			if button.Parent and shown(button) then
+				menuOpen = true
+				break
+			end
+		end
+		local hide = UserInputService.MouseBehavior == Enum.MouseBehavior.LockCenter and not menuOpen
+		if UserInputService.MouseIconEnabled == hide then
+			UserInputService.MouseIconEnabled = not hide
+		end
+	end)
 end
 
 return Crosshair

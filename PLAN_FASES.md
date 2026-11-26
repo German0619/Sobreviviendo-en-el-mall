@@ -511,6 +511,11 @@ Que toda la interfaz use las herramientas nativas de Roblox para adaptarse a cad
 - [HECHO] Pase Pistola creado en Roblox el 2026-11-26 por Open Cloud (ID 2101050207, 399 R$, a la venta; icono `assets/icons/pass_pistol.png`). Para probar en Studio: `Config.Debug.StudioOwnedPasses = { "Pistol" }`.
 - Prueba (al final, con las de la Fase 15): `Config.Debug` StudioOwnedPasses { "Pistol" } y StudioStartCash 6000 (para comprar el machete).
 - [HECHO] (probado jugando) Fallo: las luces lejanas se apagaban. Los dos places tenían `Workspace.StreamOutBehavior = Opportunistic` con `StreamingMinRadius = 64`: Roblox descargaba las piezas a más de 64 studs (lámparas incluidas). Ahora `StreamOutBehavior = Default` (solo descarga si falta memoria) y `StreamingMinRadius = 128`. Es un ajuste del PLACE (no está en git): hay que guardar/publicar el mall y el lobby para que dure.
+**Animaciones de las armas** (pedido el 2026-11-26).
+- [PROGRAMADO, falta probar] Animaciones hechas por código (`client/WeaponAnims`), en primera persona (`ViewModel.Play`) y en el brazo derecho de los demás jugadores (hombro, solo en cada cliente). El servidor marca cada uso confirmado con el atributo `WeaponAnim` (`WeaponService.Use`). Machete: tajo en diagonal. Pistola: retroceso. Taser: estocada con sacudida. Trapeador: impulso y empujón. Extintor: tiembla al rociar. Cartel: bajarlo al suelo. La Linterna UV no se anima (solo se enciende y apaga).
+- [PROGRAMADO, falta probar] Sin cursor del ratón en el centro de la pantalla mientras se juega en primera persona (`client/Crosshair`: `MouseIconEnabled` falso con el ratón bloqueado en el centro; en los menús vuelve).
+- Prueba: `Config.Debug` StudioStartCash 15000 y StudioOwnedPasses { "Pistol" }. Para ver el brazo de otro jugador: Test → Clients and Servers con 2 jugadores.
+
 **Orden elegido:**
 - La Fase 3 cambia la base de cómo aparece el peligro; el resto se apoya en ella.
 - Las armas van antes que los enemigos nuevos porque cada enemigo necesita su contramedida.
