@@ -3,10 +3,16 @@
 
 local Tags = require(game:GetService("ReplicatedStorage"):WaitForChild("Shared").Tags)
 local Carry = require(script.Parent.Carry)
+local Common = require(script.Parent.Common)
 
 return Carry.new({
 	Type = "TakeOutTrash",
 	BuildItem = function()
+		local mesh = Common.templateItem("TrashBag", Vector3.new(1.8, 2.2, 1.8))
+		if mesh then
+			mesh.Name = "TrashBag"
+			return mesh
+		end
 		local bag = Instance.new("Part")
 		bag.Name = "TrashBag"
 		bag.Size = Vector3.new(1.8, 2.4, 1.8)

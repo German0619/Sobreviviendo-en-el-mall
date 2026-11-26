@@ -197,9 +197,99 @@ local function buildModel(): Model
 	return model
 end
 
+-- Version con el carrito 3D realista (ServerStorage.PropTemplates.ShoppingCart, el mismo de
+-- los carritos del mapa) y la cara fantasma dentro de la cesta. nil si no hay plantilla.
+-- La malla mide 3.6 de alto (= HEIGHT): base en -HEIGHT/2, cesta de y 0 a 1.1, frente en -Z
+-- y asa en +Z.
+local function buildMeshModel(): Model?
+	local folder = game:GetService("ServerStorage"):FindFirstChild("PropTemplates")
+	local template = folder and folder:FindFirstChild("ShoppingCart")
+	if not template or not template:IsA("Model") then
+		return nil
+	end
+	local model, _root = Common.newModel("Cart", HEIGHT)
+	local cart = template:Clone()
+	cart:PivotTo(CFrame.new(0, -HEIGHT / 2, 0))
+	for _, d in cart:GetDescendants() do
+		if d:IsA("BasePart") then
+			d.Anchored = true
+			d.CanCollide = false
+			d:SetAttribute("Detail", true)
+			d.Parent = model
+		end
+	end
+	cart:Destroy()
+
+	local function add(name, size, offset: CFrame, props)
+		local p = Common.part({
+			Name = name,
+			Size = size,
+			CFrame = offset,
+			Material = Enum.Material.SmoothPlastic,
+			Color = Color3.new(1, 1, 1),
+		})
+		for k, v in props do
+			p[k] = v
+		end
+		p:SetAttribute("Detail", true)
+		p.Parent = model
+		return p
+	end
+	local floor = 0.05 -- fondo de la cesta
+	-- Pieza invisible del fondo: lleva el brillo y las particulas
+	local bottom = add("Bottom", Vector3.new(1.6, 0.1, 2.2), CFrame.new(0, floor, -0.3), { Transparency = 1 })
+	-- Compras abandonadas
+	add("Cereal", Vector3.new(0.7, 1.0, 0.25), CFrame.new(-0.45, floor + 0.5, 0.5) * CFrame.Angles(math.rad(-15), math.rad(20), 0), {
+		Color = Color3.fromRGB(240, 190, 40),
+	})
+	add("Milk", Vector3.new(0.75, 0.4, 0.4), CFrame.new(0.5, floor + 0.38, 0.3) * CFrame.Angles(0, 0, math.rad(90)), {
+		Shape = Enum.PartType.Cylinder,
+		Color = Color3.fromRGB(245, 245, 245),
+	})
+	add("MilkCap", Vector3.new(0.12, 0.2, 0.2), CFrame.new(0.5, floor + 0.82, 0.3) * CFrame.Angles(0, 0, math.rad(90)), {
+		Shape = Enum.PartType.Cylinder,
+		Color = Color3.fromRGB(40, 110, 220),
+	})
+	add("Can", Vector3.new(0.45, 0.3, 0.3), CFrame.new(0.05, floor + 0.17, 0.85) * CFrame.Angles(0, math.rad(70), 0), {
+		Shape = Enum.PartType.Cylinder,
+		Color = Color3.fromRGB(180, 30, 40),
+		Material = Enum.Material.Metal,
+	})
+	-- "Cara" fantasma en el frente de la cesta: ojos y boca dentada; lo delatan a oscuras
+	for _, x in { -0.38, 0.38 } do
+		add("Eye", Vector3.new(0.28, 0.28, 0.08), CFrame.new(x, 0.78, -1.45), { Color = GHOST_COLOR, Material = Enum.Material.Neon })
+	end
+	for i = -2, 2 do
+		add("Mouth", Vector3.new(0.13, 0.13, 0.06), CFrame.new(i * 0.15, 0.36 + (i % 2) * 0.07, -1.45) * CFrame.Angles(0, 0, math.rad(45)), {
+			Color = GHOST_COLOR,
+			Material = Enum.Material.Neon,
+			Transparency = 0.2,
+		})
+	end
+	local glow = Instance.new("PointLight")
+	glow.Color = GHOST_COLOR
+	glow.Range = 7
+	glow.Brightness = 0.7
+	glow.Parent = bottom
+
+	local wisps = Instance.new("ParticleEmitter")
+	wisps.Name = "Wisps"
+	wisps.Color = ColorSequence.new(GHOST_COLOR)
+	wisps.LightEmission = 0.6
+	wisps.Size = NumberSequence.new({ NumberSequenceKeypoint.new(0, 0.6), NumberSequenceKeypoint.new(1, 0) })
+	wisps.Transparency = NumberSequence.new({ NumberSequenceKeypoint.new(0, 0.5), NumberSequenceKeypoint.new(1, 1) })
+	wisps.Lifetime = NumberRange.new(0.6, 1.2)
+	wisps.Rate = 8
+	wisps.Speed = NumberRange.new(0.5, 1.5)
+	wisps.SpreadAngle = Vector2.new(60, 60)
+	wisps.Acceleration = Vector3.new(0, 2, 0)
+	wisps.Parent = bottom
+	return model
+end
+
 function Cart.new(spawnPosition: Vector3, ctx)
 	local def = Config.Enemies.Cart
-	local model = Common.getTemplate("Cart") or buildModel()
+	local model = Common.getTemplate("Cart") or buildMeshModel() or buildModel()
 	local height = Common.getHeight(model)
 	Common.prepareModel(model)
 	model:SetAttribute("Ghost", true) -- poseido: el Medium lo ve a traves de las paredes

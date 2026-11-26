@@ -256,8 +256,23 @@ builders.FlashlightPro = builders.Flashlight
 -- API
 ----------------------------------------------------------------------
 
+-- Modelos 3D realistas (ReplicatedStorage.HeldTemplates, guardados en el place): Model con
+-- "Handle" invisible en el agarre y la malla "Body" (mas piezas utiles, p. ej. "Lens").
+-- Se usan si no hay skin: las skins pintan las piezas del modelo de piezas (las mallas
+-- llevan su textura y no se pueden repintar).
+local ReplicatedStorage = game:GetService("ReplicatedStorage")
+
+local function template(id: string): Model?
+	local folder = ReplicatedStorage:FindFirstChild("HeldTemplates")
+	local t = folder and folder:FindFirstChild(id)
+	if t and t:IsA("Model") and t:FindFirstChild("Handle") then
+		return t
+	end
+	return nil
+end
+
 function HeldModels.has(id: string): boolean
-	return builders[id] ~= nil
+	return builders[id] ~= nil or template(id) ~= nil
 end
 
 -- Aplica una skin (Config.Skins[skinId]) a las piezas pintables del modelo.
@@ -288,6 +303,26 @@ end
 
 -- Modelo nuevo de `id` (con su skin, si la hay). nil si no hay modelo para ese id.
 function HeldModels.build(id: string, skinId: string?): Model?
+	local skins = (Config :: any).Skins
+	local skinned = skinId ~= nil and skins ~= nil and skins[skinId] ~= nil
+	local t = if skinned then nil else template(id)
+	if t then
+		local model = t:Clone()
+		model.Name = id
+		model.PrimaryPart = model:FindFirstChild("Handle") :: BasePart
+		for _, d in model:GetDescendants() do
+			if d:IsA("BasePart") then
+				d.Anchored = false
+				d.CanCollide = false
+				d.CanQuery = false
+				d.CanTouch = false
+				d.Massless = true
+				d.CastShadow = false
+			end
+		end
+		model:PivotTo(CFrame.identity)
+		return model
+	end
 	local builder = builders[id]
 	if not builder then
 		return nil

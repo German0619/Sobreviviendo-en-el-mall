@@ -5,6 +5,7 @@
 local CollectionService = game:GetService("CollectionService")
 local Tags = require(game:GetService("ReplicatedStorage"):WaitForChild("Shared").Tags)
 local Carry = require(script.Parent.Carry)
+local Common = require(script.Parent.Common)
 
 local function pickups(): { BasePart }
 	local list = {}
@@ -22,6 +23,11 @@ return Carry.new({
 		return #pickups() > 0
 	end,
 	BuildItem = function()
+		local mesh = Common.templateItem("StockBox", Vector3.new(1.7, 2.2, 1.5))
+		if mesh then
+			mesh.Name = "StockBox"
+			return mesh
+		end
 		local box = Instance.new("Part")
 		box.Name = "StockBox"
 		box.Size = Vector3.new(2, 1.6, 2)

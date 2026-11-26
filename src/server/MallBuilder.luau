@@ -480,6 +480,17 @@ local function prop(name: string, cframe: CFrame, collide: boolean?): Model?
 	return clone
 end
 
+-- Tiñe las mallas con SurfaceAppearance del modelo (los coches blancos se pintan asi).
+local function tintModel(model: Instance, color: Color3)
+	for _, d in model:GetDescendants() do
+		if d:IsA("SurfaceAppearance") then
+			pcall(function()
+				(d :: any).Color = color
+			end)
+		end
+	end
+end
+
 -- prop o, si no existe, la version de piezas (fallback(cframe)).
 local function propOr(name: string, cframe: CFrame, fallback: (CFrame) -> (), collide: boolean?)
 	if not prop(name, cframe, collide) then
@@ -559,6 +570,288 @@ local function hidingSpot(name: string, cframe: CFrame, size: Vector3, material,
 end
 
 -- Tablero electrico (mision Reparar luces).
+-- Contenedor de basura: modelo 3D (PropTemplates.Dumpster) con bolsas tiradas al lado, o
+-- la caja verde de antes. `cf` en el suelo, frente (tapas) mirando a -Z, largo en X.
+-- Devuelve la caja (invisible con el modelo 3D) que lleva el tag de "Tirar basura".
+local function dumpster(cf: CFrame): Part
+	local body = box("Dumpster", Vector3.new(9, 5, 4.5), cf * CFrame.new(0, 2.5, 0), M.Metal, Color3.fromRGB(40, 85, 45))
+	if prop("Dumpster", cf) then
+		body.Size = Vector3.new(6.8, 5.6, 4.6)
+		body.CFrame = cf * CFrame.new(0, 2.8, 0)
+		body.Transparency = 1
+		prop("TrashBag", cf * CFrame.new(4.4, 0, -1.2) * CFrame.Angles(0, math.rad(25), math.rad(6)), false)
+		prop("TrashBag", cf * CFrame.new(-4.2, 0, -1.6) * CFrame.Angles(0, math.rad(-40), 0), false)
+	else
+		deco("DumpsterLid", Vector3.new(9.2, 0.3, 4.7), cf * CFrame.new(0, 5.15, 0) * CFrame.Angles(math.rad(-8), 0, 0), M.Plastic, Color3.fromRGB(30, 30, 32))
+	end
+	return body
+end
+
+-- Cajas de carton sobre un palet (centro de la carga en x, z; la tapa del palet a 0.6).
+-- Modelo 3D (PropTemplates.StockBox) o el bloque de carton de antes.
+local function palletBoxes(x: number, z: number)
+	local placed = false
+	for i, p in { { -0.95, -1.3 }, { 0.95, -1.3 }, { -0.95, 0 }, { 0.95, 0 }, { -0.95, 1.3 }, { 0.95, 1.3 }, { 0, -0.6, 1 }, { 0.2, 0.8, 1 } } do
+		local yaw = math.rad(((i * 37) % 9) - 4)
+		if prop("StockBox", at(x + p[1], 0.6 + (p[3] or 0) * 2.08, z + p[2]) * CFrame.Angles(0, math.rad(90) + yaw, 0), false) then
+			placed = true
+		end
+	end
+	if not placed then
+		box("PalletBoxes", Vector3.new(4, 2.4, 4), at(x, 1.8, z), M.Cardboard, Color3.fromRGB(180, 140, 95), { CanCollide = false })
+	end
+end
+
+-- Grupo electrogeno: bancada de hormigon con dos generadores 3D (PropTemplates.Generator;
+-- si falta, la caja amarilla de antes). Devuelve el panel de la mision Reiniciar
+-- generador, delante (invisible con el modelo 3D: el generador ya trae su cuadro).
+local function generatorSet(x: number, z: number): Part
+	local hasMesh = false
+	for _, dx in { -2.6, 2.6 } do
+		if prop("Generator", at(x + dx, 0.4, z)) then
+			hasMesh = true
+		end
+	end
+	local panel = box("GeneratorPanel", Vector3.new(3, 3, 0.6), at(x, 3.5, z - 2.8), M.Metal, Color3.fromRGB(60, 62, 66))
+	if hasMesh then
+		box("GeneratorPad", Vector3.new(10.6, 0.4, 6.2), at(x, 0.2, z), M.Concrete, Color3.fromRGB(125, 124, 120))
+		deco("GeneratorConduit", Vector3.new(9, 0.5, 0.5), at(x, 0.65, z + 2.9), M.Metal, Color3.fromRGB(60, 62, 66))
+		panel.Transparency = 1
+		panel.CanCollide = false
+	else
+		box("Generator", Vector3.new(10, 6, 5), at(x, 3, z), M.Metal, Color3.fromRGB(200, 160, 40))
+	end
+	return panel
+end
+
+-- Imagen de camara de seguridad (CCTV) en la cara Front de `screen`: pasillo en
+-- perspectiva en grises verdosos, lineas de barrido, REC, nombre y hora.
+-- kind: nil = normal, "NoSignal" = sin señal, "Figure" = una silueta al fondo.
+local function cctvFeed(screen: BasePart, camName: string, place: string, kind: string?)
+	local gui = Instance.new("SurfaceGui")
+	gui.Name = "CCTV"
+	gui.Face = Enum.NormalId.Front
+	gui.LightInfluence = 0
+	gui.Brightness = 1.6
+	gui.SizingMode = Enum.SurfaceGuiSizingMode.PixelsPerStud
+	gui.PixelsPerStud = 90
+	gui.ClipsDescendants = true
+	gui.Parent = screen
+
+	local function frame(parent: Instance, props): Frame
+		local f = Instance.new("Frame")
+		f.BorderSizePixel = 0
+		for k, v in props do
+			(f :: any)[k] = v
+		end
+		f.Parent = parent
+		return f
+	end
+	local function label(parent: Instance, props): TextLabel
+		local t = Instance.new("TextLabel")
+		t.BackgroundTransparency = 1
+		t.Font = Enum.Font.Code
+		t.TextScaled = true
+		t.TextColor3 = Color3.fromRGB(225, 235, 225)
+		t.TextStrokeTransparency = 0.6
+		for k, v in props do
+			(t :: any)[k] = v
+		end
+		t.Parent = parent
+		return t
+	end
+
+	local root = frame(gui, { Size = UDim2.fromScale(1, 1), BackgroundColor3 = Color3.new(1, 1, 1), ZIndex = 1 })
+	if kind == "NoSignal" then
+		local g = Instance.new("UIGradient")
+		g.Color = ColorSequence.new(Color3.fromRGB(70, 72, 78), Color3.fromRGB(28, 30, 34))
+		g.Rotation = 90
+		g.Parent = root
+		label(root, {
+			AnchorPoint = Vector2.new(0.5, 0.5),
+			Position = UDim2.fromScale(0.5, 0.5),
+			Size = UDim2.fromScale(0.7, 0.18),
+			Text = "SIN SEÑAL",
+			TextColor3 = Color3.fromRGB(240, 240, 240),
+			ZIndex = 5,
+		})
+	else
+		local g = Instance.new("UIGradient")
+		g.Color = ColorSequence.new({
+			ColorSequenceKeypoint.new(0, Color3.fromRGB(26, 32, 29)),
+			ColorSequenceKeypoint.new(0.45, Color3.fromRGB(44, 54, 48)),
+			ColorSequenceKeypoint.new(1, Color3.fromRGB(78, 92, 82)),
+		})
+		g.Rotation = 90
+		g.Parent = root
+		-- Pared del fondo, techo con un fluorescente y lineas del suelo hacia el fondo
+		frame(root, {
+			AnchorPoint = Vector2.new(0.5, 0.5),
+			Position = UDim2.fromScale(0.5, 0.46),
+			Size = UDim2.fromScale(0.26, 0.3),
+			BackgroundColor3 = Color3.fromRGB(36, 44, 39),
+			ZIndex = 2,
+		})
+		frame(root, {
+			AnchorPoint = Vector2.new(0.5, 0.5),
+			Position = UDim2.fromScale(0.5, 0.12),
+			Size = UDim2.fromScale(0.22, 0.04),
+			BackgroundColor3 = Color3.fromRGB(205, 220, 205),
+			ZIndex = 2,
+		})
+		for _, side in { -1, 1 } do
+			frame(root, {
+				AnchorPoint = Vector2.new(0.5, 0.5),
+				Position = UDim2.fromScale(0.5 + side * 0.3, 0.8),
+				Size = UDim2.fromScale(0.55, 0.012),
+				Rotation = side * 33,
+				BackgroundColor3 = Color3.fromRGB(120, 138, 124),
+				ZIndex = 2,
+			})
+			frame(root, {
+				AnchorPoint = Vector2.new(0.5, 0.5),
+				Position = UDim2.fromScale(0.5 + side * 0.3, 0.15),
+				Size = UDim2.fromScale(0.55, 0.01),
+				Rotation = -side * 26,
+				BackgroundColor3 = Color3.fromRGB(70, 82, 74),
+				ZIndex = 2,
+			})
+		end
+		if kind == "Figure" then
+			-- Alguien de pie al fondo del pasillo...
+			local figure = frame(root, {
+				AnchorPoint = Vector2.new(0.5, 1),
+				Position = UDim2.fromScale(0.54, 0.6),
+				Size = UDim2.fromScale(0.035, 0.17),
+				BackgroundColor3 = Color3.fromRGB(8, 10, 9),
+				ZIndex = 3,
+			})
+			local head = frame(figure, {
+				AnchorPoint = Vector2.new(0.5, 1),
+				Position = UDim2.fromScale(0.5, 0),
+				Size = UDim2.fromScale(0.9, 0.22),
+				BackgroundColor3 = Color3.fromRGB(8, 10, 9),
+				ZIndex = 3,
+			})
+			local c = Instance.new("UICorner")
+			c.CornerRadius = UDim.new(0.5, 0)
+			c.Parent = head
+		end
+	end
+	-- Lineas de barrido (franjas oscuras) y viñeta
+	local scan = frame(root, { Size = UDim2.fromScale(1, 1), BackgroundColor3 = Color3.new(0, 0, 0), ZIndex = 4 })
+	local keys = {}
+	for i = 0, 18 do
+		table.insert(keys, NumberSequenceKeypoint.new(i / 18, if i % 2 == 0 then 0.82 else 0.97))
+	end
+	local scanGradient = Instance.new("UIGradient")
+	scanGradient.Rotation = 90
+	scanGradient.Transparency = NumberSequence.new(keys)
+	scanGradient.Parent = scan
+	local vignette = frame(root, { Size = UDim2.fromScale(1, 1), BackgroundColor3 = Color3.new(0, 0, 0), ZIndex = 4 })
+	local vg = Instance.new("UIGradient")
+	vg.Transparency = NumberSequence.new({
+		NumberSequenceKeypoint.new(0, 0.35),
+		NumberSequenceKeypoint.new(0.2, 1),
+		NumberSequenceKeypoint.new(0.8, 1),
+		NumberSequenceKeypoint.new(1, 0.35),
+	})
+	vg.Parent = vignette
+
+	-- Rotulos
+	label(root, { Position = UDim2.fromScale(0.04, 0.04), Size = UDim2.fromScale(0.4, 0.11), Text = camName, TextXAlignment = Enum.TextXAlignment.Left, ZIndex = 6 })
+	label(root, {
+		AnchorPoint = Vector2.new(1, 0),
+		Position = UDim2.fromScale(0.96, 0.04),
+		Size = UDim2.fromScale(0.3, 0.11),
+		Text = "● REC",
+		TextColor3 = Color3.fromRGB(255, 70, 70),
+		TextXAlignment = Enum.TextXAlignment.Right,
+		ZIndex = 6,
+	})
+	label(root, {
+		Position = UDim2.fromScale(0.04, 0.84),
+		Size = UDim2.fromScale(0.5, 0.1),
+		Text = place,
+		TextXAlignment = Enum.TextXAlignment.Left,
+		ZIndex = 6,
+	})
+	label(root, {
+		AnchorPoint = Vector2.new(1, 0),
+		Position = UDim2.fromScale(0.96, 0.84),
+		Size = UDim2.fromScale(0.42, 0.1),
+		Text = string.format("03:%02d:%02d", math.random(0, 59), math.random(0, 59)),
+		TextXAlignment = Enum.TextXAlignment.Right,
+		ZIndex = 6,
+	})
+end
+
+-- Pared de monitores de seguridad (2 filas x 3) sobre la mesa. `cf` = centro de la pared
+-- de monitores (mirando a -Z, hacia la silla). cams = { { "CAM 01", "PASILLO" }, ... }
+local function monitorWall(cf: CFrame, cams: { { string } })
+	local W, H, GAP = 3.05, 1.8, 0.14
+	deco("MonitorRail", Vector3.new(3 * W + 2 * GAP + 0.6, 0.25, 0.25), cf * CFrame.new(0, 0, 0.35), M.Metal, Color3.fromRGB(45, 46, 50))
+	deco("MonitorRail", Vector3.new(3 * W + 2 * GAP + 0.6, 0.25, 0.25), cf * CFrame.new(0, H + GAP, 0.35), M.Metal, Color3.fromRGB(45, 46, 50))
+	local i = 0
+	for row = 0, 1 do
+		for _, col in { 1, 0, -1 } do -- (+X queda a la izquierda de quien mira la pared)
+			i += 1
+			local cam = cams[i]
+			local mcf = cf * CFrame.new(col * (W + GAP), (0.5 - row) * (H + GAP), 0) * CFrame.Angles(math.rad(row == 0 and -4 or 3), math.rad(-col * 6), 0)
+			deco("MonitorBezel", Vector3.new(W, H, 0.22), mcf, M.SmoothPlastic, Color3.fromRGB(22, 22, 25))
+			deco("MonitorBack", Vector3.new(W * 0.6, H * 0.6, 0.3), mcf * CFrame.new(0, 0, 0.25), M.SmoothPlastic, Color3.fromRGB(30, 30, 34))
+			local screen = deco("MonitorScreen", Vector3.new(W - 0.18, H - 0.18, 0.04), mcf * CFrame.new(0, 0.02, -0.12), M.Glass, Color3.fromRGB(10, 12, 12), {
+				Reflectance = 0.06,
+				Variant = false,
+			})
+			if cam then
+				cctvFeed(screen, cam[1], cam[2], cam[3])
+			end
+			-- LED de encendido
+			deco("MonitorLed", Vector3.new(0.06, 0.06, 0.03), mcf * CFrame.new(W / 2 - 0.2, -H / 2 + 0.05, -0.12), M.Neon, Color3.fromRGB(80, 255, 120))
+		end
+	end
+end
+
+-- Silla de oficina con ruedas (asiento, respaldo, columna y base en estrella). `cf` en el suelo,
+-- mirando a -Z.
+local function officeChair(cf: CFrame)
+	local black = Color3.fromRGB(28, 28, 32)
+	deco("ChairSeat", Vector3.new(2.2, 0.35, 2.1), cf * CFrame.new(0, 2.1, 0), M.Fabric, black)
+	deco("ChairBack", Vector3.new(2.1, 2.4, 0.3), cf * CFrame.new(0, 3.6, 1) * CFrame.Angles(math.rad(-8), 0, 0), M.Fabric, black)
+	deco("ChairPole", Vector3.new(0.25, 1.6, 0.25), cf * CFrame.new(0, 1.15, 0), M.Metal, STEEL)
+	for k = 0, 4 do
+		local leg = cf * CFrame.Angles(0, k * math.pi * 2 / 5, 0)
+		deco("ChairLeg", Vector3.new(0.18, 0.15, 1.1), leg * CFrame.new(0, 0.38, -0.55), M.Metal, black)
+		deco("ChairWheel", Vector3.new(0.2, 0.28, 0.28), leg * CFrame.new(0, 0.15, -1.05), M.Rubber, black, { Shape = Enum.PartType.Cylinder })
+	end
+	for _, s in { -1, 1 } do
+		deco("ChairArm", Vector3.new(0.2, 0.15, 1.4), cf * CFrame.new(s * 1.1, 2.9, 0.1), M.SmoothPlastic, black)
+		deco("ChairArmPost", Vector3.new(0.15, 0.7, 0.15), cf * CFrame.new(s * 1.1, 2.5, 0.4), M.Metal, black)
+	end
+end
+
+-- Mesa de seguridad: teclado, raton, grabador (DVR) con luces, taza y papeles. `cf` = centro
+-- de la superficie de la mesa (y de la tabla), el operador esta en -Z.
+local function securityDeskTop(cf: CFrame, minimal: boolean?)
+	deco("Keyboard", Vector3.new(1.7, 0.08, 0.55), cf * CFrame.new(-0.4, 0.04, -0.6) * CFrame.Angles(math.rad(4), 0, 0), M.SmoothPlastic, Color3.fromRGB(30, 30, 34))
+	deco("Mouse", Vector3.new(0.22, 0.1, 0.35), cf * CFrame.new(0.9, 0.05, -0.6), M.SmoothPlastic, Color3.fromRGB(30, 30, 34))
+	if minimal then
+		return
+	end
+	deco("Joystick", Vector3.new(0.6, 0.15, 0.5), cf * CFrame.new(2, 0.08, -0.5), M.SmoothPlastic, Color3.fromRGB(40, 40, 46))
+	deco("JoystickStick", Vector3.new(0.1, 0.4, 0.1), cf * CFrame.new(2, 0.35, -0.5), M.SmoothPlastic, Color3.fromRGB(20, 20, 22))
+	local dvr = deco("DVR", Vector3.new(2.2, 0.45, 1.3), cf * CFrame.new(-3.2, 0.23, 0.2), M.Metal, Color3.fromRGB(35, 36, 40))
+	for k = 0, 3 do
+		deco("DvrLed", Vector3.new(0.08, 0.08, 0.02), dvr.CFrame * CFrame.new(-0.8 + k * 0.18, 0.05, -0.66), M.Neon, if k == 3 then Color3.fromRGB(255, 80, 60) else Color3.fromRGB(80, 255, 120))
+	end
+	deco("CoffeeCup", Vector3.new(0.45, 0.32, 0.32), cf * CFrame.new(3.4, 0.23, -0.3) * CFrame.Angles(0, 0, math.rad(90)), M.SmoothPlastic, Color3.fromRGB(235, 235, 230), {
+		Shape = Enum.PartType.Cylinder,
+	})
+	deco("Papers", Vector3.new(1, 0.04, 1.3), cf * CFrame.new(2.6, 0.02, 0.3) * CFrame.Angles(0, math.rad(12), 0), M.SmoothPlastic, Color3.fromRGB(235, 232, 222))
+	deco("Radio", Vector3.new(0.35, 0.9, 0.2), cf * CFrame.new(-1.8, 0.45, 0.1), M.SmoothPlastic, Color3.fromRGB(25, 25, 28))
+end
+
 local function electricPanel(cframe: CFrame, zoneName: string)
 	local p = box("ElectricPanel", Vector3.new(2.4, 3.6, 0.6), cframe, M.DiamondPlate, Color3.fromRGB(90, 95, 100))
 	tag(p, Tags.MissionSpot, { MissionType = "FixLights", Zone = zoneName })
@@ -3223,7 +3516,23 @@ end
 
 -- Coche aparcado de piezas. `cf` = centro en el suelo; el morro mira a -Z.
 -- hide = puerta del conductor (lado -X) abierta: es un escondite.
-local function parkedCar(cf: CFrame, color: Color3, hide: boolean?)
+local function parkedCar(cf: CFrame, color: Color3, hide: boolean?, modelName: string?)
+	-- Modelo 3D (PropTemplates.CarSedan / CarHatch / CarSUV): los blancos se tiñen con `color`
+	local car = prop(modelName or "CarSedan", cf)
+	if car then
+		tintModel(car, color)
+		if hide then
+			local hideSpot = box("Coche", Vector3.new(3, 4, 3), cf * CFrame.new(-1.2, 3, 0.3) * CFrame.Angles(0, math.rad(90), 0), M.SmoothPlastic, Color3.new(1, 1, 1), {
+				Transparency = 1,
+				CanCollide = false,
+				CanQuery = false,
+				Variant = false,
+			})
+			hideSpot:SetAttribute("DisplayName", "Coche")
+			tag(hideSpot, Tags.HidingSpot)
+		end
+		return
+	end
 	local glass = Color3.fromRGB(18, 22, 28)
 	box("CarBody", Vector3.new(6, 2.4, 13), cf * CFrame.new(0, 2, 0), M.SmoothPlastic, color, { Variant = false })
 	box("CarCabin", Vector3.new(5.6, 2.2, 6.4), cf * CFrame.new(0, 4.3, 0.6), M.SmoothPlastic, color:Lerp(Color3.new(0, 0, 0), 0.15), { Variant = false })
@@ -3301,24 +3610,40 @@ local function buildParking()
 		lightPole(p[1], p[2], Z)
 	end
 
-	-- Coches (8 plazas: z = +-40; x = 211, 223, 235, 247). Dos con la puerta abierta.
-	parkedCar(CFrame.new(211, Y0, 40), Color3.fromRGB(150, 30, 35), false)
-	parkedCar(CFrame.new(235, Y0, 40), Color3.fromRGB(35, 70, 140), true)
-	parkedCar(CFrame.new(247, Y0, 40), Color3.fromRGB(220, 220, 215), false)
-	parkedCar(CFrame.new(211, Y0, -40) * CFrame.Angles(0, math.pi, 0), Color3.fromRGB(30, 30, 34), true)
-	parkedCar(CFrame.new(223, Y0, -40) * CFrame.Angles(0, math.pi, 0), Color3.fromRGB(165, 168, 172), false)
-	parkedCar(CFrame.new(247, Y0, -40) * CFrame.Angles(0, math.pi, 0), Color3.fromRGB(45, 95, 60), false)
+	-- Coches (8 plazas: z = +-40; x = 211, 223, 235, 247). Dos son escondites.
+	parkedCar(CFrame.new(211, Y0, 40), Color3.fromRGB(165, 30, 35), false, "CarSedan")
+	parkedCar(CFrame.new(235, Y0, 40), Color3.fromRGB(60, 95, 170), true, "CarHatch")
+	parkedCar(CFrame.new(247, Y0, 40), Color3.fromRGB(240, 240, 236), false, "CarSedan")
+	parkedCar(CFrame.new(211, Y0, -40) * CFrame.Angles(0, math.pi, 0), Color3.fromRGB(62, 64, 70), true, "CarSedan")
+	parkedCar(CFrame.new(223, Y0, -40) * CFrame.Angles(0, math.pi, 0), Color3.fromRGB(185, 188, 192), false, "CarHatch")
+	parkedCar(CFrame.new(247, Y0, -40) * CFrame.Angles(0, math.pi, 0), Color3.fromRGB(45, 95, 60), false, "CarSUV")
 
 	-- Corral de carritos (mision Juntar carritos) con un par de carritos dentro
 	local corralCF = at(210, 0, -20)
+	-- Barandas de tubo (se ven los carritos); la colision es una placa invisible
+	local tube = Color3.fromRGB(150, 155, 162)
 	for _, s in { -1, 1 } do
-		box("CorralRail", Vector3.new(0.3, 3.4, 12), corralCF * CFrame.new(s * 2.4, 1.7, 0), M.Metal, METAL)
+		box("CorralRail", Vector3.new(0.3, 3.4, 12), corralCF * CFrame.new(s * 2.4, 1.7, 0), M.Metal, METAL, { Transparency = 1, Variant = false })
+		for _, y in { 1.4, 3.3 } do
+			deco("CorralBar", Vector3.new(12, 0.22, 0.22), corralCF * CFrame.new(s * 2.4, y, 0) * CFrame.Angles(0, math.rad(90), 0), M.Metal, tube, { Shape = Enum.PartType.Cylinder })
+		end
+		for _, z in { -5.9, 0, 5.9 } do
+			deco("CorralPost", Vector3.new(3.4, 0.26, 0.26), corralCF * CFrame.new(s * 2.4, 1.7, z) * CFrame.Angles(0, 0, math.rad(90)), M.Metal, tube, { Shape = Enum.PartType.Cylinder })
+		end
 	end
-	box("CorralBack", Vector3.new(5, 3.4, 0.3), corralCF * CFrame.new(0, 1.7, 6), M.Metal, METAL)
+	box("CorralBack", Vector3.new(5, 3.4, 0.3), corralCF * CFrame.new(0, 1.7, 6), M.Metal, METAL, { Transparency = 1, Variant = false })
+	for _, y in { 1.4, 3.3 } do
+		deco("CorralBar", Vector3.new(4.8, 0.22, 0.22), corralCF * CFrame.new(0, y, 5.9), M.Metal, tube, { Shape = Enum.PartType.Cylinder })
+	end
 	local corralSign = box("CorralSign", Vector3.new(4.6, 1.4, 0.2), corralCF * CFrame.new(0, 4.4, 6), M.SmoothPlastic, Color3.fromRGB(20, 60, 140), { CanCollide = false })
 	sign(corralSign, "CARRITOS", Color3.new(1, 1, 1), Enum.Font.GothamBlack, Enum.NormalId.Front)
-	for k = 0, 1 do
-		deco("CorralCart", Vector3.new(2.3, 1.8, 3.2), corralCF * CFrame.new(0, 2.6, 2.6 - k * 1.2), M.DiamondPlate, STEEL, { Transparency = 0.35 })
+	-- Carritos encajados unos en otros (modelo 3D; si falta, las cajas de antes)
+	for k = 0, 2 do
+		propOr("ShoppingCart", corralCF * CFrame.new(0, 0, 3.2 - k * 1.1), function(c)
+			if k < 2 then
+				deco("CorralCart", Vector3.new(2.3, 1.8, 3.2), c * CFrame.new(0, 2.6, 0), M.DiamondPlate, STEEL, { Transparency = 0.35 })
+			end
+		end, false)
 	end
 	local corral = box("CartCorral", Vector3.new(4, 3, 10), corralCF * CFrame.new(0, 1.5, 0), M.SmoothPlastic, Color3.new(1, 1, 1), {
 		Transparency = 1,
@@ -3334,9 +3659,8 @@ local function buildParking()
 	end
 
 	-- Contenedor de basura (tambien vale para Sacar la basura)
-	local dumpster = box("Dumpster", Vector3.new(4.5, 5, 9), at(255, 2.5, 30), M.Metal, Color3.fromRGB(40, 85, 45))
-	tag(dumpster, Tags.TrashDropoff)
-	deco("DumpsterLid", Vector3.new(4.7, 0.3, 9.2), at(255, 5.15, 30), M.Plastic, Color3.fromRGB(30, 30, 32))
+	-- (contra la valla este: las tapas miran al estacionamiento, -X)
+	tag(dumpster(at(255, 0, 30) * CFrame.Angles(0, math.rad(90), 0)), Tags.TrashDropoff)
 
 	-- Puntos de mision, escondites, camara y aparicion de enemigos
 	electricPanel(at(181.4, 3, -40) * CFrame.Angles(0, math.rad(-90), 0), Z)
@@ -3693,11 +4017,9 @@ local function buildService()
 	for _, x in { -112, -100 } do
 		local pallet = box("Pallet", Vector3.new(5, 0.6, 5), at(x, 0.3, 102), M.WoodPlanks, Color3.fromRGB(160, 125, 80))
 		tag(pallet, Tags.StockPickup)
-		box("PalletBoxes", Vector3.new(4, 2.4, 4), at(x, 1.8, 103.4), M.Cardboard, Color3.fromRGB(180, 140, 95), { CanCollide = false })
+		palletBoxes(x, 103.4)
 	end
-	local dumpster = box("Dumpster", Vector3.new(9, 5, 4.5), at(-150, 2.5, 107), M.Metal, Color3.fromRGB(40, 85, 45))
-	tag(dumpster, Tags.TrashDropoff)
-	deco("DumpsterLid", Vector3.new(9.2, 0.3, 4.7), at(-150, 5.15, 107) * CFrame.Angles(math.rad(-8), 0, 0), M.Plastic, Color3.fromRGB(30, 30, 32))
+	tag(dumpster(at(-150, 0, 107)), Tags.TrashDropoff)
 	box("LoadingDoor", Vector3.new(16, 10, 0.4), at(-130, 5, 110), M.DiamondPlate, Color3.fromRGB(150, 150, 150))
 	deco("LoadingStripes", Vector3.new(16, 0.5, 0.45), at(-130, 10.3, 110), M.SmoothPlastic, Color3.fromRGB(240, 190, 20), { Variant = false })
 	hidingSpot("Casillero", at(-178.4, 3.75, 80) * CFrame.Angles(0, math.rad(-90), 0), Vector3.new(4, 7.5, 3), M.Metal, Color3.fromRGB(70, 90, 110))
@@ -3720,9 +4042,8 @@ local function buildService()
 	boilerValve(at(110, 0, 110), "Servicio")
 
 	-- Generador (mision Reiniciar generador: deja sin luz Servicio y Bodega)
-	box("Generator", Vector3.new(10, 6, 5), at(-70, 3, 105), M.Metal, Color3.fromRGB(200, 160, 40))
+	local genPanel = generatorSet(-70, 105)
 	box("GeneratorPipe", Vector3.new(1.2, 8, 1.2), at(-74, 10, 107), M.Metal, METAL)
-	local genPanel = box("GeneratorPanel", Vector3.new(3, 3, 0.6), at(-70, 3.5, 102.2), M.Metal, Color3.fromRGB(60, 62, 66))
 	tag(genPanel, Tags.MissionSpot, { MissionType = "RestartGenerator", Zone = "Servicio Oeste", PowersZones = "Patio de comidas,Entrada" })
 
 	-- Baños (al oeste del pasaje al Ala Norte: x -64.5..-24.5; la pared este es la del pasaje)
@@ -3766,17 +4087,28 @@ local function buildService()
 	litSign(secSign, "SEGURIDAD", Color3.fromRGB(255, 80, 80), Enum.Font.GothamBold, Enum.NormalId.Back)
 	-- (mesa y monitores hacia el oeste: en x 77..83 esta la puerta trasera al pasillo de servicio del Ala Norte)
 	box("SecurityDesk", Vector3.new(12, 3, 3), at(70, 1.5, 104), M.Wood, Color3.fromRGB(110, 85, 60))
+	-- Pared de 6 monitores con imagen de camaras; la pieza "Monitors" (invisible) es el
+	-- punto de la mision Revisar camaras y hace de colision
 	local monitors = box("Monitors", Vector3.new(10, 3.2, 0.6), at(70, 5, 105.2), M.Glass, Color3.fromRGB(20, 40, 60), {
-		Reflectance = 0.1,
+		Transparency = 1,
+		Variant = false,
 	})
 	tag(monitors, Tags.MissionSpot, { MissionType = "CheckCameras", Zone = "Servicio" })
 	local screenGlow = Instance.new("PointLight")
-	screenGlow.Color = Color3.fromRGB(80, 160, 255)
+	screenGlow.Color = Color3.fromRGB(150, 210, 170)
 	screenGlow.Range = 10
 	screenGlow.Brightness = 0.6
 	screenGlow.Parent = monitors
-	sign(monitors, "CAM 1   CAM 2   CAM 3   CAM 4", Color3.fromRGB(120, 200, 255), Enum.Font.Code, Enum.NormalId.Front)
-	box("Chair", Vector3.new(2.2, 2, 2.2), at(70, 1, 100), M.Leather, DARK)
+	monitorWall(at(70, 5, 105.1), {
+		{ "CAM 01", "GALERIA P1" },
+		{ "CAM 02", "ENTRADA" },
+		{ "CAM 03", "PATIO COMIDAS" },
+		{ "CAM 04", "ESTACIONAM." },
+		{ "CAM 05", "BODEGA", "Figure" },
+		{ "CAM 06", "ALA SUR", "NoSignal" },
+	})
+	securityDeskTop(at(70, 3, 103.3))
+	officeChair(at(70, 0, 100.4) * CFrame.Angles(0, math.pi, 0))
 	hidingSpot("Taquilla", at(89.6, 3.75, 94) * CFrame.Angles(0, math.rad(90), 0), Vector3.new(4, 7.5, 3), M.Metal, Color3.fromRGB(70, 90, 110))
 	hidingSpot("Taquilla", at(89.6, 3.75, 99) * CFrame.Angles(0, math.rad(90), 0), Vector3.new(4, 7.5, 3), M.Metal, Color3.fromRGB(70, 90, 110))
 
@@ -3910,7 +4242,7 @@ local function buildOffices()
 	for _, x in { -112, -100 } do
 		local pallet = box("Pallet", Vector3.new(5, 0.6, 5), at(x, 0.3, 102), M.WoodPlanks, Color3.fromRGB(160, 125, 80))
 		tag(pallet, Tags.StockPickup)
-		box("PalletBoxes", Vector3.new(4, 2.4, 4), at(x, 1.8, 103.4), M.Cardboard, Color3.fromRGB(180, 140, 95), { CanCollide = false })
+		palletBoxes(x, 103.4)
 	end
 	hidingSpot("Casillero", at(-178.4, 3.75, 104) * CFrame.Angles(0, math.rad(-90), 0), Vector3.new(4, 7.5, 3), M.Metal, Color3.fromRGB(70, 90, 110))
 	enemySpawn(-150, 106)
@@ -3919,10 +4251,21 @@ local function buildOffices()
 	for _, p in { { -84, 92 }, { -72, 92 }, { -84, 101 }, { -72, 101 } } do
 		propOr("OfficeDesk", at(p[1], 0, p[2]) * CFrame.Angles(0, math.pi, 0), deskFallback)
 	end
-	local monitors = box("Monitors", Vector3.new(10, 3, 0.6), at(-77, 5, 109.2), M.Glass, Color3.fromRGB(20, 40, 60), { Reflectance = 0.1 })
+	local monitors = box("Monitors", Vector3.new(10, 3, 0.6), at(-77, 5, 109.2), M.Glass, Color3.fromRGB(20, 40, 60), {
+		Transparency = 1,
+		Variant = false,
+	})
 	tag(monitors, Tags.MissionSpot, { MissionType = "CheckCameras", Zone = "Administración" })
-	sign(monitors, "CAM 5   CAM 6   CAM 7", Color3.fromRGB(120, 200, 255), Enum.Font.Code, Enum.NormalId.Front)
+	monitorWall(at(-77, 5, 109.1), {
+		{ "CAM 07", "CINE" },
+		{ "CAM 08", "ZONA JUEGOS" },
+		{ "CAM 09", "GALERIA P2" },
+		{ "CAM 10", "OFICINAS" },
+		{ "CAM 11", "SALA MAQUINAS" },
+		{ "CAM 12", "ALA NORTE", "Figure" },
+	})
 	box("MonitorDesk", Vector3.new(10, 3, 2.6), at(-77, 1.5, 107.4), M.Wood, Color3.fromRGB(110, 85, 60))
+	securityDeskTop(at(-79, 3, 107.4), true)
 	-- Bandeja de albaranes (mision Entrega de paquete: se firma aqui)
 	local deliveryTray = box("DeliveryTray", Vector3.new(1.6, 0.3, 1.2), at(-73.5, 3.15, 107.4), M.Plastic, Color3.fromRGB(40, 40, 44), { Variant = false })
 	deco("Paperwork", Vector3.new(1.3, 0.1, 0.9), at(-73.5, 3.35, 107.4), M.SmoothPlastic, Color3.fromRGB(240, 238, 230))
@@ -3978,12 +4321,14 @@ local function buildOffices()
 	spot(72, 106, "LostItem", "Archivo")
 
 	-- Sala de maquinas: segundo generador (deja sin luz las oficinas) y caldera
-	box("Generator", Vector3.new(10, 6, 5), at(105, 3, 105), M.Metal, Color3.fromRGB(200, 160, 40))
-	box("Boiler", Vector3.new(5, 9, 5), at(88, 4.5, 104) * CFrame.Angles(0, 0, 0), M.Metal, Color3.fromRGB(170, 70, 50))
+	local genPanel2 = generatorSet(105, 105)
+	-- Caldera: modelo 3D (PropTemplates.Boiler) o el bloque de antes
+	propOr("Boiler", at(88, 0, 104), function(c)
+		box("Boiler", Vector3.new(5, 9, 5), c * CFrame.new(0, 4.5, 0), M.Metal, Color3.fromRGB(170, 70, 50))
+	end)
 	for k = 0, 3 do
 		deco("PipeRun", Vector3.new(0.8, 0.8, 26), at(84 + k * 1.6, 13.5, 96), M.Metal, METAL)
 	end
-	local genPanel2 = box("GeneratorPanel", Vector3.new(3, 3, 0.6), at(105, 3.5, 102.2), M.Metal, Color3.fromRGB(60, 62, 66))
 	tag(genPanel2, Tags.MissionSpot, {
 		MissionType = "RestartGenerator",
 		Zone = "Sala de máquinas",
@@ -4117,6 +4462,10 @@ end
 local function boxPile(cf: CFrame, count: number)
 	for i = 0, count - 1 do
 		local w, h = rng:NextNumber(1.8, 2.8), rng:NextNumber(1.4, 2.2)
+		-- Modelo 3D de caja (PropTemplates.StockBox) si esta
+		if prop("StockBox", cf * CFrame.new((i % 2) * 1.7, math.floor(i / 2) * 2.08, 0) * CFrame.Angles(0, math.rad(rng:NextNumber(-12, 12)), 0)) then
+			continue
+		end
 		box("BoxPile", Vector3.new(w, h, w), cf * CFrame.new((i % 2) * 2.4, h / 2 + math.floor(i / 2) * 1.6, 0) * CFrame.Angles(0, math.rad(rng:NextNumber(-12, 12)), 0), M.Cardboard, vary(Color3.fromRGB(175, 135, 90), 0.06))
 	end
 end
@@ -4622,7 +4971,9 @@ local function buildAnchorStore(upper: boolean)
 			hidingSpot("Probador", at(-71.9, 4, z) * FACE_POS_X, Vector3.new(4.4, 8, 4), M.Fabric, Color3.fromRGB(90, 40, 50))
 		end
 		for k = 0, 1 do
-			box("ShoppingCart", Vector3.new(2.2, 2.4, 3.4), at(8 + k * 2.6, 1.2, -178 - k), M.Metal, STEEL, { Transparency = 0.3 })
+			propOr("ShoppingCart", at(8 + k * 2.6, 0, -178 - k) * CFrame.Angles(0, math.rad(8 - k * 20), 0), function(c)
+				box("ShoppingCart", Vector3.new(2.2, 2.4, 3.4), c * CFrame.new(0, 1.2, 0), M.Metal, STEEL, { Transparency = 0.3 })
+			end)
 		end
 		-- Escaleras mecanicas paradas (unen las dos plantas)
 		stoppedEscalator(-16, 15, -198)

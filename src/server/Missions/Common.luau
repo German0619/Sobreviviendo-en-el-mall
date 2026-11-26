@@ -22,6 +22,60 @@ function Common.getPropsFolder(): Folder
 	return folder
 end
 
+-- Objeto con el modelo 3D de ServerStorage.PropTemplates[name] (ver MallBuilder): una
+-- pieza raiz invisible de tamaño `size` (lleva el prompt y es lo que se suelda al
+-- llevarlo) con la malla soldada dentro, escalada para caber en `size` y centrada.
+-- tint: color para las mallas con SurfaceAppearance. nil si no existe la plantilla.
+function Common.templateItem(name: string, size: Vector3, tint: Color3?): Part?
+	local folder = game:GetService("ServerStorage"):FindFirstChild("PropTemplates")
+	local template = folder and folder:FindFirstChild(name)
+	if not template or not template:IsA("Model") then
+		return nil
+	end
+	local root = Instance.new("Part")
+	root.Name = name
+	root.Size = size
+	root.Transparency = 1
+	root.CanCollide = false
+	root.CanQuery = false
+	root.CanTouch = false
+	root.Anchored = true
+	root.CFrame = CFrame.identity
+
+	local model = template:Clone()
+	local _, extents = model:GetBoundingBox()
+	local k = math.min(size.X / extents.X, size.Y / extents.Y, size.Z / extents.Z)
+	if math.abs(k - 1) > 0.01 then
+		model:ScaleTo(model:GetScale() * k)
+	end
+	model:PivotTo(CFrame.identity)
+	local box = model:GetBoundingBox()
+	model:PivotTo(CFrame.new(-box.Position))
+	for _, d in model:GetDescendants() do
+		if d:IsA("BasePart") then
+			d.Anchored = false
+			d.CanCollide = false
+			d.CanQuery = false
+			d.CanTouch = false
+			d.Massless = true
+			-- Weld con desplazamiento fijo: la malla sigue a la raiz aunque esta se mueva
+			-- por CFrame antes de entrar en el Workspace
+			local weld = Instance.new("Weld")
+			weld.Part0 = root
+			weld.Part1 = d
+			weld.C0 = root.CFrame:ToObjectSpace(d.CFrame)
+			weld.Parent = d
+			d.Parent = root
+		elseif d:IsA("SurfaceAppearance") and tint then
+			pcall(function()
+				(d :: any).Color = tint
+			end)
+		end
+	end
+	model:Destroy()
+	return root
+end
+
 function Common.makePrompt(parent: Instance, actionText: string, objectText: string?, holdDuration: number?): ProximityPrompt
 	local prompt = Instance.new("ProximityPrompt")
 	prompt.ActionText = actionText

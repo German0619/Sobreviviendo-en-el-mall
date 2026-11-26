@@ -5,6 +5,7 @@
 local Tags = require(game:GetService("ReplicatedStorage"):WaitForChild("Shared").Tags)
 local Carry = require(script.Parent.Carry)
 local Sequence = require(script.Parent.Sequence)
+local Common = require(script.Parent.Common)
 
 return Carry.new({
 	Type = "RefillVending",
@@ -12,6 +13,11 @@ return Carry.new({
 		return #Sequence.tagged(Tags.StockPickup) > 0
 	end,
 	BuildItem = function()
+		local mesh = Common.templateItem("SodaCrate", Vector3.new(2.2, 1.5, 1.8))
+		if mesh then
+			mesh.Name = "SodaCrate"
+			return mesh
+		end
 		local crate = Instance.new("Part")
 		crate.Name = "SodaCrate"
 		crate.Size = Vector3.new(2.2, 1.2, 1.6)

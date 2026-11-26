@@ -30,7 +30,15 @@ end
 
 -- Carrito de la compra de piezas (la cesta es la parte principal: lleva el prompt).
 local function buildCart(spot: BasePart): Part
-	local cf = CFrame.new(spot.Position + Vector3.new(0, 2.6 - spot.Size.Y / 2, 0)) * CFrame.Angles(0, math.rad(math.random(0, 359)), 0)
+	-- Modelo 3D del carrito (PropTemplates.ShoppingCart) si esta en el place
+	local mesh = Common.templateItem("ShoppingCart", Vector3.new(2.2, 3.6, 3.4))
+	if mesh then
+		mesh.Name = "Cart"
+		mesh.CFrame = CFrame.new(spot.Position + Vector3.new(0, 1.8 - spot.Size.Y / 2, 0)) * CFrame.Angles(0, math.rad(math.random(0, 359)), 0)
+		mesh.Parent = Common.getPropsFolder()
+		return mesh
+	end
+	local cf =CFrame.new(spot.Position + Vector3.new(0, 2.6 - spot.Size.Y / 2, 0)) * CFrame.Angles(0, math.rad(math.random(0, 359)), 0)
 	local basket = part("Cart", Vector3.new(2.4, 1.8, 3.4), cf, STEEL, nil, Enum.Material.DiamondPlate)
 	basket.Transparency = 0.35
 	part("CartHandle", Vector3.new(2.6, 0.2, 0.2), cf * CFrame.new(0, 1.2, 2), Color3.fromRGB(200, 40, 40), basket, Enum.Material.Plastic)

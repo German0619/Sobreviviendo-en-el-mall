@@ -34,6 +34,22 @@ local function pickPoint(floor: number?): Vector3?
 end
 
 local function buildCrate(point: Vector3): Part
+	-- Modelo 3D (PropTemplates.SupplyCrate): maleta militar con cruz, con su luz verde
+	local mesh = MissionsCommon.templateItem("SupplyCrate", Vector3.new(3.6, 2.2, 2.6))
+	if mesh then
+		mesh.Name = "SupplyCrate"
+		mesh.CFrame = CFrame.new(point + Vector3.new(0, 1.1, 0)) * CFrame.Angles(0, math.rad(math.random(0, 359)), 0)
+		-- Solida, como la caja de piezas (la pieza raiz invisible hace de caja de colision)
+		mesh.CanQuery = true
+		mesh.CanCollide = true
+		local light = Instance.new("PointLight")
+		light.Color = Color3.fromRGB(120, 255, 140)
+		light.Range = 10
+		light.Brightness = 1.2
+		light.Parent = mesh
+		mesh.Parent = MissionsCommon.getPropsFolder()
+		return mesh
+	end
 	local crate = Instance.new("Part")
 	crate.Name = "SupplyCrate"
 	crate.Size = Vector3.new(3, 2.2, 3)
