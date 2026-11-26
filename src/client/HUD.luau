@@ -18,6 +18,7 @@ local GameState = require(Shared.GameState)
 local Place = require(Shared.Place)
 local UIKit = require(script.Parent.UIKit)
 local InputHints = require(script.Parent.InputHints)
+local Spectate = require(script.Parent.Spectate)
 
 local player = Players.LocalPlayer
 
@@ -143,7 +144,7 @@ local top: Frame
 local TOAST_TOP = 112 -- donde empiezan los avisos (si no hay evento ni jefe)
 local missionsFrame: Frame
 local gui, clockLabel, nightLabel, phaseLabel, moneyLabel, zoneLabel, itemsLabel, sodaLabel, classLabel, barsFrame
-local diamondsLabel, deadSubtitle, reviveButton, missionsTitle
+local diamondsLabel, deadSubtitle, reviveButton, spectateButton, missionsTitle
 local bars = {}
 local missionList, missionEntries = nil, {}
 local toastList
@@ -372,6 +373,24 @@ local function build()
 	}, { corner(8) })
 	reviveButton.Activated:Connect(function()
 		Remotes.event("RequestSelfRevive"):FireServer()
+	end)
+	-- No revivir: ver la partida desde un companero vivo (Spectate). El cuerpo sigue
+	-- en el suelo: te pueden revivir igual, y "Volver" regresa a esta pantalla.
+	spectateButton = make("TextButton", {
+		AnchorPoint = Vector2.new(0.5, 0.5),
+		Position = UDim2.new(0.5, 0, 0.45, 152),
+		Size = UDim2.fromOffset(260, 44),
+		BackgroundColor3 = Color3.fromRGB(45, 45, 55),
+		Font = FONT,
+		TextSize = 18,
+		TextColor3 = COLORS.Text,
+		Text = "No revivir · ver a un compañero",
+		Modal = true,
+		ZIndex = 7,
+		Parent = deadOverlay,
+	}, { corner(8) })
+	spectateButton.Activated:Connect(function()
+		Spectate.Begin() -- (el boton solo se ve si queda algun companero en pie)
 	end)
 
 	-- Resultados
@@ -831,8 +850,9 @@ local function update()
 
 	-- Overlays
 	deadOverlay.Visible = phase == "Night" and player:GetAttribute("Alive") == false and humanoid ~= nil
-		and humanoid.Health <= 0
+		and humanoid.Health <= 0 and not Spectate.IsActive()
 	if deadOverlay.Visible then
+		spectateButton.Visible = Spectate.HasTargets()
 		local downed = player:GetAttribute("Downed") == true
 		local tokens = player:GetAttribute("ReviveTokens") or 0
 		local wipeAt = state:GetAttribute("WipeAt")

@@ -1177,6 +1177,24 @@ Config.Missions = {
 	SilenceAlarm = { DisplayName = "Apagar alarma", Weight = 10, TimeLimit = 75, Reward = 45, Duration = 3 },
 	LostItem = { DisplayName = "Objeto perdido", Weight = 10, TimeLimit = 160, Reward = 45, Duration = 1 },
 	WaterPlants = { DisplayName = "Regar plantas", Weight = 10, TimeLimit = 150, Reward = 40, Duration = 2, Count = 3 },
+	-- Nuevas (2026-11-25)
+	RefillVending = { DisplayName = "Rellenar máquina", Weight = 10, TimeLimit = 160, Reward = 50, Duration = 2 },
+	ResetRegisters = { DisplayName = "Reiniciar cajas", Weight = 10, TimeLimit = 150, Reward = 50, Duration = 2, Count = 3 },
+	TurnOffDisplays = { DisplayName = "Apagar escaparates", Weight = 10, TimeLimit = 150, Reward = 45, Duration = 1.5, Count = 3 },
+	ClearTrays = { DisplayName = "Recoger bandejas", Weight = 10, TimeLimit = 140, Reward = 45, Duration = 1, Count = 3 },
+	CollectCarts = { DisplayName = "Juntar carritos", Weight = 10, TimeLimit = 160, Reward = 55, Duration = 1.5, Count = 3 },
+	-- Progresivas: varios lugares en orden (con mas tiempo y mas pago)
+	SecurityRound = { DisplayName = "Ronda de seguridad", Weight = 8, TimeLimit = 240, Reward = 90, Duration = 2, Count = 3 },
+	Delivery = { DisplayName = "Entrega de paquete", Weight = 8, TimeLimit = 240, Reward = 90, Duration = 2 },
+	-- Tanda 2 (2026-11-25)
+	CloseFaucets = { DisplayName = "Cerrar grifos", Weight = 10, TimeLimit = 130, Reward = 45, Duration = 1.5, Count = 3 },
+	ResetArcade = { DisplayName = "Reiniciar recreativas", Weight = 10, TimeLimit = 130, Reward = 50, Duration = 2, Count = 3 },
+	TurnOffProjector = { DisplayName = "Apagar proyector", Weight = 9, TimeLimit = 140, Reward = 45, Duration = 4 },
+	CheckExtinguishers = { DisplayName = "Revisar extintores", Weight = 10, TimeLimit = 170, Reward = 55, Duration = 2, Count = 3 },
+	PayPhone = { DisplayName = "Teléfono sonando", Weight = 8, TimeLimit = 60, Reward = 70, Duration = 0.5 },
+	EmptyBins = { DisplayName = "Vaciar papeleras", Weight = 10, TimeLimit = 170, Reward = 55, Duration = 1.5, Count = 3 },
+	Inventory = { DisplayName = "Inventario", Weight = 7, TimeLimit = 240, Reward = 90, Duration = 3, Count = 3 },
+	PurgeBoiler = { DisplayName = "Purgar la caldera", Weight = 7, TimeLimit = 220, Reward = 85, Duration = 2, Count = 3 },
 }
 
 -- Detalles de algunas misiones
@@ -1184,6 +1202,10 @@ Config.MissionDetails = {
 	SilenceAlarm = { LureRadius = 75 }, -- la alarma atrae a los enemigos mientras suena
 	CheckCameras = { RevealSeconds = 6 }, -- al completarla, el equipo ve a todos los enemigos
 	UnclogToilet = { PuddleSize = 6 }, -- el agua del baño es un derrame (la huele el Rastro)
+	CloseFaucets = { PuddleSize = 6 }, -- si caduca, queda un charco en el baño (lo huele el Rastro)
+	ResetArcade = { LureRadius = 55 }, -- cada recreativa encendida atrae a los enemigos cercanos
+	PayPhone = { MarkerDistance = 25, RingDistance = 150 }, -- marcador solo de cerca; el timbre se oye lejos
+	PurgeBoiler = { FinalHold = 4 }, -- segundos manteniendo E en el panel de la caldera
 }
 
 -- Brillo de todas las luces del mall (multiplica el Brightness de cada luz al construir
@@ -1211,22 +1233,22 @@ Config.DarkZones = {
 -- sea parecida a la del mapa de una planta. 1 = sin escalar.
 Config.MapScale = 1.5
 
--- Misiones simultaneas maximas segun la noche y el tamano del equipo
-function Config.getMaxConcurrentMissions(night: number, players: number?): number
-	local base = 2 + math.floor(night / 2) + math.floor((players or 1) / 2)
-	return math.min(math.floor(base * Config.MapScale), 12)
-end
-
+-- Tareas a la vez en la lista: siempre las mismas (3, o 4 con GroupFrom jugadores o mas),
+-- nunca mas de las que faltan para la cuota. Si una se completa o falla, sale otra a los
+-- RefillInterval segundos.
 Config.MissionSpawn = {
 	FirstDelay = 8, -- segundos tras empezar la noche
-	BaseInterval = 30, -- segundos entre misiones nuevas en la noche 1
-	IntervalPerNight = -2, -- cada noche salen antes
-	MinInterval = 10,
-	PerExtraPlayer = 0.2, -- cada jugador extra acorta el intervalo un 20%
-	MinActive = 2, -- si hay menos tareas activas que esto, sale otra a los RefillInterval segundos
-	RefillInterval = 4,
+	Visible = 3,
+	VisibleGroup = 4,
+	GroupFrom = 3,
+	RefillInterval = 4, -- segundos entre una tarea nueva y la siguiente al rellenar la lista
 	RewardPerNight = 0.10, -- +10% de recompensa por noche
 }
+
+function Config.getVisibleMissions(players: number?): number
+	local s = Config.MissionSpawn
+	return if (players or 1) >= s.GroupFrom then s.VisibleGroup else s.Visible
+end
 
 -- Cuanto se potencian los enemigos por cada mision fallada
 Config.Threat = {
@@ -2278,6 +2300,14 @@ Config.Sounds = {
 		WetFloorSign = snd("rbxasset://sounds/action_jump_land.mp3", 1, 0.8),
 		UV = snd("rbxasset://sounds/clickfast.wav", 0.7),
 		TubeFlicker = snd("rbxassetid://9114238222", 0.35, 1.4), -- chispazo de un tubo que falla
+	},
+	-- Bucles 3D de las misiones (suenan en su sitio mientras la tarea esta activa)
+	Missions = {
+		PhoneRing = snd("rbxassetid://9117303963", 1), -- telefono antiguo sonando (Pro Sound Effects)
+		Faucet = snd("rbxassetid://9113368238", 0.5), -- grifo abierto (Pro Sound Effects)
+		Arcade = snd("rbxassetid://118038510431692", 0.45), -- "Midnight Arcade" (DistroKid): recreativa en demo
+		Projector = snd("rbxassetid://9112890982", 0.4), -- maquina traqueteando (proyector, Pro Sound Effects)
+		Steam = snd("rbxassetid://90846999831272", 0.5), -- vapor de la caldera (DistroKid)
 	},
 	-- Enemigos. Loop: suena en bucle (Moving = solo mientras anda). Voice: uno al azar
 	-- cada VoiceEvery segundos. Attack: al golpear (Common.playAttack).

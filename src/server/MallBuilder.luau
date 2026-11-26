@@ -555,6 +555,60 @@ local function electricPanel(cframe: CFrame, zoneName: string)
 	return p
 end
 
+-- Reloj de control de la ronda de seguridad (mision Ronda de seguridad): poste con una
+-- caja y un piloto (hijo "Led": rojo, verde al fichar).
+local function patrolClock(x: number, z: number, zoneName: string)
+	box("ClockPost", Vector3.new(0.5, 4.4, 0.5), at(x, 2.2, z), M.Metal, DARK)
+	local clock = box("PatrolClock", Vector3.new(1.6, 1.8, 1.2), at(x, 5.3, z), M.SmoothPlastic, Color3.fromRGB(60, 64, 72), { Variant = false })
+	local led = deco("Led", Vector3.new(0.35, 0.35, 1.3), at(x, 5.95, z), M.Neon, Color3.fromRGB(220, 40, 40), { CastShadow = false })
+	led.Parent = clock
+	for _, face in { Enum.NormalId.Front, Enum.NormalId.Back } do
+		sign(clock, "RONDA", Color3.fromRGB(230, 230, 230), Enum.Font.Code, face)
+	end
+	tag(clock, Tags.PatrolClock, { Zone = zoneName })
+	return clock
+end
+
+-- Pie de pared: `cf` = punto de la pared a ras de suelo, con el frente (-Z) hacia la sala.
+
+-- Extintor de pared con soporte y cartel (mision Revisar extintores). floorName = "Planta baja" / "Planta alta".
+local function wallExtinguisher(cf: CFrame, floorName: string)
+	deco("ExtBracket", Vector3.new(0.9, 0.3, 0.3), cf * CFrame.new(0, 3.4, -0.15), M.Metal, DARK)
+	local body = box("WallExtinguisher", Vector3.new(2, 0.7, 0.7), cf * CFrame.new(0, 2.6, -0.5) * CFrame.Angles(0, 0, math.rad(90)), M.SmoothPlastic, Color3.fromRGB(200, 25, 25), {
+		Shape = Enum.PartType.Cylinder,
+		CanCollide = false,
+		Variant = false,
+	})
+	deco("ExtHead", Vector3.new(0.35, 0.4, 0.35), cf * CFrame.new(0, 3.75, -0.5), M.Metal, DARK)
+	deco("ExtHose", Vector3.new(0.12, 1.4, 0.12), cf * CFrame.new(0.3, 3.1, -0.85) * CFrame.Angles(0, 0, math.rad(15)), M.Rubber, Color3.fromRGB(25, 25, 25))
+	local signPart = deco("ExtSign", Vector3.new(1.4, 0.8, 0.06), cf * CFrame.new(0, 5, -0.05), M.SmoothPlastic, Color3.fromRGB(200, 25, 25))
+	litSign(signPart, "EXTINTOR", Color3.new(1, 1, 1), Enum.Font.GothamBlack, Enum.NormalId.Front)
+	tag(body, Tags.Extinguisher, { Floor = floorName })
+end
+
+-- Telefono publico de pared (mision Telefono sonando).
+local function payPhone(cf: CFrame, zoneName: string)
+	local phone = box("PayPhone", Vector3.new(1.6, 2.6, 0.8), cf * CFrame.new(0, 4.2, -0.4), M.Metal, Color3.fromRGB(45, 70, 110), { Variant = false })
+	deco("PhoneHandset", Vector3.new(0.3, 1.4, 0.35), cf * CFrame.new(-0.55, 4.4, -0.95), M.SmoothPlastic, DARK)
+	deco("PhoneKeypad", Vector3.new(0.7, 0.9, 0.05), cf * CFrame.new(0.25, 4.2, -0.82), M.SmoothPlastic, Color3.fromRGB(180, 182, 186))
+	deco("PhoneCord", Vector3.new(0.08, 1.2, 0.08), cf * CFrame.new(-0.55, 3.4, -0.9), M.Rubber, DARK)
+	local signPart = deco("PhoneSign", Vector3.new(1.6, 0.5, 0.06), cf * CFrame.new(0, 5.8, -0.4), M.SmoothPlastic, Color3.fromRGB(30, 60, 120))
+	litSign(signPart, "TELÉFONO", Color3.new(1, 1, 1), Enum.Font.GothamBold, Enum.NormalId.Front)
+	tag(phone, Tags.PayPhone, { Zone = zoneName })
+end
+
+-- Valvula de purga de la caldera en una pared: tubo, cuerpo y rueda roja (hijo "Wheel").
+local function boilerValve(cf: CFrame, zoneName: string)
+	deco("ValvePipe", Vector3.new(0.5, 6, 0.5), cf * CFrame.new(0, 3, -0.4), M.Metal, METAL)
+	local body = box("BoilerValve", Vector3.new(1, 1, 1), cf * CFrame.new(0, 3.6, -0.6), M.Metal, Color3.fromRGB(90, 92, 96), { Variant = false })
+	-- (cilindro: su eje X apunta hacia fuera de la pared)
+	local wheel = deco("Wheel", Vector3.new(0.2, 1.8, 1.8), cf * CFrame.new(0, 3.6, -1.25) * CFrame.Angles(0, math.rad(90), 0), M.Metal, Color3.fromRGB(190, 40, 35), {
+		Shape = Enum.PartType.Cylinder,
+	})
+	wheel.Parent = body
+	tag(body, Tags.BoilerValve, { Zone = zoneName })
+end
+
 local LEAF_COLORS = {
 	Color3.fromRGB(52, 98, 44),
 	Color3.fromRGB(66, 118, 52),
@@ -610,11 +664,15 @@ local function bench(cframe: CFrame)
 	end
 end
 
--- Papelera de acero inoxidable con tapa.
-local function trashBin(cframe: CFrame)
-	box("TrashBin", Vector3.new(2.6, 1.8, 1.8), cframe * CFrame.new(0, 1.3, 0) * CFrame.Angles(0, 0, math.rad(90)), M.Metal, STEEL, {
+-- Papelera de acero inoxidable con tapa. zoneName: es de la mision Vaciar papeleras
+-- (tag Wastebasket con esa zona, el ala de la galeria).
+local function trashBin(cframe: CFrame, zoneName: string?)
+	local bin = box("TrashBin", Vector3.new(2.6, 1.8, 1.8), cframe * CFrame.new(0, 1.3, 0) * CFrame.Angles(0, 0, math.rad(90)), M.Metal, STEEL, {
 		Shape = Enum.PartType.Cylinder,
 	})
+	if zoneName then
+		tag(bin, Tags.Wastebasket, { Zone = zoneName })
+	end
 	deco("TrashLid", Vector3.new(0.35, 2, 2), cframe * CFrame.new(0, 2.75, 0) * CFrame.Angles(0, 0, math.rad(90)), M.Metal, Color3.fromRGB(45, 45, 48), {
 		Shape = Enum.PartType.Cylinder,
 	})
@@ -757,6 +815,17 @@ local function vendingMachine(cf: CFrame, machineType: string, accent: Color3, t
 	deco("VendingFlap", Vector3.new(winW - 0.2, 0.5, 0.05), cf * CFrame.new(winX, -2.95, -1.38), M.SmoothPlastic, Color3.fromRGB(45, 45, 52), { Transparency = 0.25 })
 
 	tag(body, Tags.VendingMachine)
+
+	-- Punto delante de la maquina (mision Rellenar maquina: alli se entrega la caja)
+	local front = (cf * CFrame.new(0, -H / 2 + 0.1, -(D / 2 + 2.2))).Position
+	local refill = box("Spot_RefillVending", Vector3.new(1, 0.2, 1), CFrame.new(front), M.SmoothPlastic, Color3.new(1, 1, 1), {
+		Transparency = 1,
+		CanCollide = false,
+		CanQuery = false,
+		CanTouch = false,
+		Variant = false,
+	})
+	tag(refill, Tags.MissionSpot, { MissionType = "RefillVending" })
 	return body
 end
 
@@ -1460,6 +1529,22 @@ local function buildStore(def, index: number, frontCenter: Vector3, inward: Vect
 		-- Podio del escaparate
 		deco("WindowPodium", Vector3.new(11, 0.6, 4), L(base, side * 15, 0.3, 4), M.SmoothPlastic, Color3.fromRGB(235, 232, 226))
 	end
+	-- Pantalla publicitaria en el escaparate derecho (mision Apagar escaparates)
+	-- (a un lado del podio: en medio puede haber un maniqui)
+	deco("PromoStand", Vector3.new(0.3, 1.4, 0.3), L(base, 19, 1.3, 4.6), M.Metal, DARK)
+	local displayColor = def.Accent:Lerp(DARK, 0.5)
+	local display = box("PromoScreen", Vector3.new(3.6, 2.4, 0.3), L(base, 19, 3.2, 4.6) * OUT, M.SmoothPlastic, displayColor, {
+		CanCollide = false,
+		Variant = false,
+	})
+	local screenGui = glowScreen(display, Enum.NormalId.Front, def.Accent, def.Accent:Lerp(DARK, 0.6), ((def.Promo or def.Name):gsub("\n", " ")))
+	screenGui.Name = "Screen"
+	local screenGlow = Instance.new("PointLight")
+	screenGlow.Color = def.Accent
+	screenGlow.Range = 9
+	screenGlow.Brightness = 0.8
+	screenGlow.Parent = display
+	tag(display, Tags.StoreDisplay, { Wing = wing, OnColor = displayColor })
 	-- Cabecera (de 12 hasta el suelo de la planta de arriba / techo del pasillo)
 	box("Header", Vector3.new(W, 5, 1), L(base, 0, 14.5, 0.5), M.Plaster, def.Accent:Lerp(DARK, 0.7))
 	deco("HeaderTrim", Vector3.new(W, 0.25, 1.3), L(base, 0, 12.1, 0.5), M.Metal, STEEL)
@@ -1532,9 +1617,28 @@ local function buildStore(def, index: number, frontCenter: Vector3, inward: Vect
 	for k = 0, 2 do
 		deco("ShoppingBag", Vector3.new(1.1, 1.3, 0.5), L(base, -18.8 + k * 0.4, 4.35, 40 + k * 0.3), M.Cardboard, vary(def.Accent, 0.1))
 	end
-	box("BackWallShelf", Vector3.new(14, 0.3, 1.2), L(base, -14, 6.5, D - 1.6), M.Wood, Color3.fromRGB(150, 110, 75))
+	-- Caja registradora (mision Reiniciar cajas) y mostrador (mision Entrega de paquete):
+	-- puntos invisibles sobre el mostrador
+	local registerSpot = box("RegisterSpot", Vector3.new(2, 1.6, 1.6), L(base, -12, 4.4, 40), M.SmoothPlastic, Color3.new(1, 1, 1), {
+		Transparency = 1,
+		CanCollide = false,
+		CanQuery = false,
+		CanTouch = false,
+		Variant = false,
+	})
+	tag(registerSpot, Tags.CashRegister, { Wing = wing })
+	local counterSpot = box("CounterSpot", Vector3.new(4, 1, 1.4), L(base, -16.5, 4.2, 39), M.SmoothPlastic, Color3.new(1, 1, 1), {
+		Transparency = 1,
+		CanCollide = false,
+		CanQuery = false,
+		CanTouch = false,
+		Variant = false,
+	})
+	tag(counterSpot, Tags.StoreCounter, { Zone = def.Name })
+	local backShelf = box("BackWallShelf", Vector3.new(14, 0.3, 1.2), L(base, -14, 6.5, D - 1.6), M.Wood, Color3.fromRGB(150, 110, 75))
+	tag(backShelf, Tags.InventoryShelf, { Zone = def.Name }) -- (mision Inventario)
 	productRow(L(base, -14, 6.65, D - 1.6), 13, 0.9, def.Accent:Lerp(WHITE, 0.4))
-	trashBin(L(base, -21, 0, 45))
+	trashBin(L(base, -21, 0, 45), wing)
 	-- Publicidad retroiluminada en la pared izquierda (por encima de los muebles)
 	lightbox(L(base, -23.2, 12, 34) * FACE_POS_X, 8, 3.2, def.Promo or "NUEVA TEMPORADA", def.Accent, def.Name)
 
@@ -2124,8 +2228,8 @@ local function buildGallery()
 		bench(at(-x, 0, -6.5))
 		bench(at(-x, 0, 6.5) * CFrame.Angles(0, math.pi, 0))
 	end
-	trashBin(at(-60, 0, -15))
-	trashBin(at(60, 0, 15))
+	trashBin(at(-60, 0, -15), "Galería Oeste")
+	trashBin(at(60, 0, 15), "Galería Este")
 
 	-- Kioscos
 	local kiosks = {
@@ -2163,6 +2267,20 @@ local function buildGallery()
 	spot(60, -8, "WaterPlants", "Galería Este")
 	spot(-20, 0, "LockDoors", "Galería Oeste")
 	spot(20, 0, "LockDoors", "Galería Este")
+	spot(-24, 3, "ResetRegisters", "Galería Oeste")
+	spot(24, -3, "ResetRegisters", "Galería Este")
+	spot(-24, -3, "TurnOffDisplays", "Galería Oeste")
+	spot(24, 3, "TurnOffDisplays", "Galería Este")
+	patrolClock(-75, 12, "Galería Oeste")
+	patrolClock(75, -12, "Galería Este")
+	spot(-28, 3, "EmptyBins", "Galería Oeste")
+	spot(28, -3, "EmptyBins", "Galería Este")
+	spot(-14, -15, "CheckExtinguishers", "Planta baja")
+	-- Extintores y telefonos en las columnas de las fachadas (cara hacia el pasillo)
+	wallExtinguisher(at(-72, 0, 17.7), "Planta baja")
+	wallExtinguisher(at(72, 0, -17.7) * CFrame.Angles(0, math.pi, 0), "Planta baja")
+	payPhone(at(-24, 0, -17.7) * CFrame.Angles(0, math.pi, 0), "Galería Oeste")
+	payPhone(at(24, 0, 17.7), "Galería Este")
 
 	-- Camaras bajo los pasillos altos
 	camera(-118, 15.4, 18, -90, 0, -2)
@@ -2257,8 +2375,8 @@ local function buildUpperGallery()
 		planter(p[1], p[2], W1, true)
 		planter(-p[1], -p[2], E1, true)
 	end
-	trashBin(at(-70, 0, -18))
-	trashBin(at(70, 0, 18))
+	trashBin(at(-70, 0, -18), W1)
+	trashBin(at(70, 0, 18), E1)
 	-- Directorios de la planta alta (junto a las fachadas)
 	directoryTotem(at(-114, 0, 18.4), 2)
 	directoryTotem(at(114, 0, -18.4) * CFrame.Angles(0, math.pi, 0), 2)
@@ -2282,6 +2400,17 @@ local function buildUpperGallery()
 	spot(60, -16, "WaterPlants", E1)
 	spot(-20, 16, "LockDoors", W1)
 	spot(20, -16, "LockDoors", E1)
+	spot(-24, 17, "ResetRegisters", W1)
+	spot(24, -17, "ResetRegisters", E1)
+	spot(-16, 17, "TurnOffDisplays", W1)
+	spot(16, -17, "TurnOffDisplays", E1)
+	patrolClock(-45, 16.5, W1)
+	patrolClock(45, -16.5, E1)
+	spot(-28, 17, "EmptyBins", W1)
+	spot(28, -17, "EmptyBins", E1)
+	spot(-14, -16, "CheckExtinguishers", "Planta alta")
+	wallExtinguisher(at(-72, 0, 17.7), "Planta alta")
+	wallExtinguisher(at(72, 0, -17.7) * CFrame.Angles(0, math.pi, 0), "Planta alta")
 
 	-- Camaras de la planta alta (miran a traves del atrio)
 	camera(-118, 15.4, 18.6, -80, 0, -15)
@@ -2546,6 +2675,16 @@ local function buildFoodCourt()
 			propOr("FoodCourtTable", at(x, 0, z) * CFrame.Angles(0, math.rad(45), 0), function(cf)
 				roundTable(cf, 4, Color3.fromRGB(200, 70, 60), 3.3)
 			end)
+			-- Donde puede quedar una bandeja olvidada (mision Recoger bandejas; la mision la
+			-- apoya sobre la mesa que haya debajo)
+			local traySpot = box("TraySpot", Vector3.new(1, 0.2, 1), at(x + 0.6, 3.3, z), M.SmoothPlastic, Color3.new(1, 1, 1), {
+				Transparency = 1,
+				CanCollide = false,
+				CanQuery = false,
+				CanTouch = false,
+				Variant = false,
+			})
+			tag(traySpot, Tags.TraySpot)
 		end
 	end
 	for _, z in { -27, 27 } do
@@ -2554,7 +2693,19 @@ local function buildFoodCourt()
 				box("Bin", Vector3.new(1.8, 3.6, 1.8), cf * CFrame.new(k * 2, 1.8, 0), M.Metal, ({ Color3.fromRGB(60, 60, 64), Color3.fromRGB(40, 110, 200), Color3.fromRGB(60, 160, 70) })[k + 2])
 			end
 		end)
+		local trayBin = box("TrayBin", Vector3.new(2.4, 3.6, 6.4), at(-124, 1.8, z), M.SmoothPlastic, Color3.new(1, 1, 1), {
+			Transparency = 1,
+			CanCollide = false,
+			CanQuery = false,
+			CanTouch = false,
+			Variant = false,
+		})
+		tag(trayBin, Tags.TrayBin)
 	end
+	spot(-149, -10, "ClearTrays", Z)
+	patrolClock(-126, 56, Z)
+	wallExtinguisher(at(-121, 0, 50) * CFrame.Angles(0, math.rad(90), 0), "Planta baja")
+	payPhone(at(-121, 0, -40) * CFrame.Angles(0, math.rad(90), 0), Z)
 	-- Plantas que separan la zona de mesas del pasillo
 	for _, z in { -64, 64 } do
 		planter(-138, z, Z)
@@ -2685,6 +2836,14 @@ local function cinemaHall(name: string, z1: number, z2: number, screenSide: numb
 		end
 	end
 	local projector = deco("Projector", Vector3.new(1.4, 1, 1.4), at(-150, 14, screenZ - s * 37.4), M.Neon, Color3.fromRGB(200, 220, 255))
+	CollectionService:AddTag(projector, Tags.Projector) -- (mision Apagar proyector; atributo Zone lo pone tag() abajo)
+	-- Panel de la cabina, al fondo de la sala a nivel del suelo (mision Apagar proyector)
+	local projectorPanel = box("ProjectorControl", Vector3.new(1.4, 1.8, 0.5), at(-179.4, 3.6, backEdge - s * 3) * CFrame.Angles(0, math.rad(-90), 0), M.Metal, Color3.fromRGB(50, 52, 58), {
+		Variant = false,
+	})
+	local panelSign = deco("ProjectorSign", Vector3.new(1.6, 0.5, 0.06), at(-179.15, 5, backEdge - s * 3) * CFrame.Angles(0, math.rad(-90), 0), M.SmoothPlastic, DARK)
+	litSign(panelSign, "PROYECTOR", Color3.fromRGB(200, 220, 255), Enum.Font.Code, Enum.NormalId.Front)
+	tag(projectorPanel, Tags.MissionSpot, { MissionType = "TurnOffProjector", Zone = name })
 	deco("ProjectionWindow", Vector3.new(3, 2, 0.1), at(-150, 14, screenZ - s * 38), M.Glass, Color3.fromRGB(30, 40, 60), { Transparency = 0.5 })
 	local beam = Instance.new("SpotLight")
 	beam.Face = if s > 0 then Enum.NormalId.Back else Enum.NormalId.Front
@@ -2798,45 +2957,26 @@ local function buildEntrance()
 	wall(Vector3.new(120, 0, 70.5), Vector3.new(180, 0, 70.5), ENTRY_H, {
 		Openings = { { From = 4, To = 16, Height = 10 } }, -- puerta a servicio (x 124..136)
 	})
-	-- Puertas de vidrio (cerradas: es de noche)
-	for _, z in { -10.5, -3.5, 3.5, 10.5 } do
-		box("EntranceDoor", Vector3.new(0.4, 13.4, 6.6), at(180.5, 6.8, z), M.Glass, Color3.fromRGB(150, 180, 200), {
-			Transparency = 0.6,
-			Reflectance = 0.2,
-			Variant = false,
-		})
-		box("DoorFrame", Vector3.new(0.6, 13.6, 0.4), at(180.5, 6.8, z - 3.4), M.Metal, DARK)
-		deco("DoorHandle", Vector3.new(0.2, 3, 0.2), at(180.1, 5, z + (if z < 0 then 2.8 else -2.8)), M.Metal, STEEL)
+	-- Puertas de vidrio automaticas, ABIERTAS: se sale al estacionamiento (buildParking).
+	-- Las hojas quedan recogidas a los lados del hueco (z -14..14), por dentro del muro.
+	for _, s in { -1, 1 } do
+		for k, x in { 179.6, 179.1 } do
+			local z = s * (14 + 3.3 + (k - 1) * 0.4)
+			box("EntranceDoor", Vector3.new(0.4, 13.4, 6.6), at(x, 6.8, z), M.Glass, Color3.fromRGB(150, 180, 200), {
+				Transparency = 0.6,
+				Reflectance = 0.2,
+				Variant = false,
+			})
+		end
+		box("DoorFrame", Vector3.new(0.6, 13.6, 0.4), at(180.5, 6.8, s * 14), M.Metal, DARK)
 	end
+	box("DoorHeader", Vector3.new(0.8, 0.6, 28), at(180.5, 13.8, 0), M.Metal, DARK)
 	local mallSign = box("MallSign", Vector3.new(0.4, 5, 30), at(181.4, 22, 0), M.SmoothPlastic, Color3.fromRGB(20, 20, 26), { CanCollide = false })
 	litSign(mallSign, "PLAZA LUNA", Color3.fromRGB(255, 215, 120), Enum.Font.Fondamento, Enum.NormalId.Right)
 	deco("EntryMat", Vector3.new(10, 0.06, 26), at(174, 0.03, 0), M.Carpet, Color3.fromRGB(40, 40, 44), { Variant = false })
 	exitSign(at(179.7, 15.2, 22) * CFrame.Angles(0, math.rad(90), 0))
 
-	-- Estacionamiento (afuera): asfalto, lineas, farolas y marquesina
-	slab("Parking", 181, 260, -90, 90, 0, M.Asphalt, Color3.fromRGB(42, 42, 45))
-	deco("Sidewalk", Vector3.new(14, 0.6, 180), at(188, 0.3, 0), M.Concrete, Color3.fromRGB(150, 148, 142))
-	box("Canopy", Vector3.new(12, 0.8, 34), at(187, 15, 0), M.Metal, Color3.fromRGB(45, 45, 50))
-	for _, z in { -16, 16 } do
-		box("CanopyPost", Vector3.new(0.8, 15, 0.8), at(192.5, 7.5, z), M.Metal, Color3.fromRGB(45, 45, 50))
-	end
-	for x = 205, 255, 12 do
-		for _, z in { -40, 40 } do
-			deco("ParkingLine", Vector3.new(0.4, 0.04, 16), at(x, 0.02, z), M.SmoothPlastic, Color3.fromRGB(220, 220, 215), { Variant = false })
-		end
-	end
-	for _, z in { -60, 0, 60 } do
-		box("LightPole", Vector3.new(0.7, 22, 0.7), at(228, 11, z), M.Metal, Color3.fromRGB(60, 62, 66))
-		local head = deco("PoleLamp", Vector3.new(3, 0.5, 1.4), at(228, 22, z), M.Neon, Color3.fromRGB(255, 205, 140))
-		local lot = Instance.new("SpotLight")
-		lot.Face = Enum.NormalId.Bottom
-		lot.Angle = 110
-		lot.Range = 45
-		lot.Brightness = 1.4
-		lot.Color = Color3.fromRGB(255, 190, 120)
-		lot.Shadows = true
-		lot.Parent = head
-	end
+	-- (El estacionamiento, afuera, lo construye buildParking)
 
 	-- Alfombra de bienvenida (aparecen los jugadores)
 	local pad = box("PlayerSpawn", Vector3.new(12, 0.2, 12), at(158, 0.1, 0), M.Carpet, Color3.fromRGB(150, 30, 40), { CanCollide = false, Variant = false })
@@ -2889,7 +3029,191 @@ local function buildEntrance()
 	spot(140, -10, "CleanSpill", Z)
 	spot(165, 20, "CleanSpill", Z)
 	spot(156, -62, "WaterPlants", Z)
+	spot(140, -36, "SecurityRound", Z)
+	spot(150, 30, "PayPhone", "Sigue el timbre")
+	patrolClock(124, 32, Z)
+	wallExtinguisher(at(121, 0, -50) * CFrame.Angles(0, math.rad(-90), 0), "Planta baja")
+	payPhone(at(121, 0, -30) * CFrame.Angles(0, math.rad(-90), 0), Z)
 	camera(178, 14, 68, 150, 0, 30)
+
+	currentParent = map
+end
+
+----------------------------------------------------------------------
+-- Estacionamiento (planta baja, afuera de la Entrada)
+----------------------------------------------------------------------
+-- Vallado, con farolas (luces de la zona: se apagan y se reparan), coches (dos con la
+-- puerta abierta: escondites), corral de carritos y carritos abandonados (mision Juntar
+-- carritos), contenedor de basura y puntos de mision.
+
+local PARK = { X1 = 181, X2 = 260, Z1 = -90, Z2 = 90 }
+
+-- Valla de obra: zocalo de hormigon, malla metalica y postes (no se salta).
+local function fence(p1: Vector3, p2: Vector3)
+	local a = Vector3.new(p1.X, Y0 + levelY, p1.Z)
+	local b = Vector3.new(p2.X, Y0 + levelY, p2.Z)
+	local length = (b - a).Magnitude
+	local mid = (a + b) / 2
+	local cf = CFrame.lookAt(mid, mid + (b - a))
+	box("FenceBase", Vector3.new(0.8, 1.2, length), cf * CFrame.new(0, 0.6, 0), M.Concrete, Color3.fromRGB(120, 120, 116))
+	box("FenceMesh", Vector3.new(0.2, 10, length), cf * CFrame.new(0, 6.2, 0), M.DiamondPlate, Color3.fromRGB(110, 115, 120), {
+		Transparency = 0.55,
+		CastShadow = false,
+		Variant = false,
+	})
+	deco("FenceRail", Vector3.new(0.3, 0.3, length), cf * CFrame.new(0, 11.2, 0), M.Metal, METAL)
+	local posts = math.max(1, math.floor(length / 10))
+	for i = 0, posts do
+		deco("FencePost", Vector3.new(0.4, 11.4, 0.4), cf * CFrame.new(0, 5.7, -length / 2 + i * (length / posts)), M.Metal, METAL)
+	end
+end
+
+-- Farola con foco hacia abajo (luz de la zona: el Apagon la apaga, Reparar luces la arregla).
+local function lightPole(x: number, z: number, zoneName: string)
+	box("LightPole", Vector3.new(0.7, 22, 0.7), at(x, 11, z), M.Metal, Color3.fromRGB(60, 62, 66))
+	deco("PoleBase", Vector3.new(1.6, 1, 1.6), at(x, 0.5, z), M.Concrete, Color3.fromRGB(130, 130, 126))
+	local head = deco("PoleLamp", Vector3.new(3, 0.5, 1.4), at(x, 22, z), M.Neon, Color3.fromRGB(255, 205, 140), { CastShadow = false })
+	local lot = Instance.new("SpotLight")
+	lot.Face = Enum.NormalId.Bottom
+	lot.Angle = 120
+	lot.Range = 50
+	lot.Brightness = 2.2
+	lot.Color = Color3.fromRGB(255, 190, 120)
+	lot.Shadows = true
+	lot.Parent = head
+	tag(head, Tags.Light, { Zone = zoneName })
+end
+
+-- Coche aparcado de piezas. `cf` = centro en el suelo; el morro mira a -Z.
+-- hide = puerta del conductor (lado -X) abierta: es un escondite.
+local function parkedCar(cf: CFrame, color: Color3, hide: boolean?)
+	local glass = Color3.fromRGB(18, 22, 28)
+	box("CarBody", Vector3.new(6, 2.4, 13), cf * CFrame.new(0, 2, 0), M.SmoothPlastic, color, { Variant = false })
+	box("CarCabin", Vector3.new(5.6, 2.2, 6.4), cf * CFrame.new(0, 4.3, 0.6), M.SmoothPlastic, color:Lerp(Color3.new(0, 0, 0), 0.15), { Variant = false })
+	deco("CarWindshield", Vector3.new(5.2, 1.8, 0.1), cf * CFrame.new(0, 4.3, -2.66), M.Glass, glass, { Transparency = 0.25, Variant = false })
+	deco("CarRearWindow", Vector3.new(5.2, 1.8, 0.1), cf * CFrame.new(0, 4.3, 3.86), M.Glass, glass, { Transparency = 0.25, Variant = false })
+	for _, s in { -1, 1 } do
+		deco("CarSideWindow", Vector3.new(0.1, 1.6, 5.6), cf * CFrame.new(s * 2.86, 4.4, 0.6), M.Glass, glass, { Transparency = 0.25, Variant = false })
+		for _, wz in { -4.2, 4.2 } do
+			deco("CarWheel", Vector3.new(0.9, 2.4, 2.4), cf * CFrame.new(s * 2.8, 1.2, wz), M.Rubber, Color3.fromRGB(25, 25, 27), {
+				Shape = Enum.PartType.Cylinder,
+			})
+		end
+		deco("Headlight", Vector3.new(1.2, 0.5, 0.1), cf * CFrame.new(s * 2, 2.5, -6.55), M.SmoothPlastic, Color3.fromRGB(235, 230, 200))
+		deco("Taillight", Vector3.new(1.2, 0.4, 0.1), cf * CFrame.new(s * 2, 2.6, 6.55), M.SmoothPlastic, Color3.fromRGB(150, 20, 20))
+	end
+	if hide then
+		-- Puerta abierta (girada sobre la bisagra delantera)
+		local hinge = cf * CFrame.new(-3, 3.2, -1.6) * CFrame.Angles(0, math.rad(-55), 0)
+		deco("CarDoorOpen", Vector3.new(0.2, 2.6, 3.4), hinge * CFrame.new(0, 0, 1.7), M.SmoothPlastic, color, { Variant = false })
+		-- Escondite invisible dentro del coche; su cara Front mira hacia la puerta (-X)
+		local hideSpot = box("Coche", Vector3.new(3, 4, 3), cf * CFrame.new(-1.2, 3, 0.3) * CFrame.Angles(0, math.rad(90), 0), M.SmoothPlastic, Color3.new(1, 1, 1), {
+			Transparency = 1,
+			CanCollide = false,
+			CanQuery = false,
+			Variant = false,
+		})
+		hideSpot:SetAttribute("DisplayName", "Coche")
+		tag(hideSpot, Tags.HidingSpot)
+	end
+end
+
+-- Punto invisible del suelo con un tag (plazas de carritos).
+local function floorMark(name: string, x: number, z: number, tagName: string)
+	local p = box(name, Vector3.new(1, 0.2, 1), at(x, 0.1, z), M.SmoothPlastic, Color3.new(1, 1, 1), {
+		Transparency = 1,
+		CanCollide = false,
+		CanQuery = false,
+		CanTouch = false,
+		Variant = false,
+	})
+	tag(p, tagName)
+	return p
+end
+
+local function buildParking()
+	folder("Estacionamiento")
+	levelY = 0
+	local Z = "Estacionamiento"
+	zone(Z, PARK.X1, PARK.X2, PARK.Z1, PARK.Z2, 30)
+
+	slab("Parking", PARK.X1, PARK.X2, PARK.Z1, PARK.Z2, 0, M.Asphalt, Color3.fromRGB(42, 42, 45), { Variant = false })
+	deco("Sidewalk", Vector3.new(14, 0.6, 180), at(188, 0.3, 0), M.Concrete, Color3.fromRGB(150, 148, 142))
+	box("Canopy", Vector3.new(12, 0.8, 34), at(187, 15, 0), M.Metal, Color3.fromRGB(45, 45, 50))
+	for _, z in { -16, 16 } do
+		box("CanopyPost", Vector3.new(0.8, 15, 0.8), at(192.5, 7.5, z), M.Metal, Color3.fromRGB(45, 45, 50))
+	end
+	-- Paso de peatones hasta las plazas
+	for k = 0, 5 do
+		deco("Crosswalk", Vector3.new(6, 0.04, 1.6), at(198, 0.02, -5 + k * 2), M.SmoothPlastic, Color3.fromRGB(225, 225, 215), { Variant = false })
+	end
+	for x = 205, 253, 12 do
+		for _, z in { -40, 40 } do
+			deco("ParkingLine", Vector3.new(0.4, 0.04, 16), at(x, 0.02, z), M.SmoothPlastic, Color3.fromRGB(220, 220, 215), { Variant = false })
+		end
+	end
+
+	-- Valla: este, sur, norte y el trozo entre la valla sur y la fachada (z -90..-71)
+	fence(Vector3.new(PARK.X2, 0, PARK.Z1), Vector3.new(PARK.X2, 0, PARK.Z2))
+	fence(Vector3.new(PARK.X1 - 0.5, 0, PARK.Z1), Vector3.new(PARK.X2, 0, PARK.Z1))
+	fence(Vector3.new(PARK.X1 - 0.5, 0, PARK.Z2), Vector3.new(PARK.X2, 0, PARK.Z2))
+	fence(Vector3.new(PARK.X1 - 0.5, 0, PARK.Z1), Vector3.new(PARK.X1 - 0.5, 0, -71))
+
+	-- Farolas
+	for _, p in { { 200, -60 }, { 200, 60 }, { 225, 0 }, { 250, -60 }, { 250, 60 }, { 250, 0 } } do
+		lightPole(p[1], p[2], Z)
+	end
+
+	-- Coches (8 plazas: z = +-40; x = 211, 223, 235, 247). Dos con la puerta abierta.
+	parkedCar(CFrame.new(211, Y0, 40), Color3.fromRGB(150, 30, 35), false)
+	parkedCar(CFrame.new(235, Y0, 40), Color3.fromRGB(35, 70, 140), true)
+	parkedCar(CFrame.new(247, Y0, 40), Color3.fromRGB(220, 220, 215), false)
+	parkedCar(CFrame.new(211, Y0, -40) * CFrame.Angles(0, math.pi, 0), Color3.fromRGB(30, 30, 34), true)
+	parkedCar(CFrame.new(223, Y0, -40) * CFrame.Angles(0, math.pi, 0), Color3.fromRGB(165, 168, 172), false)
+	parkedCar(CFrame.new(247, Y0, -40) * CFrame.Angles(0, math.pi, 0), Color3.fromRGB(45, 95, 60), false)
+
+	-- Corral de carritos (mision Juntar carritos) con un par de carritos dentro
+	local corralCF = at(210, 0, -20)
+	for _, s in { -1, 1 } do
+		box("CorralRail", Vector3.new(0.3, 3.4, 12), corralCF * CFrame.new(s * 2.4, 1.7, 0), M.Metal, METAL)
+	end
+	box("CorralBack", Vector3.new(5, 3.4, 0.3), corralCF * CFrame.new(0, 1.7, 6), M.Metal, METAL)
+	local corralSign = box("CorralSign", Vector3.new(4.6, 1.4, 0.2), corralCF * CFrame.new(0, 4.4, 6), M.SmoothPlastic, Color3.fromRGB(20, 60, 140), { CanCollide = false })
+	sign(corralSign, "CARRITOS", Color3.new(1, 1, 1), Enum.Font.GothamBlack, Enum.NormalId.Front)
+	for k = 0, 1 do
+		deco("CorralCart", Vector3.new(2.3, 1.8, 3.2), corralCF * CFrame.new(0, 2.6, 2.6 - k * 1.2), M.DiamondPlate, STEEL, { Transparency = 0.35 })
+	end
+	local corral = box("CartCorral", Vector3.new(4, 3, 10), corralCF * CFrame.new(0, 1.5, 0), M.SmoothPlastic, Color3.new(1, 1, 1), {
+		Transparency = 1,
+		CanCollide = false,
+		CanQuery = false,
+		CanTouch = false,
+		Variant = false,
+	})
+	tag(corral, Tags.CartCorral)
+	-- Plazas donde pueden quedar carritos abandonados
+	for _, p in { { 230, -70 }, { 215, 70 }, { 240, 20 }, { 255, -15 }, { 205, 82 }, { 240, 75 }, { 222, -58 }, { 238, -22 } } do
+		floorMark("CartSpot", p[1], p[2], Tags.CartSpot)
+	end
+
+	-- Contenedor de basura (tambien vale para Sacar la basura)
+	local dumpster = box("Dumpster", Vector3.new(4.5, 5, 9), at(255, 2.5, 30), M.Metal, Color3.fromRGB(40, 85, 45))
+	tag(dumpster, Tags.TrashDropoff)
+	deco("DumpsterLid", Vector3.new(4.7, 0.3, 9.2), at(255, 5.15, 30), M.Plastic, Color3.fromRGB(30, 30, 32))
+
+	-- Puntos de mision, escondites, camara y aparicion de enemigos
+	electricPanel(at(181.4, 3, -40) * CFrame.Angles(0, math.rad(-90), 0), Z)
+	spot(215, 2, "CleanSpill", Z)
+	spot(240, -52, "CleanSpill", Z)
+	spot(190, 60, "TakeOutTrash", Z)
+	spot(230, 55, "LostItem", Z)
+	spot(200, -30, "CollectCarts", Z)
+	patrolClock(193, 45, Z)
+	wallExtinguisher(at(181, 0, 40) * CFrame.Angles(0, math.rad(-90), 0), "Planta baja")
+	payPhone(at(181, 0, -55) * CFrame.Angles(0, math.rad(-90), 0), Z)
+	enemySpawn(255, 80)
+	enemySpawn(255, -80)
+	camera(181.8, 13, 60, 225, 0, 20)
 
 	currentParent = map
 end
@@ -2940,6 +3264,15 @@ local function buildArcade()
 					glowScreen(s, Enum.NormalId.Front, accent, Color3.fromRGB(20, 10, 40), "PLAY")
 					deco("ArcadeMarquee", Vector3.new(2.8, 0.7, 0.2), c * CFrame.new(0, 6.1, -1.4), M.Neon, accent)
 				end)
+				-- Punto de la mision Reiniciar recreativas (delante de la pantalla)
+				local arcadeSpot = box("ArcadeSpot", Vector3.new(2.4, 2.4, 0.4), cf * CFrame.new(0, 4.4, -1.8), M.SmoothPlastic, Color3.new(1, 1, 1), {
+					Transparency = 1,
+					CanCollide = false,
+					CanQuery = false,
+					CanTouch = false,
+					Variant = false,
+				})
+				tag(arcadeSpot, Tags.ArcadeMachine, { Zone = Z })
 			end
 		end
 		neonStrip(Vector3.new(40, 0.15, 0.15), at(150, 7.2, z), accents[row], Z, 0.5)
@@ -2977,6 +3310,9 @@ local function buildArcade()
 	spot(160, 26, "CleanSpill", Z)
 	spot(130, 60, "TakeOutTrash", Z)
 	spot(165, -60, "LostItem", Z)
+	spot(150, 0, "ResetArcade", Z)
+	wallExtinguisher(at(121, 0, -40) * CFrame.Angles(0, math.rad(-90), 0), "Planta alta")
+	payPhone(at(121, 0, 40) * CFrame.Angles(0, math.rad(-90), 0), Z)
 	enemySpawn(172, -66)
 	camera(178, 14, -68, 150, 0, -30)
 
@@ -3132,7 +3468,8 @@ local function urinal(cf: CFrame)
 end
 
 -- Encimera con `n` lavabos, grifos, jaboneras y espejo. `cracked` = espejo roto.
-local function vanity(cf: CFrame, n: number, spacing: number, cracked: boolean?)
+-- faucetZone: los caños son grifos de la mision Cerrar grifos (tag Faucet con esa zona).
+local function vanity(cf: CFrame, n: number, spacing: number, cracked: boolean?, faucetZone: string?)
 	local len = n * spacing + 1
 	box("Counter", Vector3.new(len, 0.35, 2.2), cf * CFrame.new(0, 3, -1.1), M.Marble, Color3.fromRGB(70, 72, 76))
 	deco("CounterSkirt", Vector3.new(len, 0.8, 0.1), cf * CFrame.new(0, 2.45, -2.15), M.Marble, Color3.fromRGB(60, 62, 66))
@@ -3141,7 +3478,10 @@ local function vanity(cf: CFrame, n: number, spacing: number, cracked: boolean?)
 		vcyl("Basin", 0.06, 1.5, cf * CFrame.new(lx, 3.19, -1.1), M.SmoothPlastic, PORCELAIN)
 		vcyl("Drain", 0.07, 0.25, cf * CFrame.new(lx, 3.2, -1.1), M.Metal, Color3.fromRGB(60, 60, 62))
 		vcyl("Faucet", 0.7, 0.2, cf * CFrame.new(lx, 3.5, -0.35), M.Metal, CHROME, { Reflectance = 0.35 })
-		deco("Spout", Vector3.new(0.14, 0.14, 0.55), cf * CFrame.new(lx, 3.8, -0.6), M.Metal, CHROME, { Reflectance = 0.35 })
+		local spout = deco("Spout", Vector3.new(0.14, 0.14, 0.55), cf * CFrame.new(lx, 3.8, -0.6), M.Metal, CHROME, { Reflectance = 0.35 })
+		if faucetZone then
+			tag(spout, Tags.Faucet, { Zone = faucetZone })
+		end
 		vcyl("Trap", 0.9, 0.2, cf * CFrame.new(lx, 2.35, -0.9), M.Metal, CHROME)
 		if i < n then
 			-- Jabonera de bomba sobre la encimera, entre dos lavabos
@@ -3227,6 +3567,16 @@ local function buildService()
 	end
 	propOr("JanitorCart", at(-96, 0, 74) * CFrame.Angles(0, math.rad(-90), 0), function() end)
 	enemySpawn(-120, 90)
+	-- Puntos de las misiones de entrega (paquetes en los palets) y ronda de seguridad
+	spot(-106, 92, "Delivery", "Bodega")
+	patrolClock(-94, 104, "Bodega")
+	patrolClock(100, 74, "Servicio")
+	-- Pasillo de servicio: extintor y telefono en la pared de las tiendas; valvulas de la
+	-- caldera en la pared norte
+	wallExtinguisher(at(30, 0, 70) * CFrame.Angles(0, math.pi, 0), "Planta baja")
+	payPhone(at(-30, 0, 70) * CFrame.Angles(0, math.pi, 0), "Servicio")
+	boilerValve(at(-60, 0, 110), "Servicio")
+	boilerValve(at(110, 0, 110), "Servicio")
 
 	-- Generador (mision Reiniciar generador: deja sin luz Servicio y Bodega)
 	box("Generator", Vector3.new(10, 6, 5), at(-70, 3, 105), M.Metal, Color3.fromRGB(200, 160, 40))
@@ -3256,7 +3606,8 @@ local function buildService()
 		end
 	end
 	local eastWall = CFrame.Angles(0, math.rad(90), 0) -- mirando a -X
-	vanity(at(19.5, 0, 96) * eastWall, 3, 3, true)
+	vanity(at(19.5, 0, 96) * eastWall, 3, 3, true, "Baños")
+	spot(0, 95, "CloseFaucets", "Baños")
 	handDryer(at(19.5, 0, 103) * eastWall)
 	handDryer(at(-19.5, 0, 96) * CFrame.Angles(0, math.rad(-90), 0))
 	bathDetails(at(0, 0, 97), at(18, 0, 89.8), at(-17.5, 0, 91))
@@ -3407,6 +3758,10 @@ local function buildOffices()
 	tag(monitors, Tags.MissionSpot, { MissionType = "CheckCameras", Zone = "Administración" })
 	sign(monitors, "CAM 5   CAM 6   CAM 7", Color3.fromRGB(120, 200, 255), Enum.Font.Code, Enum.NormalId.Front)
 	box("MonitorDesk", Vector3.new(10, 3, 2.6), at(-48, 1.5, 107.4), M.Wood, Color3.fromRGB(110, 85, 60))
+	-- Bandeja de albaranes (mision Entrega de paquete: se firma aqui)
+	local deliveryTray = box("DeliveryTray", Vector3.new(1.6, 0.3, 1.2), at(-44.5, 3.15, 107.4), M.Plastic, Color3.fromRGB(40, 40, 44), { Variant = false })
+	deco("Paperwork", Vector3.new(1.3, 0.1, 0.9), at(-44.5, 3.35, 107.4), M.SmoothPlastic, Color3.fromRGB(240, 238, 230))
+	tag(deliveryTray, Tags.DeliveryDesk, { Zone = "Administración" })
 	hidingSpot("Armario", at(-88, 3.75, 107.5), Vector3.new(4, 7.5, 3), M.Metal, Color3.fromRGB(80, 95, 110))
 
 	-- Sala de descanso
@@ -3429,7 +3784,8 @@ local function buildOffices()
 	urinal(at(24.5, 0, 109.5))
 	deco("UrinalScreen", Vector3.new(0.12, 3.2, 1.8), at(22.75, 4, 108.6), M.SmoothPlastic, PARTITION)
 	local eastWallP2 = CFrame.Angles(0, math.rad(90), 0)
-	vanity(at(29.5, 0, 90) * eastWallP2, 3, 3, false)
+	vanity(at(29.5, 0, 90) * eastWallP2, 3, 3, false, "Baños P2")
+	spot(15, 92, "CloseFaucets", "Baños P2")
 	handDryer(at(29.5, 0, 99) * eastWallP2)
 	bathDetails(at(15, 0, 95), at(28.2, 0, 96.8), at(1.8, 0, 85))
 	-- Azulejo hasta 8 studs en las paredes interiores (las de oficina son de yeso)
@@ -3466,11 +3822,28 @@ local function buildOffices()
 		Zone = "Sala de máquinas",
 		PowersZones = "Cine,Zona de juegos",
 	})
+	-- Caldera (mision Purgar la caldera): panel en su frente y valvulas en las paredes
+	local boilerPanel = box("BoilerControl", Vector3.new(2.4, 2, 0.5), at(88, 3.5, 101.2), M.Metal, Color3.fromRGB(60, 62, 66), { Variant = false })
+	local boilerSign = deco("BoilerSign", Vector3.new(2.2, 0.5, 0.06), at(88, 4.8, 100.92), M.SmoothPlastic, DARK)
+	litSign(boilerSign, "CALDERA", Color3.fromRGB(255, 150, 80), Enum.Font.Code, Enum.NormalId.Front)
+	tag(boilerPanel, Tags.BoilerControl)
+	boilerValve(at(80.5, 0, 92) * CFrame.Angles(0, math.rad(-90), 0), "Sala de máquinas")
+	boilerValve(at(125, 0, 110), "Sala de máquinas")
+	boilerValve(at(180, 0, 85) * CFrame.Angles(0, math.rad(90), 0), "Escalera de servicio")
+	spot(105, 92, "PurgeBoiler", "Sala de máquinas")
 
 	-- Pasillo: carrito del conserje, puntos y camaras
 	propOr("JanitorCart", at(-70, 0, 79) * CFrame.Angles(0, math.rad(90), 0), function() end)
 	spot(-30, 76, "CleanSpill", OFF)
 	spot(90, 76, "CleanSpill", OFF)
+	spot(-106, 92, "Delivery", "Almacén alto")
+	spot(-20, 78, "SecurityRound", OFF)
+	spot(-70, 96, "Inventory", "Administración")
+	patrolClock(40, 79, OFF)
+	-- Extintores y telefono en la pared del pasillo (cara hacia el pasillo)
+	wallExtinguisher(at(-50, 0, 81.5), "Planta alta")
+	wallExtinguisher(at(85, 0, 81.5), "Planta alta")
+	payPhone(at(-5, 0, 81.5), OFF)
 	spot(150, 84, "CleanSpill", "Escalera de servicio")
 	enemySpawn(20, 78)
 	camera(-88, 12, 72, -40, 0, 78)
@@ -3505,6 +3878,7 @@ function MallBuilder.BuildIfNeeded()
 	buildStoreRow(STORES_1, "Galería Oeste", "Galería Este")
 	buildFoodCourt()
 	buildEntrance()
+	buildParking()
 	buildService()
 
 	buildUpperGallery()

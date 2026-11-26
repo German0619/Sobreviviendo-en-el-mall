@@ -43,6 +43,23 @@ local handlers = {
 	SilenceAlarm = require(MissionsFolder.SilenceAlarm),
 	LostItem = require(MissionsFolder.LostItem),
 	WaterPlants = require(MissionsFolder.WaterPlants),
+	RefillVending = require(MissionsFolder.RefillVending),
+	ResetRegisters = require(MissionsFolder.ResetRegisters),
+	TurnOffDisplays = require(MissionsFolder.TurnOffDisplays),
+	ClearTrays = require(MissionsFolder.ClearTrays),
+	CollectCarts = require(MissionsFolder.CollectCarts),
+	-- Progresivas (varios lugares en orden; fabrica Sequence)
+	SecurityRound = require(MissionsFolder.SecurityRound),
+	Delivery = require(MissionsFolder.Delivery),
+	-- Tanda 2
+	CloseFaucets = require(MissionsFolder.CloseFaucets),
+	ResetArcade = require(MissionsFolder.ResetArcade),
+	TurnOffProjector = require(MissionsFolder.TurnOffProjector),
+	CheckExtinguishers = require(MissionsFolder.CheckExtinguishers),
+	PayPhone = require(MissionsFolder.PayPhone),
+	EmptyBins = require(MissionsFolder.EmptyBins),
+	Inventory = require(MissionsFolder.Inventory),
+	PurgeBoiler = require(MissionsFolder.PurgeBoiler),
 }
 
 local MissionService = {}
@@ -124,7 +141,8 @@ local function endMission(mission, player: Player?, silent: boolean?)
 		mission.MarkerGui:Destroy()
 	end
 	if mission.Handle then
-		local ok, err = pcall(mission.Handle.Cleanup, player ~= nil)
+		-- (silent: se retira sin fallar, p. ej. al acabar la noche o si sobran tareas)
+		local ok, err = pcall(mission.Handle.Cleanup, player ~= nil, silent == true)
 		if not ok then
 			warn("[MissionService] Error limpiando", mission.Type, err)
 		end
@@ -234,15 +252,33 @@ local function trySpawn(): boolean
 	return true
 end
 
--- Con pocas tareas activas salen enseguida; con equipos grandes, mas seguido.
-local function spawnInterval(): number
-	local s = Config.MissionSpawn
-	if countActive() < s.MinActive then
-		return s.RefillInterval
+-- Cuantas tareas debe haber en la lista ahora: las visibles (3-4), sin pasar de las que
+-- faltan para la cuota.
+local function wantedActive(): number
+	return math.max(0, math.min(Config.getVisibleMissions(teamSize), goal - doneCount))
+end
+
+-- Si sobran tareas (p. ej. solo faltan 2 y hay 4), retira las que nadie ha empezado,
+-- las mas nuevas primero. Sin penalizacion.
+local function trimExtra()
+	local extra = countActive() - wantedActive()
+	if extra <= 0 then
+		return
 	end
-	local interval = s.BaseInterval + s.IntervalPerNight * (currentNight - 1)
-	interval /= 1 + s.PerExtraPlayer * (teamSize - 1)
-	return math.max(s.MinInterval, interval)
+	local list = {}
+	for _, mission in active do
+		local progress = mission.Value and mission.Value:GetAttribute("Progress")
+		local started = type(progress) == "string" and string.sub(progress, 1, 2) ~= "0/"
+		if not started and not mission.Carried then
+			table.insert(list, mission)
+		end
+	end
+	table.sort(list, function(a, b)
+		return a.ExpiresAt > b.ExpiresAt
+	end)
+	for i = 1, math.min(extra, #list) do
+		endMission(list[i], nil, true)
+	end
 end
 
 ----------------------------------------------------------------------
@@ -271,15 +307,11 @@ function MissionService.StartNight(night: number, players: number?, goalMultipli
 					endMission(mission, nil)
 				end
 			end
-			-- Si se quedan pocas tareas activas, no esperar al intervalo completo
-			if countActive() < Config.MissionSpawn.MinActive then
-				nextSpawn = math.min(nextSpawn, os.clock() + Config.MissionSpawn.RefillInterval)
-			end
-			if os.clock() >= nextSpawn then
-				if doneCount < goal and countActive() < Config.getMaxConcurrentMissions(currentNight, teamSize) then
-					trySpawn()
-				end
-				nextSpawn = os.clock() + spawnInterval()
+			-- La lista siempre con las mismas tareas: rellenar una a una al completar o fallar
+			trimExtra()
+			if os.clock() >= nextSpawn and countActive() < wantedActive() then
+				trySpawn()
+				nextSpawn = os.clock() + Config.MissionSpawn.RefillInterval
 			end
 			task.wait(0.5)
 		end

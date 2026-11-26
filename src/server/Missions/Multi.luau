@@ -9,6 +9,9 @@
 --     Type = "WaterPlants", TargetTag = Tags.Planter, TargetAttribute = "Zone",
 --     ActionText = "Regar", ObjectText = "Planta",
 --     OnStep = function(part, player)?, ResetNight = function()?,
+--     OnActivate = function(part) -> (() -> ())?,  -- efecto mientras el punto esta pendiente
+--                                                  -- (agua, musica...); devuelve como pararlo
+--     OnFail = function(mission, pending: { BasePart })?,  -- si caduca (charco, etc.)
 --   })
 
 local CollectionService = game:GetService("CollectionService")
@@ -50,7 +53,7 @@ function Multi.new(opts)
 
 		local total = #targets
 		local doneCount = 0
-		local pending: { [BasePart]: { Prompt: ProximityPrompt, Marker: BillboardGui } } = {}
+		local pending: { [BasePart]: { Prompt: ProximityPrompt, Marker: BillboardGui, Stop: (() -> ())? } } = {}
 		mission.Value:SetAttribute("Progress", string.format("0/%d", total))
 
 		for _, part in targets do
@@ -60,16 +63,21 @@ function Multi.new(opts)
 				prompt:SetAttribute("RepairTask", true)
 			end
 			local marker = Common.makeMarker(part)
-			pending[part] = { Prompt = prompt, Marker = marker }
+			local stop = if opts.OnActivate then opts.OnActivate(part) else nil
+			pending[part] = { Prompt = prompt, Marker = marker, Stop = stop }
 
 			prompt.Triggered:Connect(function(player: Player)
-				if not pending[part] or player:GetAttribute("Alive") ~= true then
+				local entry = pending[part]
+				if not entry or player:GetAttribute("Alive") ~= true then
 					return
 				end
 				pending[part] = nil
 				busy[part] = nil
 				prompt:Destroy()
 				marker:Destroy()
+				if entry.Stop then
+					entry.Stop()
+				end
 				doneCount += 1
 				if opts.OnStep then
 					opts.OnStep(part, player)
@@ -84,13 +92,21 @@ function Multi.new(opts)
 		end
 
 		return {
-			Cleanup = function(_success: boolean)
+			Cleanup = function(success: boolean, silent: boolean?)
+				local left = {}
 				for part, entry in pending do
 					entry.Prompt:Destroy()
 					entry.Marker:Destroy()
+					if entry.Stop then
+						entry.Stop()
+					end
 					busy[part] = nil
+					table.insert(left, part)
 				end
 				pending = {}
+				if not success and not silent and opts.OnFail and #left > 0 then
+					opts.OnFail(mission, left)
+				end
 			end,
 		}
 	end

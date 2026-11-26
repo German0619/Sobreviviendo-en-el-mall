@@ -41,6 +41,7 @@ local function release(player: Player, returnHome: boolean)
 		return
 	end
 	carrying[player] = nil
+	entry.Mission.Carried = nil -- (MissionService no retira una tarea mientras alguien la lleva)
 	player:SetAttribute("Carrying", nil)
 	if entry.DiedConn then
 		entry.DiedConn:Disconnect()
@@ -187,6 +188,7 @@ function Carry.new(opts)
 					release(player, true)
 				end),
 			}
+			mission.Carried = true
 			player:SetAttribute("Carrying", opts.PickupText)
 			if opts.CarryHint then
 				notify(player, opts.CarryHint)

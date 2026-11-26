@@ -79,6 +79,28 @@ function Common.makePuddle(floor: Vector3, size: number, color: Color3): Part
 	return puddle
 end
 
+-- Sonido 3D en bucle pegado a una parte (Config.Sounds.Missions[name]). Devuelve el
+-- Sound (o nil si no hay audio configurado); se quita con :Destroy().
+function Common.loopSound(part: BasePart, name: string, maxDistance: number?): Sound?
+	local Config = require(game:GetService("ReplicatedStorage"):WaitForChild("Shared").Config)
+	local def = Config.Sounds.Missions and Config.Sounds.Missions[name]
+	if not def or def.Volume <= 0 then
+		return nil
+	end
+	local sound = Instance.new("Sound")
+	sound.Name = "Mission_" .. name
+	sound.SoundId = def.Id
+	sound.Volume = def.Volume
+	sound.PlaybackSpeed = def.Pitch or 1
+	sound.Looped = true
+	sound.RollOffMode = Enum.RollOffMode.InverseTapered
+	sound.RollOffMinDistance = 8
+	sound.RollOffMaxDistance = maxDistance or 80
+	sound.Parent = part
+	sound:Play()
+	return sound
+end
+
 -- Posicion del suelo bajo una parte de mision (su cara inferior).
 function Common.floorPosition(spot: BasePart): Vector3
 	return spot.Position - Vector3.new(0, spot.Size.Y / 2, 0)

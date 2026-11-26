@@ -57,6 +57,43 @@ return {
 	StockPickup = "StockPickup",
 	-- Mostrador de objetos perdidos (mision LostItem), en informacion.
 	LostAndFound = "LostAndFound",
+	-- Caja registradora de una tienda (mision ResetRegisters). Atributo Wing = zona de la galeria.
+	CashRegister = "CashRegister",
+	-- Pantalla del escaparate de una tienda (mision TurnOffDisplays). Atributo Wing. Tiene un
+	-- SurfaceGui "Screen" que se apaga.
+	StoreDisplay = "StoreDisplay",
+	-- Reloj de control de la ronda de seguridad (mision SecurityRound). Atributo Zone.
+	PatrolClock = "PatrolClock",
+	-- Mostrador de una tienda donde se entrega un paquete (mision Delivery). Atributo Zone.
+	StoreCounter = "StoreCounter",
+	-- Bandeja de albaranes en Administracion: se firma la entrega (mision Delivery).
+	DeliveryDesk = "DeliveryDesk",
+	-- Mesa del patio de comidas donde puede quedar una bandeja (mision ClearTrays).
+	TraySpot = "TraySpot",
+	-- Cubo donde se tiran las bandejas (mision ClearTrays).
+	TrayBin = "TrayBin",
+	-- Plaza del estacionamiento donde puede quedar un carrito abandonado (mision CollectCarts).
+	CartSpot = "CartSpot",
+	-- Corral de carritos del estacionamiento (mision CollectCarts).
+	CartCorral = "CartCorral",
+	-- Caño de un grifo de los baños (mision CloseFaucets). Atributo Zone ("Baños" / "Baños P2").
+	Faucet = "Faucet",
+	-- Recreativa de la zona de juegos (mision ResetArcade). Atributo Zone.
+	ArcadeMachine = "ArcadeMachine",
+	-- Proyector de una sala de cine (mision TurnOffProjector). Atributo Zone = sala.
+	Projector = "Projector",
+	-- Extintor de pared (mision CheckExtinguishers). Atributo Floor ("Planta baja" / "Planta alta").
+	Extinguisher = "Extinguisher",
+	-- Telefono publico (mision PayPhone). Atributo Zone.
+	PayPhone = "PayPhone",
+	-- Papelera (mision EmptyBins). Atributo Zone = ala de la galeria.
+	Wastebasket = "Wastebasket",
+	-- Estanteria del fondo de una tienda (mision Inventory). Atributo Zone = tienda.
+	InventoryShelf = "InventoryShelf",
+	-- Valvula de la caldera (mision PurgeBoiler). Atributo Zone. Hijo "Wheel" (la rueda).
+	BoilerValve = "BoilerValve",
+	-- Panel de la caldera (mision PurgeBoiler: se reinicia al final).
+	BoilerControl = "BoilerControl",
 
 	-- Escalera mecanica (Model). La rampa transporta a los jugadores (AssemblyLinearVelocity);
 	-- el cliente anima los escalones de su carpeta "Steps".

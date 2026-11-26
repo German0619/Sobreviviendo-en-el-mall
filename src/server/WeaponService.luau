@@ -208,6 +208,19 @@ function WeaponService.Equip(player: Player, weaponId: string, uses: number?)
 	publish(player, weaponId)
 end
 
+-- Recarga un arma que ya llevas a sus usos completos, sin cambiar la de la mano
+-- (mision Revisar extintores). Devuelve true si la recargo.
+function WeaponService.Refill(player: Player, weaponId: string): boolean
+	local def = W[weaponId]
+	local entry = ownedOf(player)[weaponId]
+	if not def or not entry or not def.Uses or entry.Uses < 0 or entry.Uses >= def.Uses then
+		return false
+	end
+	entry.Uses = def.Uses
+	publish(player, weaponId)
+	return true
+end
+
 -- Producto Recarga de taser: +uses al taser que llevas. Sin taser (lo perdio entre la
 -- compra y la entrega), le da uno con esos usos para no perder la compra.
 function WeaponService.AddTaserUses(player: Player, uses: number)
