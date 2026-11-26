@@ -1289,8 +1289,8 @@ local function vendingMachine(cf: CFrame, machineType: string, accent: Color3, t
 		end
 		local brand = guiText(bg, title, {
 			AnchorPoint = Vector2.new(0.5, 0.5),
-			Position = UDim2.fromScale(0.5, 0.3),
-			Size = UDim2.fromScale(2.2, 0.32), -- (girado: el ancho pasa a ser el alto)
+			Position = UDim2.fromScale(0.5, 0.4),
+			Size = UDim2.fromScale(2.0, 0.32), -- (girado: el ancho pasa a ser el alto)
 			Rotation = -90,
 			TextTransparency = 0.05,
 			ZIndex = 3,
