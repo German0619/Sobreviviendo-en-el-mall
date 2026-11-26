@@ -460,11 +460,15 @@ Que toda la interfaz use las herramientas nativas de Roblox para adaptarse a cad
   - Tiene 60 s para completar 2 tareas ÉL MISMO; si no, muere (zarpazos rojos en pantalla) y se le puede revivir como siempre (Médico o Robux).
   - Se va si las completa, si se llega a la cuota, si cae por otra cosa o al acabar la noche. Al irse, la cuenta de falladas vuelve a 0 (otras 3 y vuelve); las falladas mientras está agarrada no cuentan.
   - Prueba: `Config.Debug.ClawGrabOnStart` (segundos tras empezar la noche: se agarra sola), `Config.Debug.ClawFailsOverride` (1 = se agarra con la primera fallada, desde cualquier noche) o `game.ServerStorage.DebugClaw:Invoke()` en la barra de comandos del servidor durante la noche. Avisos `[Garra]` en la salida.
+- [PROGRAMADO, falta probar] Pantalla de carga (2026-11-25; antes se veía todo negro al entrar). `src/first/LoadingScreen.client.luau` en ReplicatedFirst (nuevo en `default.project.json`), la misma en el lobby y en el mall:
+  - Fondo azul noche, luna creciente y "PLAZA LUNA" que parpadean como un fluorescente, barra de progreso con el paso ("Despertando a los maniquíes...") y un consejo al azar cada 5 s.
+  - Espera a que cargue el juego, a que exista el mapa (`Workspace.Mall` o `Workspace.Lobby`), a tu personaje y a que bajen las descargas pendientes (máx. 8 s); se ve al menos 2.5 s y se desvanece.
+  - También en los viajes lobby ↔ mall (`TeleportService:SetTeleportGui`): al llegar la reemplaza la del place sin que se vea negro.
 - [PENDIENTE, para luego] (pedido el 2026-11-25):
   - Añadir más misiones (hecha la tanda 2 de arriba; más si hace falta).
   - Agrandar el mall (hecho arriba, falta probar).
   - Subir la dificultad si hace falta (tras probar el balance con amigos).
-  - Pantalla de carga: al entrar se ve todo negro mientras carga (lobby y mall).
+  - Pantalla de carga (programada abajo, falta probar).
   - Aclarar qué pasa al fallar una tarea: hoy solo sale "Tarea fallida: X. Algo se vuelve más fuerte..." y no se entiende (en realidad: +4 % de velocidad a todos los enemigos por tarea fallada, `Config.Threat`, y algunas tienen efecto propio: luces rotas, derrame que huele el Rastro...).
 - [HECHO] Subir el precio de las armas: en una sola noche se ganan fácilmente más de 300 billetes.
   - Escalonadas: Trapeador 400, Cartel 700, Extintor 1100, Linterna UV 1600, Taser 3200 (no alcanza antes de terminar la noche 5 sin el pase x2). Mercader en proporción (3800, 1400, 1100, 1000).
