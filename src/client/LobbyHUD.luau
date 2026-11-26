@@ -23,6 +23,7 @@ local AchievementsPanel = require(script.Parent.AchievementsPanel)
 local CosmeticsPanel = require(script.Parent.CosmeticsPanel)
 local PermanentPanel = require(script.Parent.PermanentPanel)
 local LockerPanel = require(script.Parent.LockerPanel)
+local BestiaryPanel = require(script.Parent.BestiaryPanel)
 
 local LobbyHUD = {}
 
@@ -127,6 +128,7 @@ end
 local SIDE_BUTTONS = {
 	{ Id = "Shop", Icon = "🛒", Text = "TIENDA" },
 	{ Id = "Achievements", Icon = "🏆", Text = "LOGROS" },
+	{ Id = "Bestiary", Icon = "📖", Text = "BESTIARIO" }, -- entidades encontradas en el mall
 	-- Sin boton de salas: se entra subiendose a un cuadro de la plaza (PadUI).
 }
 
@@ -211,6 +213,7 @@ function LobbyHUD.Start()
 		CosmeticsPanel.Close()
 		PermanentPanel.Close()
 		LockerPanel.Close()
+		BestiaryPanel.Close()
 	end
 	LobbyPanels.register("Upgrades", function()
 		closeAll()
@@ -239,6 +242,10 @@ function LobbyHUD.Start()
 	LobbyPanels.register("Achievements", function()
 		closeAll()
 		AchievementsPanel.Open()
+	end)
+	LobbyPanels.register("Bestiary", function()
+		closeAll()
+		BestiaryPanel.Open()
 	end)
 
 	-- "!" en LOGROS cuando hay un logro o el bono VIP por reclamar

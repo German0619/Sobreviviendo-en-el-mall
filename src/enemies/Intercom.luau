@@ -1,6 +1,6 @@
--- Megafonia: una voz en los altavoces del mall, sin cuerpo. Cada cierto tiempo anuncia
--- una TAREA FALSA (mismo aviso que las de verdad) y pone su marca "!" en una zona
--- lejos de los jugadores. Si alguien se acerca a la marca, salta una alarma que
+-- Megafonia: una voz en los altavoces del mall, sin cuerpo. Cada cierto tiempo pone una
+-- TAREA FALSA: su marca "!" (igual que la de una tarea de verdad, visible en todo el mapa)
+-- en una zona lejos de los jugadores. (Ni las reales ni las falsas tienen aviso.) Si alguien se acerca a la marca, salta una alarma que
 -- atrae a todos los enemigos cercanos (un petardo enorme).
 --
 -- Contramedidas: las tareas falsas NO salen en la lista de tareas del HUD; el
@@ -38,7 +38,7 @@ local function buildModel(): (Model, BasePart, TextLabel)
 	gui.Size = UDim2.fromOffset(36, 36)
 	gui.StudsOffsetWorldSpace = Vector3.new(0, 3, 0)
 	gui.AlwaysOnTop = true
-	gui.MaxDistance = 90
+	gui.MaxDistance = math.huge -- como las reales: se ve desde cualquier punto del mapa
 	gui.LightInfluence = 0
 	local label = Instance.new("TextLabel")
 	label.Name = "Label"
@@ -114,9 +114,8 @@ function Intercom:Announce(): boolean
 	self.Model.Parent = self.Ctx.Container
 	self.Active = true
 	self.ExpiresAt = os.clock() + self.Def.FakeLifetime
-	-- Mismo texto que MissionService al crear una tarea
+	-- (Sin aviso, como las tareas de verdad: solo la marca)
 	local name = randomMissionName()
-	Remotes.event("Notify"):FireAllClients(string.format("Nueva tarea: %s (%s)", name, zone), "info")
 	if RunService:IsStudio() then
 		print(string.format("[Megafonía] Tarea FALSA: %s (%s) en %s", name, zone, tostring(point)))
 	end
@@ -164,6 +163,7 @@ function Intercom:Trigger()
 	for _, player in Common.getAlivePlayers() do
 		local root = Common.getRoot(player)
 		if root and (root.Position - position).Magnitude <= self.Def.LureRadius then
+			Common.discover(player, "Intercom")
 			Remotes.event("Notify"):FireClient(player, "¡Era una tarea falsa de la Megafonía! Los enemigos vienen hacia aquí.", "bad")
 		end
 	end

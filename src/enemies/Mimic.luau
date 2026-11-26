@@ -304,10 +304,12 @@ function Mimic:Bite(player: Player)
 		end)
 	end
 	Common.damage(player, self.Def.Damage)
+	Common.discover(player, "Mimic")
 	Remotes.event("Notify"):FireClient(player, "¡La máquina te mordió! Era un Mímico.", "bad")
 	for _, other in Common.getAlivePlayers() do
 		local root = Common.getRoot(other)
 		if other ~= player and root and (root.Position - machine.Position).Magnitude < 40 then
+			Common.discover(other, "Mimic")
 			Remotes.event("Notify"):FireClient(other, "¡Una máquina expendedora era un Mímico!", "bad")
 		end
 	end
@@ -386,12 +388,15 @@ function Mimic:Expose(seconds: number, calmSeconds: number?)
 	end
 end
 
-function Mimic:OnUV(_player: Player, seconds: number)
+-- (La UV y el destello le hacen enseñar los dientes: quien lo hizo ve lo que es)
+function Mimic:OnUV(player: Player, seconds: number)
 	self:Expose(math.max(seconds, 1))
+	Common.discover(player, "Mimic")
 end
 
-function Mimic:OnFlash(_player: Player)
+function Mimic:OnFlash(player: Player)
 	self:Expose(self.Def.RevealSeconds, 3)
+	Common.discover(player, "Mimic")
 end
 
 function Mimic:OnTaser(_player: Player)

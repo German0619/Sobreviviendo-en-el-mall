@@ -33,15 +33,18 @@ Config.Debug = {
 	-- ej. 3: La Garra se agarra sola esos segundos despues de empezar la noche (cualquier noche)
 	ClawGrabOnStart = nil :: number?,
 	-- SOLO en Studio:
-	StudioStartCash = 15000, -- billetes al empezar cada partida (ej. 5000 para probar la tienda)
+	StudioStartCash = 0, -- billetes al empezar cada partida (ej. 5000 para probar la tienda)
 	-- Diamantes que se suman al entrar (ej. 1000 para probar la ruleta).
 	-- Ojo: con API Services activado se guardan en tus datos de verdad.
 	StudioBonusDiamonds = 0,
 	-- Noches de maestria minimas para TODAS las clases al entrar (ej. 7: nivel 1, a una
 	-- noche del nivel 2). Ojo: con API Services activado se guardan en tus datos de verdad.
 	StudioMasteryNights = nil :: number?,
+	-- Bestiario al entrar: "All" = todo desbloqueado, "Empty" = vacio (para probar el panel).
+	-- Ojo: con API Services activado se guarda en tus datos de verdad.
+	StudioBestiary = nil :: string?,
 	-- Pases que se simulan como comprados en Studio (ej. { "DoubleMoney", "VIP" })
-	StudioOwnedPasses = { "Pistol" } :: { string },
+	StudioOwnedPasses = {} :: { string },
 }
 
 ----------------------------------------------------------------------
@@ -1384,7 +1387,6 @@ Config.Claw = {
 	-- Imagenes de la pantalla (dibujadas para el juego, assets/icons/claw_*.png)
 	HandImage = "rbxassetid://77120250449575", -- mano con garras (sale del borde inferior)
 	VignetteImage = "rbxassetid://75036844529475", -- oscuridad de los bordes
-	Hint = "Nuevo: La Garra. Si el equipo deja caducar 3 tareas, se agarra a quien menos haya hecho. Tendrá 1 minuto para completar 2 tareas él mismo.",
 }
 
 ----------------------------------------------------------------------
@@ -1393,7 +1395,8 @@ Config.Claw = {
 -- Cuantos y cuales aparecen lo decide el director por presupuesto (Config.SpawnDirector).
 -- UnlockNight: primera noche en que puede salir. Tier: nivel de peligro (1-3, ver su coste).
 -- MaxPerFloor: tope de ese tipo en cada planta.
--- Hint: aviso con su contramedida la primera vez que aparece en la partida.
+-- (Sin aviso al aparecer: lo que es cada una y como contrarrestarla esta en el bestiario
+-- del lobby, Config.Bestiary, que se desbloquea al toparse con ella.)
 -- Animacion de movimiento de cada enemigo (server/EnemyAnimator). Las extremidades se
 -- reconocen por el nombre de la pieza; solo se mueven al andar (quietos, quietos).
 --   Biped: piernas y brazos alternados · Stiff: igual pero rigido y a tirones
@@ -1439,7 +1442,6 @@ Config.Enemies = {
 		UnlockNight = 2,
 		Tier = 1,
 		MaxPerFloor = 2,
-		Hint = "Nuevo: el Apagón deja zonas a oscuras. Alúmbralo con la linterna o usa el destello para que huya.",
 		Speed = 11,
 		Damage = 25,
 		AttackRange = 4,
@@ -1465,7 +1467,6 @@ Config.Enemies = {
 		Damage = 30,
 		WallStunSeconds = 4,
 		RecoverSeconds = 2, -- pausa tras una embestida sin chocar
-		Hint = "Nuevo: el Carrito embiste en línea recta. Cuando tiemble, apártate: si choca con una pared, queda aturdido.",
 	},
 	-- Globo: flota quieto. Si lo miras fijamente se hincha, revienta y atrae a los enemigos.
 	-- Reventarlo de lejos (taser, destello, porrazo, trapeador) no hace ruido.
@@ -1484,7 +1485,6 @@ Config.Enemies = {
 		SafeDistance = 15, -- reventarlo desde mas lejos que esto no hace ruido
 		RespawnSeconds = 45,
 		RespawnMinDistance = 35,
-		Hint = "Nuevo: el Globo revienta si lo miras fijamente y el estallido atrae a los enemigos. No lo mires, o reviéntalo de lejos.",
 	},
 	-- Polillas de luz: persiguen las linternas encendidas y les chupan la bateria (no hacen dano).
 	-- Apagar la linterna las despista; una bengala o un petardo las atrae; el destello las dispersa.
@@ -1501,7 +1501,6 @@ Config.Enemies = {
 		DrainPerSecond = 5, -- segundos de bateria por segundo (aparte del consumo normal)
 		LingerSeconds = 3, -- siguen a donde estaba la luz tras apagarla
 		ScatterSeconds = 15, -- dispersas tras un destello
-		Hint = "Nuevo: las Polillas siguen tu linterna y le chupan la batería. Apágala o lánzales una bengala.",
 	},
 	-- Eco: se hace pasar por un companero: copia el avatar y el nombre de otro jugador (jugando solo,
 	-- el tuyo), linterna y pasos. Alumbrarlo lo revela y lo hace desaparecer; el destello lo hace al
@@ -1521,7 +1520,6 @@ Config.Enemies = {
 		ExposureToVanish = 1, -- segundos alumbrado para desaparecer
 		VanishSeconds = 10, -- tiempo desaparecido antes de volver
 		ReappearMinDistance = 35, -- vuelve lejos de los jugadores
-		Hint = "Nuevo: el Eco copia el aspecto de tus compañeros (o el tuyo). Si un \"compañero\" se te acerca, alúmbralo con la linterna.",
 	},
 	-- Reflejo: acecha dentro de los vidrios y espejos (tag ReflectiveSurface). Si lo miras fijamente,
 	-- sale y te persigue un rato. La linterna UV lo marca; el destello lo devuelve al cristal.
@@ -1542,7 +1540,6 @@ Config.Enemies = {
 		AttackRange = 4,
 		VanishSeconds = 10, -- tras golpear o un destello, tarda esto en volver a un vidrio
 		ReappearMinDistance = 30,
-		Hint = "Nuevo: el Reflejo vive en los vidrios y espejos. Si ves una silueta en un cristal, no la mires fijamente.",
 	},
 	-- Ducto: se arrastra por las rejillas del techo (tag CeilingVent) y se le oye. Si corres cerca
 	-- de una rejilla, la hace temblar y cae sobre ti. Caminar sin correr cerca de las rejillas lo evita.
@@ -1562,7 +1559,6 @@ Config.Enemies = {
 		AttackRange = 3.5,
 		AttackCooldown = 1.5,
 		ClimbCooldown = 6, -- tras volver a subir no baja enseguida
-		Hint = "Nuevo: el Ducto anda por las rejillas del techo. Si oyes ruido arriba, camina: correr cerca lo hace caer.",
 	},
 	-- Cajero: no hace dano, persigue al que lleva billetes y le roba una parte. Si lo aturdes
 	-- (destello, porrazo, taser, trapeador) antes de que escape, recuperas el dinero.
@@ -1582,7 +1578,6 @@ Config.Enemies = {
 		StealCooldown = 20,
 		-- Va a por el jugador con mas billetes del mall (aunque no lo vea) y quien lo aturde
 		-- se queda con todo lo que haya robado (2026-11-25).
-		Hint = "Nuevo: el Cajero va a por quien tenga más billetes. Si lo aturdes mientras huye, te quedas con todo lo que robó.",
 	},
 	-- Megafonia: no tiene cuerpo. Anuncia tareas falsas con su marca "!"; al acercarte, salta
 	-- una alarma que atrae a los enemigos. Las falsas NO salen en tu lista de tareas.
@@ -1599,7 +1594,6 @@ Config.Enemies = {
 		TriggerRange = 7,
 		LureSeconds = 12,
 		LureRadius = 110,
-		Hint = "Nuevo: la Megafonía anuncia tareas falsas. Si una tarea no aparece en tu lista, ¡no vayas!",
 	},
 	-- Rastro: si pisas un derrame te marca y te sigue a donde vayas (incluso a un escondite).
 	-- Limpiar los derrames lo mantiene a raya. Cada derrame sin limpiar lo hace mas rapido.
@@ -1616,7 +1610,6 @@ Config.Enemies = {
 		AttackCooldown = 1.5,
 		MarkSeconds = 20, -- lo que dura el olor tras pisar un derrame
 		SpeedPerDirtySpill = 0.08, -- +8% por cada derrame fallado esta noche
-		Hint = "Nuevo: el Rastro huele los derrames. Si pisas uno, te seguirá a donde vayas. ¡Límpialos!",
 	},
 	-- Estatua de la fuente: la estatua de la fuente central (tag FountainStatue) despierta y
 	-- te sigue sin descanso; te siente a traves de las paredes. No le afectan el destello,
@@ -1641,7 +1634,6 @@ Config.Enemies = {
 		SwingReach = 6.5, -- alcance del hachazo al caer (studs)
 		WakeSeconds = 2.5, -- tiembla en la fuente antes de bajar
 		FlareMargin = 3, -- se detiene a esta distancia del borde de la luz de una bengala
-		Hint = "Nuevo: la Estatua de la fuente ha despertado. Nada la detiene, salvo la luz de una bengala.",
 	},
 	-- Mimico: una de las maquinas expendedoras del mall (tag VendingMachine) esta viva.
 	-- No se mueve. Muerde a quien intenta comprar en ella o se queda delante. Pistas: sus
@@ -1659,7 +1651,6 @@ Config.Enemies = {
 		TellInterval = { 5, 10 }, -- segundos entre pistas (parpadeo / goteo) si hay alguien cerca
 		TellRange = 30,
 		RevealSeconds = 4, -- UV o destello: se le ven los dientes
-		Hint = "Nuevo: una máquina expendedora es un Mímico. Si sus luces parpadean o gotea, no compres en ella.",
 	},
 	-- Cazador: marca al jugador mas solo y lo persigue sabiendo siempre donde esta.
 	-- Ignora a los demas. Reunirte con otro jugador (o esconderte lejos de el) rompe la marca.
@@ -1681,7 +1672,6 @@ Config.Enemies = {
 		MarkSeconds = 35, -- la marca dura como mucho esto
 		MarkCooldown = 15, -- pausa antes de marcar a otro
 		RetreatSeconds = 20, -- tras golpear desaparece y vuelve lejos
-		Hint = "Nuevo: el Cazador marca al que está más solo. Si te marca, ¡reúnete con tu equipo o escóndete lejos de él!",
 	},
 	-- JEFES (sin Tier: el director de aparicion no los saca; los pone BossService)
 	-- El Gerente: patrulla con su walkie; si te ve, te marca y te persigue.
@@ -1736,7 +1726,177 @@ Config.Enemies = {
 		AttackRange = 4,
 		AttackCooldown = 1.8,
 		AlertMemory = 10, -- segundos que va hacia donde una camara te vio
-		Hint = "Nuevo: el Vigilante ve por las cámaras. Evita sus haces rojos o ciégalas con el destello.",
+	},
+}
+
+----------------------------------------------------------------------
+-- Bestiario (panel BESTIARIO del lobby)
+----------------------------------------------------------------------
+-- Empieza vacio: cada entidad se desbloquea (para siempre, en los datos del jugador)
+-- la primera vez que se topa con ella en el mall (server/BestiaryService):
+--   * con cuerpo: tenerla a la vista, de cerca y sin paredes en medio;
+--   * Eco, Mimico, Megafonia y La Garra (se disfrazan o no tienen cuerpo): al sufrirla;
+--   * jefes: al empezar su noche.
+-- Image: foto de la entidad en el mall (rbxassetid://...). Vacia = aun sin foto.
+Config.Bestiary = {
+	SeeRange = 30, -- studs: a esta distancia (o menos) y a la vista, cuenta como encontrada
+	CloseRange = 8, -- tan cerca cuenta aunque no la estes mirando de frente
+	ViewDot = 0.35, -- ~70 grados a cada lado de hacia donde miras
+	CheckSeconds = 0.5,
+	-- Tipos de enemigo que no se descubren por verlos (se disfrazan, no tienen cuerpo o
+	-- son parte de otro): los descubre su propio modulo al sufrirlos.
+	NotBySight = { Echo = true, Mimic = true, Intercom = true, SecurityCamera = true, Converted = true },
+	Order = {
+		"Mannequin", "Blackout", "Cart", "Balloon", "Echo",
+		"Claw", "Moth", "Reflection", "Cashier", "Duct",
+		"Tracker", "Luni", "Intercom", "Statue", "Watcher",
+		"Mimic", "Hunter", "Manager", "Collector", "Central",
+	},
+	Entries = {
+		Mannequin = {
+			Name = "Maniquí",
+			Night = 1,
+			Description = "Los maniquíes de los escaparates cobran vida de noche y se acercan sin hacer ruido.",
+			Counter = "Solo se mueven cuando nadie los mira. Mantenlos a la vista y aléjate de espaldas.",
+			Image = "",
+		},
+		Blackout = {
+			Name = "Apagón",
+			Night = 2,
+			Description = "Una sombra flotante que apaga las luces de la zona donde está.",
+			Counter = "Alúmbralo con la linterna unos segundos o usa el destello: huye de la luz.",
+			Image = "",
+		},
+		Cart = {
+			Name = "Carrito",
+			Night = 2,
+			Description = "Un carrito de la compra poseído que embiste en línea recta.",
+			Counter = "Cuando tiemble, apártate de su camino. Si choca contra una pared, queda aturdido.",
+			Image = "",
+		},
+		Balloon = {
+			Name = "Globo",
+			Night = 3,
+			Description = "Un globo que flota quieto en los pasillos. Si se hincha demasiado, revienta.",
+			Counter = "No lo mires fijamente: el estallido atrae a todos los enemigos. Reviéntalo de lejos.",
+			Image = "",
+		},
+		Echo = {
+			Name = "Eco",
+			Night = 3,
+			Description = "Copia el aspecto de tus compañeros (o el tuyo si juegas solo) para acercarse.",
+			Counter = "Si un \"compañero\" se te acerca sin decir nada, alúmbralo con la linterna: desaparece.",
+			Image = "",
+		},
+		Claw = {
+			Name = "La Garra",
+			Night = 3,
+			Description = "Castiga al equipo que deja caducar tareas: se agarra a quien menos haya hecho.",
+			Counter = "No dejen caducar 3 tareas. Si te agarra, completa 2 tareas en 1 minuto.",
+			Image = "",
+		},
+		Moth = {
+			Name = "Polillas",
+			Night = 4,
+			Description = "Un enjambre que persigue las linternas encendidas y les chupa la batería.",
+			Counter = "Apaga la linterna para despistarlas, o lánzales una bengala o un petardo.",
+			Image = "",
+		},
+		Reflection = {
+			Name = "Reflejo",
+			Night = 4,
+			Description = "Vive dentro de los vidrios y los espejos del mall. Sale si lo miras.",
+			Counter = "Si ves una silueta en un cristal, no la mires fijamente. El destello lo devuelve al vidrio.",
+			Image = "",
+		},
+		Cashier = {
+			Name = "Cajero",
+			Night = 4,
+			Description = "No hace daño: va a por quien lleve más billetes y le roba una parte.",
+			Counter = "Atúrdelo mientras huye (destello, porrazo, taser...) y te quedas con todo lo que robó.",
+			Image = "",
+		},
+		Duct = {
+			Name = "Ducto",
+			Night = 5,
+			Description = "Se arrastra por dentro del techo. Se le oye moverse en las rejillas.",
+			Counter = "Si oyes ruido arriba, camina sin correr: correr cerca de una rejilla lo hace caer sobre ti.",
+			Image = "",
+		},
+		Tracker = {
+			Name = "Rastro",
+			Night = 5,
+			Description = "Huele los derrames. A quien pisa uno lo sigue a donde vaya, incluso a un escondite.",
+			Counter = "Limpia los derrames y no los pises. El extintor tapa tu olor.",
+			Image = "",
+		},
+		Luni = {
+			Name = "Luni, la mascota",
+			Night = 5,
+			Boss = true,
+			Description = "La mascota gigante de Plaza Luna. Corre detrás del grupo más numeroso.",
+			Counter = "Atráiganla al cuarto del generador y activen el apagón de sector con ella dentro.",
+			Image = "",
+		},
+		Intercom = {
+			Name = "Megafonía",
+			Night = 6,
+			Description = "La voz de los altavoces pone marcas de tareas que no existen.",
+			Counter = "Si ves una marca de tarea que no está en tu lista, no vayas: es una trampa que atrae a los enemigos. La linterna UV la delata.",
+			Image = "",
+		},
+		Statue = {
+			Name = "Estatua",
+			Night = 6,
+			Description = "La estatua de la fuente despierta y te sigue sin descanso, aunque haya paredes.",
+			Counter = "Es lenta: déjala atrás. Nada la detiene salvo la luz de una bengala.",
+			Image = "",
+		},
+		Watcher = {
+			Name = "Vigilante",
+			Night = 7,
+			Description = "Patrulla el mall y ve a través de las cámaras de seguridad.",
+			Counter = "Evita los haces rojos de las cámaras o ciégalas con el destello.",
+			Image = "",
+		},
+		Mimic = {
+			Name = "Mímico",
+			Night = 8,
+			Description = "Una de las máquinas expendedoras está viva y muerde.",
+			Counter = "Si sus luces parpadean o gotea, no compres en ella. La linterna UV la delata.",
+			Image = "",
+		},
+		Hunter = {
+			Name = "Cazador",
+			Night = 9,
+			Description = "Marca al jugador que esté más solo y lo persigue sabiendo siempre dónde está.",
+			Counter = "Si te marca, reúnete con tu equipo o escóndete lejos de él.",
+			Image = "",
+		},
+		Manager = {
+			Name = "El Gerente",
+			Night = 10,
+			Boss = true,
+			Description = "Patrulla con su walkie y da órdenes: refuerzos y persianas cerradas.",
+			Counter = "Destruyan sus radios escondidas: no se ven de lejos, búsquenlas por el sonido.",
+			Image = "",
+		},
+		Collector = {
+			Name = "El Coleccionista",
+			Night = 15,
+			Boss = true,
+			Description = "Altísimo, con máscara de porcelana. Convierte a los caídos en maniquíes.",
+			Counter = "Devuelvan los objetos perdidos a sus tiendas y revivan rápido a los caídos.",
+			Image = "",
+		},
+		Central = {
+			Name = "La Central",
+			Night = 20,
+			Boss = true,
+			Description = "El sistema del mall se vuelve contra ustedes: luces, persianas y megafonía.",
+			Counter = "Reinicien sus servidores casi a la vez: tendrán que separarse por plantas.",
+			Image = "",
+		},
 	},
 }
 
@@ -2313,6 +2473,7 @@ Config.DefaultData = {
 	UpgradePoints = 0, -- puntos de mejora (del reinicio con Robux); se gastan antes que los diamantes
 	ClassMastery = {}, -- [clase] = noches sobrevividas con ella equipada (Config.ClassMastery)
 	Locker = {}, -- [objeto] = cantidad guardada en la taquilla del conserje (Config.Locker)
+	Bestiary = {}, -- [entidad] = true: ya encontrada (Config.Bestiary)
 	Lifetime = {
 		NightsSurvived = 0,
 		MissionsCompleted = 0,

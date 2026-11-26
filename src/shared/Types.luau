@@ -64,6 +64,7 @@ export type PlayerData = {
 	UpgradePoints: number,
 	ClassMastery: { [string]: number },
 	Locker: { [string]: number },
+	Bestiary: { [string]: boolean },
 	Lifetime: LifetimeStats,
 	SessionLock: SessionLock?,
 }

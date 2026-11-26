@@ -241,8 +241,7 @@ local function startMission(missionType: string, spot: BasePart)
 	if handle.Marker then
 		addMarker(mission, handle.Marker)
 	end
-
-	notifyAll(string.format("Nueva tarea: %s (%s)", mission.DisplayName, mission.Zone), "info")
+	-- (Sin aviso de "Nueva tarea": se ve en la lista de la derecha y con su marca)
 end
 
 local function countActive(): number

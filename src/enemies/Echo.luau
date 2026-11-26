@@ -514,8 +514,13 @@ function Echo:Update(dt: number)
 
 	-- 1) Alumbrado: se queda quieto, se revela y desaparece
 	local chest = position + Vector3.new(0, self.Height * 0.15, 0)
-	local lit = #FlashlightService.GetLightingPlayers(chest) > 0 or DefenseService.IsInFlare(position)
+	local lighting = FlashlightService.GetLightingPlayers(chest)
+	local lit = #lighting > 0 or DefenseService.IsInFlare(position)
 	if lit then
+		-- Quien lo alumbra ve lo que es de verdad
+		for _, p in lighting do
+			Common.discover(p, "Echo")
+		end
 		self:SetRevealed(true)
 		self.Steps:Stop()
 		self:PlayAnimation("Idle", 1)
@@ -573,6 +578,7 @@ function Echo:Update(dt: number)
 	if dist <= self.Def.AttackRange + 1 and now - self.LastAttack >= self.Def.AttackCooldown then
 		self.LastAttack = now
 		Common.damage(target, self.Def.Damage)
+		Common.discover(target, "Echo")
 		-- Golpea (brazos estirados hacia ti) y se esfuma al terminar
 		self.Mover:Clear()
 		self.Steps:Stop()
@@ -599,15 +605,17 @@ function Echo:SetUVMark(on: boolean)
 end
 
 -- Linterna UV (WeaponService): lo revela de lejos durante unos segundos.
-function Echo:OnUV(_player: Player, seconds: number)
+function Echo:OnUV(player: Player, seconds: number)
 	if self.State ~= "Vanished" then
 		self.UVUntil = os.clock() + seconds
+		Common.discover(player, "Echo")
 	end
 end
 
 -- Destello o porrazo: desaparece al instante.
-function Echo:OnFlash(_player: Player)
+function Echo:OnFlash(player: Player)
 	if self.State ~= "Vanished" then
+		Common.discover(player, "Echo")
 		self:Vanish()
 	end
 end

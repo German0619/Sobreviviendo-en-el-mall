@@ -17,6 +17,7 @@ local Config = require(game:GetService("ReplicatedStorage"):WaitForChild("Shared
 local PlayerStats = require(ServerScriptService:WaitForChild("Server"):WaitForChild("PlayerStats"))
 local LightService = require(ServerScriptService:WaitForChild("Server"):WaitForChild("LightService"))
 local DefenseService = require(ServerScriptService:WaitForChild("Server"):WaitForChild("DefenseService"))
+local BestiaryService = require(ServerScriptService:WaitForChild("Server"):WaitForChild("BestiaryService"))
 
 local Common = {}
 
@@ -92,6 +93,13 @@ function Common.damage(player: Player, amount: number)
 		local curse = if player:GetAttribute("Cursed") == true then Config.Curse.DamageMultiplier else 1
 		humanoid:TakeDamage(amount * difficulty.DamageMultiplier * curse)
 	end
+end
+
+-- El jugador se topo con esta entidad: entrada del bestiario (Config.Bestiary). Las que
+-- tienen cuerpo ya se descubren solas al verlas; esto es para las que se disfrazan o no
+-- tienen cuerpo (Eco, Mimico, Megafonia), al sufrirlas.
+function Common.discover(player: Player, entityId: string)
+	BestiaryService.Discover(player, entityId)
 end
 
 -- Animacion de ataque del enemigo (EnemyAnimator la lee del atributo AttackAt: zarpazo,

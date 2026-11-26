@@ -57,6 +57,10 @@ local function report(player: Player, position: Vector3)
 	lastSighting = { Position = position, Time = now, Player = player }
 	if not lastWarned[player] or now - lastWarned[player] > 8 then
 		lastWarned[player] = now
+		-- Las camaras son los ojos del Vigilante (con la Central, ReportMessage, son suyas)
+		if SecurityCamera.ReportMessage == nil then
+			Common.discover(player, "Watcher")
+		end
 		local message = SecurityCamera.ReportMessage or "¡Una cámara te vio! El Vigilante viene hacia aquí."
 		if message ~= "" then
 			Remotes.event("Notify"):FireClient(player, message, "bad")

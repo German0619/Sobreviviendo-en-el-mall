@@ -88,7 +88,6 @@ local baseSpeedMultiplier = 1
 local overtimeBonus = 0 -- horas extra (NightManager)
 local eventSpeed = 1 -- evento Hora de oro (EventDirector)
 local rng = Random.new()
-local hinted: { [string]: boolean } = {} -- tipos cuyo aviso ya se mostro en esta partida
 local camerasStarted = false
 
 local function getTotalThreat(): number
@@ -228,12 +227,7 @@ local function spawnEnemy(enemyType: string, ctx, floor: number?, at: Vector3?)
 		camerasStarted = true
 		startCameras(ctx)
 	end
-	-- Primera vez en la partida: aviso con su contramedida
-	local def = Config.Enemies[enemyType]
-	if def.Hint and not hinted[enemyType] then
-		hinted[enemyType] = true
-		Remotes.event("Notify"):FireAllClients(def.Hint, "bad")
-	end
+	-- (Sin aviso al aparecer: se descubre en el bestiario al toparse con ella, BestiaryService)
 	return enemy
 end
 

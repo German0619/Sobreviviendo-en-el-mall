@@ -27,6 +27,7 @@ local GameState = require(Shared.GameState)
 local MissionService = require(script.Parent.MissionService)
 local DefenseService = require(script.Parent.DefenseService)
 local SfxService = require(script.Parent.SfxService)
+local BestiaryService = require(script.Parent.BestiaryService)
 
 local ClawService = {}
 
@@ -36,7 +37,6 @@ local running = false
 local night = 1
 local fails = 0 -- falladas desde que empezo la noche o desde que se solto
 local completedBy: { [Player]: number } = {} -- tareas completadas esta noche
-local hinted = false -- aviso de la primera vez (por servidor = por partida)
 
 -- Agarre actual (solo uno a la vez)
 local target: Player? = nil
@@ -154,10 +154,8 @@ local function grab()
 	token += 1
 	local myToken = token
 
-	if not hinted then
-		hinted = true
-		notifyAll(def.Hint, "bad")
-	end
+	-- (Sin aviso de como funciona: el atrapado la descubre en el bestiario)
+	BestiaryService.Discover(player, "Claw")
 
 	player:SetAttribute("ClawNeed", def.Required)
 	player:SetAttribute("ClawDone", 0)

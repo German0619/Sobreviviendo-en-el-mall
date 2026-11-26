@@ -57,6 +57,7 @@ else
 		require(script.CurseService), -- maldicion del maletin perdido (Config.Curse)
 		require(script.EventDirector), -- eventos de la noche (server/Events)
 		require(script.BossService), -- jefes cada 5 noches (server/Bosses)
+		require(script.BestiaryService), -- entradas del bestiario al toparse con cada entidad
 		require(script.NightManager),
 		require(script.RoomService),
 		require(script.LeaderboardService), -- sube los records (noche, jefes)

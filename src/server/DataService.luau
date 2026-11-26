@@ -118,6 +118,15 @@ local function pushAttributes(player: Player, data: PlayerData)
 	for itemId in Config.Locker.Items do
 		player:SetAttribute("Locker_" .. itemId, (data.Locker or {})[itemId] or 0)
 	end
+	-- Bestiario: entidades encontradas ("Cart,Mannequin", para el panel BESTIARIO)
+	local found = {}
+	for entityId, has in data.Bestiary or {} do
+		if has then
+			table.insert(found, entityId)
+		end
+	end
+	table.sort(found)
+	player:SetAttribute("Bestiary", table.concat(found, ","))
 end
 
 local function sanitize(data: PlayerData)
@@ -193,6 +202,15 @@ local function sanitize(data: PlayerData)
 		end
 	end
 	data.Locker = locker
+
+	-- Bestiario: solo entidades que existen
+	local bestiary = {}
+	for entityId, has in data.Bestiary do
+		if has == true and Config.Bestiary.Entries[entityId] then
+			bestiary[entityId] = true
+		end
+	end
+	data.Bestiary = bestiary
 end
 
 -- Devuelve (ok, data). ok=false significa error real de DataStore.
@@ -300,6 +318,15 @@ local function onPlayerAdded(player: Player)
 		for className in Config.Classes do
 			data.ClassMastery[className] = math.max(data.ClassMastery[className] or 0, masteryNights)
 		end
+	end
+
+	local bestiaryDebug = Config.Debug.StudioBestiary
+	if RunService:IsStudio() and bestiaryDebug == "All" then
+		for entityId in Config.Bestiary.Entries do
+			data.Bestiary[entityId] = true
+		end
+	elseif RunService:IsStudio() and bestiaryDebug == "Empty" then
+		data.Bestiary = {}
 	end
 
 	if player.Parent == nil then

@@ -21,10 +21,17 @@ local C = UIKit.COLORS
 
 local Alerts = {}
 
-local TOAST_WIDTH = 470
-local TOAST_TEXT = 17
-local TEXT_X = 56 -- donde empieza el texto (despues del icono)
-local MAX_TOASTS = 4
+-- Discretos (2026-11-26: tapaban la pantalla): tarjetas pequenas y semitransparentes,
+-- pocas a la vez y poco tiempo. El banner va en el tercio de abajo, no en el centro.
+local TOAST_WIDTH = 360
+local TOAST_TEXT = 14
+local TOAST_MIN_HEIGHT = 34
+local TOAST_ICON = 22
+local TOAST_BG = 0.32 -- transparencia del fondo de las tarjetas
+local TEXT_X = 42 -- donde empieza el texto (despues del icono)
+local MAX_TOASTS = 3 -- (2 en telefono)
+local BANNER_WIDTH = 620
+local BANNER_Y = 0.72 -- centro del banner (fraccion de la pantalla): por debajo de la mira
 local PING = "rbxasset://sounds/electronicpingshort.wav"
 local FLOOR_NAMES = { "planta baja", "planta alta" }
 
@@ -94,10 +101,10 @@ local function ensureGui()
 	})
 	local strips = {}
 	for _, spec in {
-		{ UDim2.fromScale(0, 0), UDim2.fromScale(1, 0.14), 90 },
-		{ UDim2.fromScale(0, 0.86), UDim2.fromScale(1, 0.14), -90 },
-		{ UDim2.fromScale(0, 0), UDim2.fromScale(0.1, 1), 0 },
-		{ UDim2.fromScale(0.9, 0), UDim2.fromScale(0.1, 1), 180 },
+		{ UDim2.fromScale(0, 0), UDim2.fromScale(1, 0.07), 90 },
+		{ UDim2.fromScale(0, 0.93), UDim2.fromScale(1, 0.07), -90 },
+		{ UDim2.fromScale(0, 0), UDim2.fromScale(0.05, 1), 0 },
+		{ UDim2.fromScale(0.95, 0), UDim2.fromScale(0.05, 1), 180 },
 	} do
 		local strip = UIKit.make("Frame", {
 			Position = spec[1],
@@ -125,8 +132,8 @@ local function ensureGui()
 			for _, strip in strips do
 				strip.BackgroundColor3 = color
 			end
-			edgeValue.Value = 0.25
-			UIKit.tween(edgeValue, 2.5, { Value = 1 }, Enum.EasingStyle.Sine)
+			edgeValue.Value = 0.55
+			UIKit.tween(edgeValue, 1.8, { Value = 1 }, Enum.EasingStyle.Sine)
 		end,
 	}
 
@@ -134,10 +141,10 @@ local function ensureGui()
 	banner = UIKit.make("Frame", {
 		Name = "Banner",
 		AnchorPoint = Vector2.new(0.5, 0.5),
-		Position = UDim2.fromScale(0.5, 0.6), -- (debajo de los avisos, que van arriba)
-		Size = UDim2.fromOffset(920, 168),
+		Position = UDim2.fromScale(0.5, BANNER_Y), -- (tercio de abajo, encima del inventario)
+		Size = UDim2.fromOffset(BANNER_WIDTH, 112),
 		BackgroundColor3 = C.Panel,
-		BackgroundTransparency = 0.12,
+		BackgroundTransparency = 0.3,
 		BorderSizePixel = 0,
 		Visible = false,
 		ZIndex = 30,
@@ -175,34 +182,34 @@ local function ensureGui()
 		bannerLines[i] = line
 	end
 	bannerTag = UIKit.text({
-		Position = UDim2.fromOffset(0, 14),
-		Size = UDim2.new(1, 0, 0, 22),
-		TextSize = 17,
+		Position = UDim2.fromOffset(0, 9),
+		Size = UDim2.new(1, 0, 0, 16),
+		TextSize = 13,
 		Font = UIKit.FONT_BLACK,
 		Text = "",
 		ZIndex = 32,
 		Parent = banner,
 	})
 	bannerTitle = UIKit.text({
-		Position = UDim2.fromOffset(110, 38),
-		Size = UDim2.new(1, -220, 0, 58),
+		Position = UDim2.fromOffset(70, 26),
+		Size = UDim2.new(1, -140, 0, 38),
 		TextScaled = true,
 		Font = UIKit.FONT_BLACK,
 		Text = "",
 		ZIndex = 32,
 		Parent = banner,
 	})
-	UIKit.make("UITextSizeConstraint", { MaxTextSize = 52, MinTextSize = 18, Parent = bannerTitle })
+	UIKit.make("UITextSizeConstraint", { MaxTextSize = 34, MinTextSize = 14, Parent = bannerTitle })
 	bannerTitleStroke = UIKit.make("UIStroke", {
 		ApplyStrokeMode = Enum.ApplyStrokeMode.Contextual,
-		Thickness = 2.5,
-		Transparency = 0.2,
+		Thickness = 2,
+		Transparency = 0.3,
 		Parent = bannerTitle,
 	})
 	bannerBody = UIKit.text({
-		Position = UDim2.fromOffset(150, 100),
-		Size = UDim2.new(1, -300, 0, 54),
-		TextSize = 18,
+		Position = UDim2.fromOffset(90, 68),
+		Size = UDim2.new(1, -180, 0, 38),
+		TextSize = 14,
 		Font = UIKit.FONT,
 		TextWrapped = true,
 		TextYAlignment = Enum.TextYAlignment.Top,
@@ -241,6 +248,10 @@ local function textHeight(message: string): number
 	return if ok then bounds.Y else TOAST_TEXT
 end
 
+local function maxToasts(): number
+	return if UIKit.isPhone(gui) then MAX_TOASTS - 1 else MAX_TOASTS
+end
+
 local function removeToast(entry, quick: boolean?)
 	if entry.Gone then
 		return
@@ -262,7 +273,7 @@ local function startTimer(entry)
 	entry.Token += 1
 	local token = entry.Token
 	-- Duracion segun lo largo del texto (los malos duran un poco mas)
-	local duration = math.clamp(3.5 + #entry.Message / 28, 4, 8) + (if entry.Kind == "bad" then 1 else 0)
+	local duration = math.clamp(2.5 + #entry.Message / 35, 3, 5.5) + (if entry.Kind == "bad" then 0.5 else 0)
 	entry.Timer.Size = UDim2.new(1, -20, 0, 3)
 	UIKit.tween(entry.Timer, duration, { Size = UDim2.new(0, 0, 0, 3) }, Enum.EasingStyle.Linear)
 	task.delay(duration, function()
@@ -301,12 +312,12 @@ function Alerts.Toast(message: string, kind: string?)
 	end
 
 	toastOrder += 1
-	local height = math.max(48, textHeight(message) + 22)
+	local height = math.max(TOAST_MIN_HEIGHT, textHeight(message) + 16)
 	local card = UIKit.make("Frame", {
 		Name = "Toast",
 		Size = UDim2.fromOffset(TOAST_WIDTH, height),
 		BackgroundColor3 = C.Panel,
-		BackgroundTransparency = 0.08,
+		BackgroundTransparency = TOAST_BG,
 		LayoutOrder = toastOrder,
 		Parent = toastList,
 	}, { UIKit.corner(10) })
@@ -337,15 +348,15 @@ function Alerts.Toast(message: string, kind: string?)
 	}, { UIKit.corner(2) })
 	UIKit.iconBox({
 		AnchorPoint = Vector2.new(0, 0.5),
-		Position = UDim2.new(0, 14, 0.5, 0),
-		Size = UDim2.fromOffset(30, 30),
-		Radius = 15,
+		Position = UDim2.new(0, 11, 0.5, 0),
+		Size = UDim2.fromOffset(TOAST_ICON, TOAST_ICON),
+		Radius = TOAST_ICON / 2,
 		ZIndex = 2,
 		Parent = card,
 	}, style.Glyph, style.Color)
 	UIKit.text({
 		Position = UDim2.fromOffset(TEXT_X, 0),
-		Size = UDim2.new(1, -(TEXT_X + 46), 1, 0),
+		Size = UDim2.new(1, -(TEXT_X + 40), 1, 0),
 		TextXAlignment = Enum.TextXAlignment.Left,
 		TextWrapped = true,
 		RichText = true,
@@ -359,11 +370,11 @@ function Alerts.Toast(message: string, kind: string?)
 	local badge = UIKit.text({
 		AnchorPoint = Vector2.new(1, 0.5),
 		Position = UDim2.new(1, -10, 0.5, 0),
-		Size = UDim2.fromOffset(32, 22),
+		Size = UDim2.fromOffset(28, 18),
 		BackgroundColor3 = style.Color,
 		BackgroundTransparency = 0.15,
 		TextColor3 = C.Panel,
-		TextSize = 14,
+		TextSize = 12,
 		Font = UIKit.FONT_BLACK,
 		Text = "x2",
 		Visible = false,
@@ -397,11 +408,11 @@ function Alerts.Toast(message: string, kind: string?)
 
 	UIKit.fade(card, 1, 0)
 	UIKit.fade(card, 0, 0.18)
-	pop(entry, 0.75)
+	pop(entry, 0.85)
 	startTimer(entry)
 	playSound(style.Pitch)
 
-	-- Maximo MAX_TOASTS: los mas viejos se van rapido
+	-- Maximo maxToasts(): los mas viejos se van rapido
 	local cards = {}
 	for _, child in toastList:GetChildren() do
 		if child:IsA("Frame") and child:GetAttribute("Leaving") ~= true then
@@ -411,7 +422,7 @@ function Alerts.Toast(message: string, kind: string?)
 	table.sort(cards, function(a, b)
 		return a.LayoutOrder < b.LayoutOrder
 	end)
-	for i = 1, #cards - MAX_TOASTS do
+	for i = 1, #cards - maxToasts() do
 		local old = cards[i]
 		local found = nil
 		for _, e in live do
@@ -451,19 +462,19 @@ function Alerts.Banner(opts)
 		UIKit.tween(line, 0.5, { Size = UDim2.new(1, 0, 0, 3) }, Enum.EasingStyle.Quint)
 	end
 	local hasBody = (opts.Body or "") ~= ""
-	banner.Size = UDim2.fromOffset(920, if hasBody then 168 else 112)
+	banner.Size = UDim2.fromOffset(BANNER_WIDTH, if hasBody then 112 else 72)
 
 	banner.Visible = true
 	UIKit.fade(banner, 1, 0)
 	UIKit.fade(banner, 0, 0.25)
-	bannerScale.Scale = 1.25
+	bannerScale.Scale = 1.1
 	UIKit.tween(bannerScale, 0.35, { Scale = 1 }, Enum.EasingStyle.Back)
 
 	if opts.Edge then
 		edgeStroke.Set(color)
 	end
 
-	task.delay(opts.Seconds or 4.5, function()
+	task.delay(math.min(opts.Seconds or 3.5, 4), function()
 		if bannerToken ~= token then
 			return
 		end

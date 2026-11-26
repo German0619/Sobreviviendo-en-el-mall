@@ -29,6 +29,7 @@ local Util = require(Shared.Util)
 
 local DataService = require(script.Parent.DataService)
 local RunState = require(script.Parent.RunState)
+local BestiaryService = require(script.Parent.BestiaryService)
 
 local BossesFolder = script.Parent:WaitForChild("Bosses")
 
@@ -213,6 +214,10 @@ function BossService.StartNight(night: number, ids: { string })
 	GameState.Folder:SetAttribute("BossObjective", objective)
 	GameState.Folder:SetAttribute("BossProgress", "")
 	GameState.Folder:SetAttribute("BossDefeated", false)
+	-- Noche de jefe: todos los presentes lo descubren en el bestiario
+	for _, id in ids do
+		BestiaryService.DiscoverForAll(id)
+	end
 
 	local started = {}
 	for _, id in ids do
