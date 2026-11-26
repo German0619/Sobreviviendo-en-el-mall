@@ -124,6 +124,9 @@ return {
 	-- "SkinBox" (CAJA) | "Locker" (TAQUILLA)), ActionText, ObjectText.
 	-- Debe tener una parte hija llamada "PromptPart" donde aparece el ProximityPrompt.
 	LobbyStand = "LobbyStand",
+	-- Ruleta fisica de la plaza (Model que construye RouletteBuilder). Atributo: Roulette
+	-- ("Classes" | "Skins"). La anima el cliente (client/LobbyRoulettes).
+	LobbyRoulette = "LobbyRoulette",
 	-- Pantalla de clasificacion. Atributo: Board ("BestNight" | "BossesDefeated").
 	-- Debe tener una parte hija llamada "Screen" con un SurfaceGui.
 	LobbyLeaderboard = "LobbyLeaderboard",

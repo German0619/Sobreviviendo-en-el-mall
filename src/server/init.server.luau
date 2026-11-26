@@ -24,6 +24,7 @@ if Place.IsLobby then
 		require(script.PlayerStats),
 		require(script.ClassService),
 		require(script.CosmeticsService), -- puesto COSMETICOS: caja de skins, compra y equipar
+		require(script.RouletteService), -- ruletas fisicas de la plaza (clases y skins)
 		require(script.PermanentUpgradeService), -- puesto MEJORAS: mejoras permanentes
 		require(script.LockerService), -- puesto TAQUILLA: consumibles para la proxima partida
 		require(script.PassService),

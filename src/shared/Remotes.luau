@@ -56,6 +56,7 @@ local FUNCTIONS = {
 	"RequestClaimAchievement", -- (idLogro) -> (ok, mensaje). Da los diamantes de un logro desbloqueado
 	"RequestClaimVipDaily", -- () -> (ok, mensaje). Bono diario VIP
 	"RequestCosmeticSpin", -- () -> (ok, mensaje, objeto, skin, repetida). Caja de cosmeticos con diamantes
+	"RequestWheelSpin", -- ("Classes" | "Skins") -> (ok, mensaje). Girar una ruleta fisica de la plaza (lobby)
 	"RequestBuySkin", -- (objeto, skin) -> (ok, mensaje). Compra directa con diamantes
 	"RequestBuyPermanent", -- (mejora) -> (ok, mensaje). Siguiente nivel de una mejora permanente (lobby)
 	"RequestBuyLocker", -- (objeto) -> (ok, mensaje). Guarda un consumible en la taquilla del conserje (lobby)

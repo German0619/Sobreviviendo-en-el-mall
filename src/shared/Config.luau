@@ -872,6 +872,51 @@ function Config.getSkinOdds(): ({ [string]: number }, { [string]: number })
 end
 
 ----------------------------------------------------------------------
+-- Ruletas fisicas de la plaza (RouletteService / RouletteBuilder, client/LobbyRoulettes)
+----------------------------------------------------------------------
+-- Ruedas de feria de verdad en la plaza del lobby: vas, pulsas [E] en la consola,
+-- se gastan los diamantes y la rueda gira (la ven todos). Usan la misma logica de
+-- sorteo y cobro que los paneles (ClassService.Spin y CosmeticsService.Spin).
+--   Position: centro de la base, a ras de suelo. Facing: hacia donde mira la rueda.
+--   ReplacesStand: puesto (atributo Stand) que la rueda sustituye; si sigue en el place,
+--                  se quita al arrancar.
+--   InfoStand / InfoText: el cartel de probabilidades de al lado abre ese panel con [F].
+Config.LobbyRoulettes = {
+	Wheels = {
+		Classes = {
+			Title = "RULETA DE CLASES",
+			Subtitle = "La clase que sale reemplaza la de tu slot equipado",
+			Position = Vector3.new(-30, 0, -57),
+			Facing = Vector3.new(0, 0, 1),
+			Side = -1, -- cartel de probabilidades a la izquierda (mirando la rueda)
+			ReplacesStand = "Classes",
+			InfoStand = "Classes",
+			InfoText = "Clases y slots",
+			Accent = Color3.fromRGB(170, 90, 255),
+		},
+		Skins = {
+			Title = "RULETA DE SKINS",
+			Subtitle = "Skins para tu linterna y tus armas · repetida = +100 💎",
+			Position = Vector3.new(55, 0, -62),
+			Facing = Vector3.new(0, 0, 1),
+			Side = 1,
+			ReplacesStand = "SkinBox",
+			InfoStand = "SkinBox",
+			InfoText = "Probabilidades y Robux",
+			Accent = Color3.fromRGB(60, 210, 230),
+			Repeat = 2, -- cada skin sale 2 veces en la rueda (12 sectores)
+		},
+	},
+	Radius = 6.2, -- radio de la rueda (studs)
+	HubHeight = 8.6, -- altura del eje
+	ConsoleDistance = 7, -- la consola esta a esta distancia delante de la rueda
+	MaxUseDistance = 14, -- distancia maxima de la consola para girar (el servidor lo comprueba)
+	SpinSeconds = 6.5, -- duracion del giro
+	Turns = 4, -- vueltas completas antes de frenar
+	ResultSeconds = 4, -- el cartel del resultado sobre la rueda
+}
+
+----------------------------------------------------------------------
 -- Mejoras permanentes (puesto MEJORAS del lobby; PermanentUpgradeService)
 ----------------------------------------------------------------------
 -- Se compran con diamantes (o con puntos de mejora, que se gastan primero) y valen en
