@@ -53,6 +53,7 @@ else
 		require(script.MissionService),
 		require(script.EnemyService),
 		require(script.FumigatorService), -- pase Fumigador de entidades (1 uso por noche)
+		require(script.ClawService), -- La Garra: castiga dejar caducar tareas (Config.Claw)
 		require(script.EventDirector), -- eventos de la noche (server/Events)
 		require(script.BossService), -- jefes cada 5 noches (server/Bosses)
 		require(script.NightManager),

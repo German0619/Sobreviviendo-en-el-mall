@@ -28,6 +28,10 @@ Config.Debug = {
 	-- probarlo). Para ver el refuerzo de las vueltas, mejor StartNight = 25, 45...
 	ForceBoss = nil :: (string | { string })?,
 	PreparationSecondsOverride = nil :: number?,
+	-- ej. 1: La Garra se agarra con esas tareas falladas (y desde cualquier noche)
+	ClawFailsOverride = nil :: number?,
+	-- ej. 3: La Garra se agarra sola esos segundos despues de empezar la noche (cualquier noche)
+	ClawGrabOnStart = nil :: number?,
 	-- SOLO en Studio:
 	StudioStartCash = 0, -- billetes al empezar cada partida (ej. 5000 para probar la tienda)
 	-- Diamantes que se suman al entrar (ej. 1000 para probar la ruleta).
@@ -1256,6 +1260,25 @@ Config.Threat = {
 	BlackoutPerFailedLights = 0.15, -- +15% velocidad/resistencia del Apagon por luces sin reparar
 }
 
+-- La Garra (server/ClawService, client/ClawFX): entidad sin cuerpo que castiga dejar
+-- caducar tareas. Al fallar el equipo FailsToTrigger tareas en la noche, se pega al
+-- jugador vivo con MENOS tareas completadas esa noche (empate: al azar). Garras en su
+-- pantalla y cuenta atras: si no completa EL MISMO Required tareas en Seconds, muere
+-- (revivible como cualquier caida). Se va si las completa, si se llega a la cuota, si
+-- cae por otra cosa o al acabar la noche. Cuando se va, la cuenta de falladas empieza
+-- de cero (otras 3 y vuelve). Las falladas mientras esta pegada no cuentan.
+Config.Claw = {
+	DisplayName = "La Garra",
+	UnlockNight = 3,
+	FailsToTrigger = 3,
+	Required = 2,
+	Seconds = 60,
+	-- Imagenes de la pantalla (dibujadas para el juego, assets/icons/claw_*.png)
+	HandImage = "rbxassetid://77120250449575", -- mano con garras (sale del borde inferior)
+	VignetteImage = "rbxassetid://75036844529475", -- oscuridad de los bordes
+	Hint = "Nuevo: La Garra. Si el equipo deja caducar 3 tareas, se agarra a quien menos haya hecho. Tendrá 1 minuto para completar 2 tareas él mismo.",
+}
+
 ----------------------------------------------------------------------
 -- Enemigos
 ----------------------------------------------------------------------
@@ -2300,6 +2323,8 @@ Config.Sounds = {
 		WetFloorSign = snd("rbxasset://sounds/action_jump_land.mp3", 1, 0.8),
 		UV = snd("rbxasset://sounds/clickfast.wav", 0.7),
 		TubeFlicker = snd("rbxassetid://9114238222", 0.35, 1.4), -- chispazo de un tubo que falla
+		ClawGrab = snd("rbxassetid://9113980319", 0.9, 0.75), -- La Garra se agarra a alguien
+		ClawKill = snd("rbxassetid://9113980319", 1, 0.55), -- La Garra mata (se acabo el minuto)
 	},
 	-- Bucles 3D de las misiones (suenan en su sitio mientras la tarea esta activa)
 	Missions = {
@@ -2308,6 +2333,14 @@ Config.Sounds = {
 		Arcade = snd("rbxassetid://118038510431692", 0.45), -- "Midnight Arcade" (DistroKid): recreativa en demo
 		Projector = snd("rbxassetid://9112890982", 0.4), -- maquina traqueteando (proyector, Pro Sound Effects)
 		Steam = snd("rbxassetid://90846999831272", 0.5), -- vapor de la caldera (DistroKid)
+		Alarm = snd("rbxassetid://9125544285", 0.6), -- timbre de alarma de emergencia (mision Apagar alarma, Pro Sound Effects)
+		FireAlarm = snd("rbxassetid://9113084849", 0.7), -- timbre de incendio continuo (evento Alarma de incendio, Pro Sound Effects)
+	},
+	-- La Garra (Config.Claw): solo los oye el jugador agarrado (client/ClawFX). Al agarrar
+	-- y al matar suenan en 3D para todos: Sfx.ClawGrab y Sfx.ClawKill.
+	Claw = {
+		Breath = snd("rbxassetid://9112863325", 0.6), -- respiracion gruñida en bucle (Pro Sound Effects)
+		Heartbeat = snd("rbxassetid://9043365842", 0.7), -- latido 96 BPM (APM); se acelera al acabarse el tiempo
 	},
 	-- Enemigos. Loop: suena en bucle (Moving = solo mientras anda). Voice: uno al azar
 	-- cada VoiceEvery segundos. Attack: al golpear (Common.playAttack).

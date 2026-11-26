@@ -19,7 +19,6 @@ local PlayerStats = require(Server.PlayerStats)
 local MissionsCommon = require(Server.Missions.Common)
 local EnemyCommon = require(ServerScriptService:WaitForChild("Enemies"):WaitForChild("Common"))
 
-local ALARM_SOUND = "rbxasset://sounds/electronicpingshort.wav"
 local WATER = Color3.fromRGB(170, 205, 235)
 local RAIN_HEIGHT = 12 -- altura de los rociadores sobre el suelo
 
@@ -79,16 +78,11 @@ local function buildSprinklers(origin: Vector3, radius: number): BasePart
 	rain.Rate = math.clamp(radius * radius * 4 / 30, 40, 200)
 	rain.Parent = area
 
-	local sound = Instance.new("Sound")
-	sound.Name = "FireAlarm"
-	sound.SoundId = ALARM_SOUND
-	sound.Looped = true
-	sound.Volume = 0.6
-	sound.PlaybackSpeed = 1.7
-	sound.RollOffMinDistance = radius * 0.5
-	sound.RollOffMaxDistance = radius * 2
-	sound.Parent = area
-	sound:Play()
+	-- Timbre de incendio (Config.Sounds.Missions.FireAlarm), se oye bien fuera de la zona
+	local sound = MissionsCommon.loopSound(area, "FireAlarm", radius * 3)
+	if sound then
+		sound.RollOffMinDistance = radius * 0.5
+	end
 	return area
 end
 

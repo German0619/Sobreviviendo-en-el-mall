@@ -31,6 +31,8 @@ return Hold.new({
 		light.Range = 24
 		light.Brightness = 3
 		light.Parent = beacon
+		-- Timbre de alarma (Config.Sounds.Missions.Alarm); se oye tan lejos como atrae
+		Common.loopSound(beacon, "Alarm", Config.MissionDetails.SilenceAlarm.LureRadius)
 
 		local removeLure = DefenseService.AddLure(
 			spot.Position,
