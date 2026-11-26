@@ -299,15 +299,27 @@ function Cashier:Steal(player: Player)
 	self:SetGreedy(true)
 end
 
--- Aturdido con el botin: lo suelta y vuelve a sus duenos.
-function Cashier:DropLoot()
+-- Aturdido con el botin: se lo queda QUIEN LO ATURDIO (byPlayer). Si no se sabe quien fue
+-- (un arma que aturde sin avisar), el jugador vivo mas cercano.
+function Cashier:DropLoot(byPlayer: Player?)
 	if next(self.Loot) == nil then
 		return
 	end
-	for player, amount in self.Loot do
-		if player.Parent then
-			RunState.AddCash(player, amount)
-			notify(player, string.format("Recuperaste %s del Cajero.", Util.formatMoney(amount)), "good")
+	local winner = byPlayer
+	if not winner or not winner.Parent then
+		winner = Common.nearestAlive(self.Model:GetPivot().Position)
+	end
+	local total = 0
+	for _, amount in self.Loot do
+		total += amount
+	end
+	if winner then
+		RunState.AddCash(winner, total)
+		notify(winner, string.format("¡Aturdiste al Cajero! Te quedas con lo que llevaba: %s.", Util.formatMoney(total)), "good")
+		for victim, amount in self.Loot do
+			if victim ~= winner and victim.Parent then
+				notify(victim, string.format("%s se quedó con tus %s al aturdir al Cajero.", winner.DisplayName, Util.formatMoney(amount)), "bad")
+			end
 		end
 	end
 	self.Loot = {}
@@ -329,10 +341,28 @@ function Cashier:KeepLoot()
 	self:SetGreedy(false)
 end
 
+-- El jugador con MAS billetes del mall (vivo, no escondido y con al menos MinCash):
+-- el Cajero sabe donde esta aunque no lo vea.
+function Cashier:Richest(): (Player?, BasePart?)
+	local best, bestRoot, bestCash = nil, nil, self.Def.MinCash - 1
+	for _, player in Common.getAlivePlayers() do
+		local root = Common.getRoot(player)
+		local cash = RunState.GetCash(player)
+		if root and cash > bestCash and not DefenseService.IsHidden(player) then
+			best, bestRoot, bestCash = player, root, cash
+		end
+	end
+	return best, bestRoot
+end
+
 function Cashier:Update(dt: number)
 	local now = os.clock()
 	if Common.isStunned(self.Model) then
 		self.Mover:Clear()
+		-- Aturdido por algo que no avisa de quien fue: el botin al mas cercano
+		if next(self.Loot) ~= nil then
+			self:DropLoot(nil)
+		end
 		return
 	end
 	local pos = self.Model:GetPivot().Position
@@ -354,11 +384,14 @@ function Cashier:Update(dt: number)
 		return
 	end
 
-	-- Solo le interesan los que llevan billetes (y los que puede robar ya)
+	-- Va a por el que tiene MAS billetes del mall (sepa o no donde esta: lo huele)
 	local canSteal = now >= self.NextStealAt
-	local target, _root, dist, targetPos = self.Awareness:Update(dt, pos, function(player, r)
-		return canSteal and RunState.GetCash(player) >= self.Def.MinCash and Common.canSee(pos, r)
-	end)
+	local target, root = nil, nil
+	if canSteal then
+		target, root = self:Richest()
+	end
+	local targetPos = if target and root then Common.targetPosition(target, root) else nil
+	local dist = if targetPos then (targetPos - pos).Magnitude else math.huge
 
 	local lure = DefenseService.GetLure(pos)
 	if lure and (not target or dist > Config.Defense.Firecracker.IgnoreIfTargetWithin) then
@@ -366,10 +399,10 @@ function Cashier:Update(dt: number)
 		return
 	end
 
-	if target and targetPos and canSteal then
+	if target and targetPos then
 		self.PatrolPoint = nil
 		self:Walk(dt, targetPos, self.Def.ChaseSpeed * mul, 0.4)
-		if dist <= self.Def.AttackRange and not DefenseService.IsHidden(target) then
+		if dist <= self.Def.AttackRange then
 			self:Steal(target)
 		end
 		return
@@ -383,24 +416,24 @@ function Cashier:Update(dt: number)
 	end
 end
 
-function Cashier:Stunned(seconds: number)
+function Cashier:Stunned(seconds: number, byPlayer: Player?)
 	self.Mover:Clear()
+	self:DropLoot(byPlayer) -- (antes del Stun: si no, Update lo daria al mas cercano)
 	DefenseService.Stun(self.Model, seconds)
-	self:DropLoot()
 end
 
-function Cashier:OnFlash(_player: Player)
-	self:Stunned(Config.Defense.Flash.StunSeconds)
+function Cashier:OnFlash(player: Player)
+	self:Stunned(Config.Defense.Flash.StunSeconds, player)
 end
 
-function Cashier:OnShove(_player: Player, direction: Vector3, strength: { StunSeconds: number, Distance: number }?)
+function Cashier:OnShove(player: Player, direction: Vector3, strength: { StunSeconds: number, Distance: number }?)
 	local s = strength or Config.Defense.Shove
-	self:Stunned(s.StunSeconds)
+	self:Stunned(s.StunSeconds, player)
 	Common.knockback(self.Model, direction, s.Distance)
 end
 
-function Cashier:OnTaser(_player: Player)
-	self:Stunned(Config.Weapons.Taser.StunSeconds)
+function Cashier:OnTaser(player: Player)
+	self:Stunned(Config.Weapons.Taser.StunSeconds, player)
 end
 
 function Cashier:Destroy()

@@ -134,6 +134,38 @@ builders.Mop = function(m)
 	end
 end
 
+-- Machete: mango negro, guarda y hoja larga hacia delante con la punta en cuña
+builders.Machete = function(m)
+	piece(m, "Grip", Vector3.new(0.22, 0.3, 0.85), CFrame.new(0, 0, 0.1), Color3.fromRGB(28, 24, 22), Enum.Material.Rubber, { Paint = "Accent" })
+	piece(m, "Guard", Vector3.new(0.26, 0.42, 0.1), CFrame.new(0, 0.02, -0.38), STEEL, Enum.Material.Metal)
+	piece(m, "Blade", Vector3.new(0.05, 0.42, 2.3), CFrame.new(0, 0.06, -1.55), Color3.fromRGB(190, 195, 200), Enum.Material.Metal, { Paint = "Body" })
+	piece(m, "Edge", Vector3.new(0.06, 0.06, 2.3), CFrame.new(0, -0.14, -1.55), Color3.fromRGB(235, 238, 242), Enum.Material.Metal)
+	local tip = Instance.new("WedgePart")
+	tip.Name = "Tip"
+	tip.Size = Vector3.new(0.05, 0.42, 0.5)
+	tip.CFrame = CFrame.new(0, 0.06, -2.95) * CFrame.Angles(0, math.pi, 0)
+	tip.Color = Color3.fromRGB(190, 195, 200)
+	tip.Material = Enum.Material.Metal
+	tip.CanCollide = false
+	tip.CanQuery = false
+	tip.CanTouch = false
+	tip.Massless = true
+	tip.CastShadow = false
+	tip:SetAttribute("Paint", "Body")
+	tip.Parent = m
+end
+
+-- Pistola: empuñadura inclinada, corredera, cañon y mira
+builders.Pistol = function(m)
+	piece(m, "Grip", Vector3.new(0.26, 0.7, 0.36), CFrame.new(0, -0.28, 0.08) * CFrame.Angles(math.rad(-15), 0, 0), DARK, Enum.Material.Rubber)
+	piece(m, "Slide", Vector3.new(0.28, 0.3, 1.05), CFrame.new(0, 0.12, -0.3), Color3.fromRGB(45, 46, 50), Enum.Material.Metal, { Paint = "Body" })
+	piece(m, "Frame", Vector3.new(0.25, 0.14, 0.8), CFrame.new(0, -0.07, -0.2), DARK, Enum.Material.Metal)
+	tube(m, "Barrel", 0.12, 0.12, CFrame.new(0, 0.12, -0.86), Color3.fromRGB(20, 20, 22), Enum.Material.Metal)
+	piece(m, "TriggerGuard", Vector3.new(0.06, 0.22, 0.3), CFrame.new(0, -0.24, -0.25), DARK, Enum.Material.Metal)
+	piece(m, "FrontSight", Vector3.new(0.05, 0.07, 0.05), CFrame.new(0, 0.3, -0.78), Color3.fromRGB(240, 120, 40), Enum.Material.Neon, { Paint = "Accent" })
+	piece(m, "RearSight", Vector3.new(0.16, 0.06, 0.05), CFrame.new(0, 0.3, 0.18), DARK, Enum.Material.Metal)
+end
+
 builders.Battery = function(m)
 	vtube(m, "Body", 0.9, 0.42, CFrame.new(0, 0, 0), Color3.fromRGB(40, 160, 70), nil, { Paint = "Body" })
 	vtube(m, "Top", 0.12, 0.2, CFrame.new(0, 0.5, 0), STEEL, Enum.Material.Metal)

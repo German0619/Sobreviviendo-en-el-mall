@@ -88,7 +88,9 @@ function Common.damage(player: Player, amount: number)
 		if DefenseService.IsHidden(player) then
 			DefenseService.ForceOut(player)
 		end
-		humanoid:TakeDamage(amount * difficulty.DamageMultiplier)
+		-- Maldito por el maletin perdido (atributo Cursed): recibe mas dano (Config.Curse)
+		local curse = if player:GetAttribute("Cursed") == true then Config.Curse.DamageMultiplier else 1
+		humanoid:TakeDamage(amount * difficulty.DamageMultiplier * curse)
 	end
 end
 

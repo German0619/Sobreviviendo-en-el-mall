@@ -676,6 +676,21 @@ Config.ShopItems = {
 		Description = "Empujón corto que aturde 1.5 s. Sin límite de usos.",
 		Weapon = true,
 	},
+	-- Armas con DANO (Fase 16, Config.Combat): hieren y matan (salvo jefes, la Estatua y
+	-- los que no tienen cuerpo). El enemigo muerto reaparece lejos al minuto.
+	Machete = {
+		DisplayName = "Machete",
+		Price = 5000,
+		Description = "Tajo cuerpo a cuerpo que hiere: mata a un enemigo de nivel 1 en 3 golpes, de nivel 2 en 5 y de nivel 3 en 9. Se desgasta: 40 golpes.",
+		Weapon = true,
+	},
+	-- Solo con el pase Pistola (no se vende en la tienda): 12 balas cada noche
+	Pistol = {
+		DisplayName = "Pistola",
+		Description = "Apunta con la mirilla. Mata a un enemigo de nivel 1 en 2 tiros, de nivel 2 en 3 y de nivel 3 en 6. 12 balas que se recargan cada noche.",
+		Weapon = true,
+		PassOnly = true,
+	},
 
 	-- Exclusivos del Mercader nocturno (MerchantOnly: no salen en la tienda del mall).
 	-- Van en la mochila como los demas (Config.MerchantOrder).
@@ -986,6 +1001,7 @@ Config.ShopOrder = {
 	"WetFloorSign",
 	"UVFlashlight",
 	"Mop",
+	"Machete",
 }
 
 -- Precio de un objeto de la tienda. buys = veces que ya lo compraste en esta partida
@@ -1003,7 +1019,8 @@ function Config.getShopPrice(itemId: string, buys: number?): number
 end
 
 -- Armas (WeaponService). Uses = usos (nil = infinitos). Cooldown en segundos.
--- Son defensas temporales: aturden o apartan, no matan (sigue siendo un juego de terror).
+-- Casi todas son defensas temporales: aturden o apartan. Las de la Fase 16 (Machete y
+-- Pistola) hieren y matan (Config.Combat); el muerto reaparece al minuto.
 Config.Weapons = {
 	Taser = {
 		Uses = 10,
@@ -1038,6 +1055,46 @@ Config.Weapons = {
 		Range = 7,
 		StunSeconds = 1.5, -- menos que el Porrazo del Guardia
 		Distance = 7, -- studs que retroceden
+	},
+	-- Con dano (Config.Combat.HitsToKill)
+	Machete = {
+		Uses = 40, -- golpes antes de romperse (se vuelve a comprar)
+		Cooldown = 1,
+		Range = 7,
+		HalfAngle = 50, -- grados: el enemigo tiene que estar delante
+		HitStunSeconds = 0.4, -- el golpe lo frena un instante
+	},
+	Pistol = {
+		Uses = 12, -- balas por noche (el pase las recarga al empezar cada noche)
+		Cooldown = 0.45,
+		Range = 30,
+		-- Ayuda al apuntar: radio alrededor del cuerpo del enemigo que cuenta como impacto
+		-- (crece un poco con la distancia; asi tambien se puede en telefono)
+		HitRadius = 1.6,
+		HitRadiusPerStud = 0.03,
+		MaxAimAngle = 70, -- grados entre la mirilla y hacia donde mira el personaje (anti-trampas)
+		HitStunSeconds = 0.25,
+	},
+}
+
+-- Armas con dano (Fase 16): vida de los enemigos y lo que pasa al matarlos.
+Config.Combat = {
+	-- Golpes / tiros para matar a un enemigo segun su nivel (1, 2, 3)
+	HitsToKill = {
+		Machete = { 3, 5, 9 },
+		Pistol = { 2, 3, 6 },
+	},
+	RespawnSeconds = 60, -- el muerto vuelve a aparecer lejos de los jugadores
+	KillReward = 25, -- billetes para quien lo mata
+	HealthBarSeconds = 4, -- la barra de vida se ve unos segundos tras cada golpe
+	-- No se pueden herir: jefes, la Estatua (solo la paran las bengalas) y los sin cuerpo
+	Unkillable = {
+		Statue = true,
+		Manager = true,
+		Luni = true,
+		Collector = true,
+		Intercom = true,
+		Reflection = true,
 	},
 }
 
@@ -1295,6 +1352,13 @@ Config.Threat = {
 	BlackoutPerFailedLights = 0.15, -- +15% velocidad/resistencia del Apagon por luces sin reparar
 }
 
+-- Maldicion del maletin perdido (server/CurseService, client/CurseFX): el maldito recibe
+-- DamageMultiplier veces el dano. Dura hasta que caes (al revivir ya no estas maldito) o
+-- hasta que acaba la noche.
+Config.Curse = {
+	DamageMultiplier = 2,
+}
+
 -- Lo que pasa ADEMAS al fallar algunas tareas (se dice en el aviso de "Tarea fallida").
 Config.MissionFailEffects = {
 	FixLights = "La zona se queda a oscuras y el Apagón se hace más fuerte.",
@@ -1516,7 +1580,9 @@ Config.Enemies = {
 		AttackRange = 3.5,
 		FleeSeconds = 14, -- si no lo aturdes en este tiempo, se queda el dinero
 		StealCooldown = 20,
-		Hint = "Nuevo: el Cajero roba billetes. Si te roba, atúrdelo antes de que escape para recuperarlos.",
+		-- Va a por el jugador con mas billetes del mall (aunque no lo vea) y quien lo aturde
+		-- se queda con todo lo que haya robado (2026-11-25).
+		Hint = "Nuevo: el Cajero va a por quien tenga más billetes. Si lo aturdes mientras huye, te quedas con todo lo que robó.",
 	},
 	-- Megafonia: no tiene cuerpo. Anuncia tareas falsas con su marca "!"; al acercarte, salta
 	-- una alarma que atrae a los enemigos. Las falsas NO salen en tu lista de tareas.
@@ -1884,7 +1950,10 @@ Config.Events = {
 	LostBriefcase = {
 		DisplayName = "Maletín perdido",
 		Kind = "Mixed",
-		Description = "Hay un maletín con billetes en una zona oscura. Llévalo a Objetos perdidos (pesa: irás más lento).",
+		-- Entregarlo: +Reward para quien lo entrega. Quedarselo (mientras lo llevas): +Reward y
+		-- quedas maldito tu solo. Si se acaba el tiempo y nadie hizo nada: malditos todos.
+		-- (Config.Curse: doble de dano hasta caer o hasta el final de la noche)
+		Description = "Hay un maletín con billetes en una zona oscura. Entrégalo en Objetos perdidos, o quédatelo y quedarás maldito. Si nadie hace nada, malditos todos.",
 		MinNight = 2,
 		Weight = 7,
 		Cooldown = 420,
@@ -1954,9 +2023,13 @@ Config.Bosses = {
 	MusicSoundId = "rbxassetid://106712288593501",
 	Manager = {
 		DisplayName = "El Gerente",
-		Objective = "Destruyan sus {n} radios repartidas por el mall.", -- {n} = Radios (con el refuerzo)
+		Objective = "Destruyan sus {n} radios escondidas por el mall. No se ven de lejos: búsquenlas por el sonido del walkie.", -- {n} = Radios (con el refuerzo)
 		Reward = 500,
-		Radios = 3,
+		-- 5 radios escondidas (2026-11-25): no se ven de lejos (marcador solo a RadioMarkerDistance)
+		-- pero suenan (voces de walkie, Config.Sounds.Missions.ManagerRadio) hasta RadioSoundDistance.
+		Radios = 5,
+		RadioMarkerDistance = 5,
+		RadioSoundDistance = 40,
 		ExtraField = "Radios", -- (refuerzo desde la noche 25: +1 radio por vuelta)
 		-- Mas rapido tambien en sus ordenes: estos tiempos se dividen por el refuerzo
 		FasterFields = { "CallSeconds", "ShutterSeconds" },
@@ -1984,6 +2057,11 @@ Config.Bosses = {
 		Blackouts = 1, -- apagones que hacen falta (desde la noche 25, +1 por vuelta)
 		ExtraField = "Blackouts",
 		RecoverSeconds = 10, -- tras un apagon que no la vence, se levanta a los 10 s
+		-- Al vencerla, el apagon se extiende a TODO el mall (2026-11-25): solo quedan las luces de
+		-- emergencia y las de salida hasta reiniciar MallBlackoutGenerators generadores (tareas
+		-- de evento, mantener E RestartHoldSeconds). Si no, dura hasta el final de la noche.
+		MallBlackoutGenerators = 2,
+		RestartHoldSeconds = 6,
 	},
 	Collector = {
 		DisplayName = "El Coleccionista",
@@ -2142,6 +2220,7 @@ Config.GamePasses = {
 	VIP = 2100244294,
 	InfiniteTaser = 2099530964, -- (199) creado el 2026-11-24
 	Fumigator = 2098846971, -- (350) creado el 2026-11-24
+	Pistol = 2101050207, -- (399) creado el 2026-11-26 (Fase 16)
 }
 
 -- Lo que se muestra en la tienda del lobby para cada pase (orden = Config.GamePassOrder)
@@ -2166,8 +2245,12 @@ Config.GamePassInfo = {
 		DisplayName = "Fumigador de entidades",
 		Description = "Una vez por noche, elimina a un enemigo de cerca hasta el final de la noche. No sirve con jefes.",
 	},
+	Pistol = {
+		DisplayName = "Pistola",
+		Description = "Empiezas cada noche con una pistola de 12 balas. Apunta con la mirilla: mata a los enemigos (no a los jefes ni a la Estatua).",
+	},
 }
-Config.GamePassOrder = { "DoubleMoney", "PremiumFlashlight", "VIP", "InfiniteTaser", "Fumigator" }
+Config.GamePassOrder = { "DoubleMoney", "PremiumFlashlight", "VIP", "InfiniteTaser", "Fumigator", "Pistol" }
 
 -- Fumigador de entidades (pase Fumigator): una vez por noche, elimina al enemigo que
 -- tengas delante (cerca) si lo rocias sin moverte ni recibir dano. No sirve con jefes.
@@ -2373,6 +2456,10 @@ Config.Sounds = {
 		WetFloorSign = snd("rbxasset://sounds/action_jump_land.mp3", 1, 0.8),
 		UV = snd("rbxasset://sounds/clickfast.wav", 0.7),
 		TubeFlicker = snd("rbxassetid://9114238222", 0.35, 1.4), -- chispazo de un tubo que falla
+		Machete = snd("rbxasset://sounds/swordslash.wav", 0.9, 1.15), -- tajo del machete
+		Pistol = snd("rbxassetid://18267120562", 0.8), -- disparo de la pistola ("revolver shot")
+		EnemyHit = snd("rbxassetid://9113980319", 0.5, 1.6), -- un enemigo herido
+		EnemyKill = snd("rbxasset://sounds/HalloweenGhost.wav", 0.7, 1.3), -- un enemigo muere
 		ClawGrab = snd("rbxassetid://9113980319", 0.9, 0.75), -- La Garra se agarra a alguien
 		ClawKill = snd("rbxassetid://9113980319", 1, 0.55), -- La Garra mata (se acabo el minuto)
 	},
@@ -2384,6 +2471,7 @@ Config.Sounds = {
 		Projector = snd("rbxassetid://9112890982", 0.4), -- maquina traqueteando (proyector, Pro Sound Effects)
 		Steam = snd("rbxassetid://90846999831272", 0.5), -- vapor de la caldera (DistroKid)
 		PowerTool = snd("rbxassetid://9112761348", 0.6), -- herramientas electricas en la obra (Pro Sound Effects)
+		ManagerRadio = snd("rbxassetid://9120457641", 0.8), -- radios del Gerente: voces de walkie con estatica (Pro Sound Effects)
 		-- (los timbres con pausas sonaban a telefono: ahora alarmas continuas)
 		Alarm = snd("rbxassetid://9113089577", 0.45), -- alarma de 2 tonos rapida y continua (mision Apagar alarma, Pro Sound Effects)
 		FireAlarm = snd("rbxassetid://9114373423", 0.55), -- pitidos rapidos continuos (evento Alarma de incendio, Pro Sound Effects)

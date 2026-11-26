@@ -9,6 +9,9 @@
 -- * Desde la noche 25 hay que apagarla def.Blackouts veces (BossService la refuerza):
 --   tras cada apagon se queda quieta RecoverSeconds, se levanta y el siguiente apagon
 --   es en OTRO generador.
+-- * Al vencerla, el apagon se extiende a TODO el mall (razon "MallBlackout" en todas las
+--   zonas): solo quedan luces de emergencia y salidas, hasta reiniciar
+--   def.MallBlackoutGenerators generadores (misiones de evento). Si no, toda la noche.
 
 local ReplicatedStorage = game:GetService("ReplicatedStorage")
 local Players = game:GetService("Players")
@@ -58,6 +61,100 @@ return {
 		local usedPanels: { [Instance]: boolean } = {}
 		local recovering = false
 		local pickPanel: () -> boolean
+
+		-- Apagon de todo el mall tras vencerla
+		local MALL_BLACKOUT = "MallBlackout"
+		local blackoutZones: { string } = {}
+		local generatorMissions = {} -- [panel] = handle
+		local restarted = 0
+
+		local function liftMallBlackout()
+			for _, z in blackoutZones do
+				LightService.SetReason(z, MALL_BLACKOUT, false)
+			end
+			blackoutZones = {}
+		end
+
+		local function pendingGenerators(): number
+			local n = 0
+			for _ in generatorMissions do
+				n += 1
+			end
+			return n
+		end
+
+		local function offerGenerators()
+			local need = def.MallBlackoutGenerators or 2
+			task.spawn(function()
+				-- Generadores libres distintos (si uno esta ocupado por otra tarea, se reintenta;
+				-- si una tarea caduca, se vuelve a ofrecer)
+				while not ctx.Ended and #blackoutZones > 0 do
+					if restarted + pendingGenerators() >= need then
+						task.wait(2)
+						continue
+					end
+					local used: { [Instance]: boolean } = {}
+					for p in generatorMissions do
+						used[p] = true
+					end
+					local gen = MissionService.GetFreeSpot("RestartGenerator", nil, nil, used)
+					if gen then
+						local genZone = LightService.GetZoneAt(gen.Position) or (gen:GetAttribute("Zone") :: string?) or "?"
+						generatorMissions[gen] = MissionService.StartEventMission({
+							DisplayName = "Reiniciar el generador (" .. genZone .. ")",
+							Spot = gen,
+							ActionText = "Reiniciar",
+							ObjectText = "Generador",
+							HoldSeconds = def.RestartHoldSeconds or 6,
+							TimeLimit = 900,
+							RepairTask = true,
+							Silent = true,
+							OnComplete = function(player: Player)
+								generatorMissions[gen] = nil
+								restarted += 1
+								if restarted >= need then
+									liftMallBlackout()
+									notifyAll(string.format("%s reinició el último generador: ¡vuelve la luz al mall!", player.DisplayName), "good")
+								else
+									notifyAll(
+										string.format("%s reinició un generador (%d/%d). Falta otro para que vuelva la luz.", player.DisplayName, restarted, need),
+										"good"
+									)
+								end
+							end,
+							OnExpire = function()
+								generatorMissions[gen] = nil
+							end,
+						})
+					else
+						task.wait(5)
+					end
+				end
+			end)
+		end
+
+		local function startMallBlackout()
+			blackoutZones = LightService.GetZones()
+			for _, z in blackoutZones do
+				LightService.Flicker(z, 2)
+			end
+			task.delay(2, function()
+				if ctx.Ended then
+					return
+				end
+				for _, z in blackoutZones do
+					LightService.SetReason(z, MALL_BLACKOUT, true)
+				end
+				notifyAll(
+					string.format(
+						"¡El apagón se extiende a todo el mall! Reinicien %d generadores para que vuelva la luz.",
+						def.MallBlackoutGenerators or 2
+					),
+					"bad"
+				)
+				offerGenerators()
+			end)
+		end
 
 		local function luniDistance(): number
 			if not panel or not enemy.Model or not enemy.Model.Parent then
@@ -115,6 +212,7 @@ return {
 						task.delay(6, function()
 							EnemyService.RemoveEnemy(enemy)
 						end)
+						startMallBlackout()
 						return
 					end
 					-- Aun le queda energia: se recupera y hay que llevarla a otro generador
@@ -195,6 +293,11 @@ return {
 			if mission then
 				mission.Cancel()
 			end
+			for _, handle in generatorMissions do
+				handle.Cancel()
+			end
+			generatorMissions = {}
+			liftMallBlackout()
 			EnemyService.RemoveEnemy(enemy)
 		end
 	end,

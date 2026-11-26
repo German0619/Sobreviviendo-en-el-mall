@@ -127,7 +127,11 @@ function BackpackService.Sync(player: Player)
 			tool.Name = name
 		else
 			tool = newTool(player, key, name, item.Description, weaponId, player:GetAttribute("Skin_" .. weaponId), function()
-				WeaponService.Use(player, weaponId)
+				-- La pistola dispara desde el cliente (client/Crosshair manda la direccion de la
+				-- mirilla por UseWeapon): aqui no sabriamos hacia donde apunta
+				if weaponId ~= "Pistol" then
+					WeaponService.Use(player, weaponId)
+				end
 			end)
 			if tool then
 				-- Sacarla a la mano la deja como arma activa ([R])

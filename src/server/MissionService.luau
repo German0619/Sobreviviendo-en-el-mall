@@ -399,6 +399,7 @@ end
 --   CanTrigger: (player) -> (boolean, string?)?,  -- p. ej. solo quien lleva el maletin
 --   Silent: boolean?,  -- sin el aviso "X resolvio: ..."
 --   MarkerText: string?, MaxDistance: number?,
+--   MarkerDistance: number?,  -- el marcador solo se ve a esta distancia (p. ej. radios del Gerente)
 -- }
 -- Devuelve { Cancel: () -> () }.
 function MissionService.StartEventMission(opts)
@@ -427,6 +428,9 @@ function MissionService.StartEventMission(opts)
 		prompt.MaxActivationDistance = opts.MaxDistance
 	end
 	local marker = MissionsCommon.makeMarker(spot, opts.MarkerText or "!", Color3.fromRGB(190, 120, 255))
+	if opts.MarkerDistance then
+		marker.MaxDistance = opts.MarkerDistance
+	end
 
 	local function finish()
 		if done then

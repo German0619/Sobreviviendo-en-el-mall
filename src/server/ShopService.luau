@@ -143,7 +143,7 @@ function ShopService.Purchase(player: Player, itemId: any): (boolean, string)
 		return false, "Objeto inválido"
 	end
 	local item = Config.ShopItems[itemId]
-	if not item or item.MerchantOnly then
+	if not item or item.MerchantOnly or item.PassOnly then
 		return false, "Objeto inválido"
 	end
 	if not DataService.GetData(player) then

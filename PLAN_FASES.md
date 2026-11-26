@@ -442,9 +442,9 @@ Que toda la interfaz use las herramientas nativas de Roblox para adaptarse a cad
   - Cerrar grifos (3 grifos de un baño con agua y sonido; si caduca, charco que huele el Rastro), Reiniciar recreativas (3 máquinas con música y luces que atraen enemigos), Apagar proyector (mantener E en el panel del fondo de la sala de cine), Revisar extintores (3 de una planta; recarga tu extintor), Teléfono sonando (la lista dice "Sigue el timbre"; marcador solo a 25 studs), Vaciar papeleras (3 de un ala → contenedor), Inventario (3 tiendas en orden → Administración), Purgar la caldera (3 válvulas en orden, de las dos plantas → mantener E en la caldera, con vapor).
   - Sonidos nuevos en `Config.Sounds.Missions` (elegidos por nombre en la Creator Store).
   - `Multi` admite `OnActivate`/`OnFail`; `WeaponService.Refill`; `Cleanup` recibe `silent` (al retirar una tarea sin fallar no deja charco).
-- [PROGRAMADO, falta probar] Sonido de las alarmas (2026-11-25): la misión Apagar alarma no sonaba y el evento Alarma de incendio usaba un pitido provisional. Los primeros timbres sonaban a teléfono (pausas entre timbres): ahora sonidos continuos, `Config.Sounds.Missions.Alarm` (alarma de 2 tonos rápida) y `FireAlarm` (pitidos rápidos continuos), de Pro Sound Effects.
-- [PROGRAMADO, falta probar] Música del lobby al 40 % (0.35 → 0.14): se oía demasiado fuerte.
-- [PROGRAMADO, falta probar] Agrandar el mall (2026-11-25). Construido en Edit sin errores (13 850 piezas, zonas sin duplicar); falta jugarlo.
+- [HECHO] (probado jugando) Sonido de las alarmas (2026-11-25): la misión Apagar alarma no sonaba y el evento Alarma de incendio usaba un pitido provisional. Los primeros timbres sonaban a teléfono (pausas entre timbres): ahora sonidos continuos, `Config.Sounds.Missions.Alarm` (alarma de 2 tonos rápida) y `FireAlarm` (pitidos rápidos continuos), de Pro Sound Effects.
+- [HECHO] (probado jugando) Música del lobby al 40 % (0.35 → 0.14): se oía demasiado fuerte.
+- [HECHO] (probado jugando) Agrandar el mall (2026-11-25). Construido en Edit sin errores (13 850 piezas, zonas sin duplicar); falta jugarlo.
   - **Planta alta más ancha**: el hueco del atrio pasa de 24 a 12 (`VOID` 12 → 6); los pasillos altos miden 14 en vez de 8. Más luces bajo y sobre los pasillos; bancos y maceteros recolocados; los puentes son cortos (allí llegan las escaleras).
   - **Pasajes**: donde estaban las tiendas del centro de la galería (columna 3) se abre un pasaje a cada ala en las dos plantas. Esas 4 tiendas se mudaron al Ala Norte.
   - **Ala Norte** (iluminada, z 110..207): cruza el servicio y las oficinas (puertas de personal a los lados). Los baños de la planta baja se movieron al oeste del pasaje y las salas de las oficinas se reorganizaron (Administración, Descanso | Baños P2, Archivo, Máquinas). 4 tiendas por planta (Juguetería Pipo, Óptica Visión, Relojería Tic Tac, Gimnasio Titán, Salón Glamour, Bici Ruta) y 2 **cerradas y a oscuras** (Novias Azahar, Disfraces Carnaval: persiana a media altura, sábanas, maniquíes).
@@ -465,12 +465,12 @@ Que toda la interfaz use las herramientas nativas de Roblox para adaptarse a cad
   - Espera a que cargue el juego, a que exista el mapa (`Workspace.Mall` o `Workspace.Lobby`), a tu personaje y a que bajen las descargas pendientes (máx. 8 s); se ve al menos 2.5 s y se desvanece.
   - También en los viajes lobby ↔ mall (`TeleportService:SetTeleportGui`): al llegar la reemplaza la del place sin que se vea negro.
   - Arreglo (2026-11-25): en el mall se quitaba antes de tiempo y se veía negro unos segundos (StreamingEnabled: el modelo del mapa existe enseguida pero sus piezas llegan poco a poco). Ahora pide el streaming alrededor del personaje y espera a que haya suelo bajo los pies y a que las piezas cercanas dejen de llegar (máx. 20 s).
-- [PROGRAMADO, falta probar] El doble de enemigos (2026-11-25: "spawnean poquísimos"). `Config.SpawnDirector.CountMultiplier = 2` (presupuesto x2) y `CapMultiplier = 2` (topes por planta x2 en los niveles 1 y 2; el nivel 3 sigue con su tope). Solo / 3 jugadores: noche 1 = 3 / 4, noche 2 = 6 / 8, noche 3 = 9 / 12, noche 5 = 15 / 21, noche 10 = 30 / 42 (antes la mitad).
+- [HECHO] (probado jugando) El doble de enemigos (2026-11-25: "spawnean poquísimos"). `Config.SpawnDirector.CountMultiplier = 2` (presupuesto x2) y `CapMultiplier = 2` (topes por planta x2 en los niveles 1 y 2; el nivel 3 sigue con su tope). Solo / 3 jugadores: noche 1 = 3 / 4, noche 2 = 6 / 8, noche 3 = 9 / 12, noche 5 = 15 / 21, noche 10 = 30 / 42 (antes la mitad).
 - [PENDIENTE, para luego] (pedido el 2026-11-25):
   - Añadir más misiones (hecha la tanda 2 de arriba; más si hace falta).
-  - Agrandar el mall (hecho arriba, falta probar).
+  - Agrandar el mall (hecho arriba).
   - Subir la dificultad si hace falta (tras probar el balance con amigos).
-  - Pantalla de carga (programada abajo, falta probar).
+  - Pantalla de carga (hecha abajo).
   - Aclarar qué pasa al fallar una tarea: pasa a la Fase 14.
 - [HECHO] Subir el precio de las armas: en una sola noche se ganan fácilmente más de 300 billetes.
   - Escalonadas: Trapeador 400, Cartel 700, Extintor 1100, Linterna UV 1600, Taser 3200 (no alcanza antes de terminar la noche 5 sin el pase x2). Mercader en proporción (3800, 1400, 1100, 1000).
@@ -489,23 +489,28 @@ Que toda la interfaz use las herramientas nativas de Roblox para adaptarse a cad
 - [HECHO] (probado jugando) Aviso de tarea fallida concreto: "Tarea fallida: X. Los enemigos van un 4 % más rápido (total esta noche: +12 %)." y, si la tarea tiene efecto propio, lo dice (`Config.MissionFailEffects`: luces, generador, charcos que huele el Rastro).
 - Probado con StartNight 2, OnlyEvents { "LostBriefcase", "MarkedPlayer" } y EventDelayOverride 15 (ya devueltos a lo normal).
 
-**Fase 15: enemigos y eventos rediseñados** (pedidos el 2026-11-25).
-- [PENDIENTE] El Gerente (jefe noche 10): más radios (hoy 3) y que no se vean en el mapa salvo muy de cerca (~5 studs): sin marcador lejano ni nombre de zona en la tarea; hay que buscarlas.
-- [PENDIENTE] El Cajero: persigue al jugador con MÁS billetes (no al más cercano) y quien lo aturde se queda con lo que robó (hoy se lo devuelve a la víctima).
-- [PENDIENTE] Maletín perdido, nuevas reglas:
-  - Entregarlo en Objetos perdidos: +500 para quien lo entrega (arreglar el fallo de la Fase 14).
-  - Si se acaba el tiempo y nadie lo entregó: TODOS quedan malditos (reciben el doble de daño) el resto de la noche.
-  - Opción de quedárselo (en vez de entregarlo): +500 para ti y solo tú quedas maldito.
-  - Decidir antes: cuánto dura la maldición (¿la noche?), cómo se ve (marca en el HUD / aura) y si se quita con algo.
-- [PENDIENTE] Luni (jefa noche 5): al activar el apagón del generador con ella dentro, se va la luz en TODO el centro comercial (no solo en el sector), obligando a jugar a oscuras.
-  - Decidir antes: cuánto dura (¿el resto de la noche, o hasta reiniciar otro generador?), si quedan las luces de emergencia y si afecta también a los enemigos que dependen de la luz (Apagón, Polillas).
-
-**Fase 16: armas con daño** (pedido el 2026-11-25; la más grande: cambia la base del combate, hoy las armas solo aturden).
-- [PENDIENTE] Vida para los enemigos (stat nueva en `Config.Enemies`) y que puedan morir.
-- [PENDIENTE] Machete: 5000 billetes en la tienda del conserje.
-- [PENDIENTE] Arma de fuego: con un pase de Robux (pase nuevo en `Config.GamePasses`, creado por Open Cloud).
-- Preguntas de diseño antes de empezar: qué enemigos pueden morir (¿los jefes? ¿la Estatua? ¿los sin cuerpo como el Apagón o la Megafonía?), cuánta vida y daño, qué pasa al morir (¿reaparecen más tarde?, ¿dan billetes?), munición del arma de fuego y cómo se apunta en teléfono, precio del pase.
-
+**Fase 15: enemigos y eventos rediseñados** — [HECHO] (pedidos el 2026-11-25; decisiones del usuario el mismo día).
+- [HECHO] (probado jugando) El Gerente (jefe noche 10): 5 radios (eran 3) escondidas: sin luz que se vea de lejos y su "!" solo a 5 studs (`MarkerDistance` nuevo en `MissionService.StartEventMission`). Se encuentran por el oído: cada radio suena (voces de walkie con estática, `Config.Sounds.Missions.ManagerRadio`) hasta 40 studs. `Config.Bosses.Manager.Radios / RadioMarkerDistance / RadioSoundDistance`.
+- [HECHO] (probado jugando) El Cajero: va a por el jugador con MÁS billetes del mall (aunque no lo vea; no a los escondidos ni con al menos `MinCash`) y quien lo aturde (destello, porrazo, taser) se queda con TODO lo que robó; si lo aturde algo que no dice quién fue, el jugador más cercano. Las víctimas reciben aviso de quién se quedó su dinero.
+- [HECHO] (probado jugando) Maletín perdido maldito (`server/CurseService`, `client/CurseFX`, `Config.Curse`):
+  - Entregarlo en Objetos perdidos: +500 para quien lo entrega.
+  - Quedárselo: mientras lo llevas, prompt "Quedármelo" con [F] (mantener 2 s; la E es la de entregar): +500 y quedas maldito tú solo.
+  - Si se acaba el tiempo y nadie hizo nada: malditos todos los que siguen en pie.
+  - Maldito = doble de daño (`Common.damage`), aura morada que ven todos, bordes morados y "☠ MALDITO" en tu pantalla. Se quita al caer (al revivir ya no) o al terminar la noche.
+- [HECHO] (probado jugando) Luni (jefa noche 5): al vencerla, el apagón se extiende a TODO el mall (razón `MallBlackout` en todas las zonas; quedan las luces de emergencia y las salidas) hasta reiniciar 2 generadores (tareas de evento, mantener E 6 s; el Electricista más rápido). Si no, dura el resto de la noche. `Config.Bosses.Luni.MallBlackoutGenerators / RestartHoldSeconds`.
+- [HECHO] (probado jugando) Fallo: al revivir, la linterna desaparecía de la mano en primera persona. `client/ViewModel` creaba una carpeta nueva al volver a la cámara y los modelos de la mano se quedaban en la vieja (descolgada); ahora reutiliza siempre la misma.
+- Las pruebas de esta fase se dejan para el final (decisión del usuario, 2026-11-25).
+- Prueba 1 (maletín y Cajero): `Config.Debug` StartNight 4, OnlyEnemies { "Cashier" }, OnlyEvents { "LostBriefcase" }, EventDelayOverride 15, StudioStartCash 800. Prueba 2 (jefes): `ForceBoss = "Manager"` y luego `"Luni"`.
+**Fase 16: armas con daño** — [HECHO] (pedido el 2026-11-25; decisiones del usuario el mismo día).
+- [HECHO] (probado jugando) Vida de los enemigos (`EnemyService.Damage / Kill / CanBeDamaged`, `Config.Combat`):
+  - Se pueden herir todos los que tienen cuerpo salvo los jefes, la Estatua (solo la paran las bengalas) y los sin cuerpo (Megafonía, Reflejo; La Garra no es un enemigo).
+  - Golpes para matar según el nivel (`Config.Combat.HitsToKill`): machete 3 / 5 / 9, pistola 2 / 3 / 6. Barra de vida roja sobre el enemigo unos segundos tras cada golpe y destello rojo al herirlo.
+  - Al morir: humo negro, +25 billetes para quien lo mata y reaparece lejos de los jugadores a los 60 s (los de eventos y jefes no reaparecen). El Cajero suelta lo robado para quien lo mata.
+- [HECHO] (probado jugando) Machete: 5000 billetes en la tienda del mall. Tajo cuerpo a cuerpo (7 studs, delante) cada 1 s que además lo frena un instante; se desgasta: 40 tajos y se rompe (se vuelve a comprar).
+- [HECHO] (probado jugando) Pistola (pase de Robux "Pistola", 399 R$): 12 balas que se recargan al empezar cada noche. Con ella en la mano sale una mirilla en el centro (`client/Crosshair`) y las balas que quedan; dispara hacia donde apuntas con la cámara (primera persona), con un poco de ayuda al apuntar para el teléfono. 30 studs de alcance, trazo de bala y fogonazo. Modelos nuevos en `HeldModels` (Machete, Pistol).
+- [HECHO] Pase Pistola creado en Roblox el 2026-11-26 por Open Cloud (ID 2101050207, 399 R$, a la venta; icono `assets/icons/pass_pistol.png`). Para probar en Studio: `Config.Debug.StudioOwnedPasses = { "Pistol" }`.
+- Prueba (al final, con las de la Fase 15): `Config.Debug` StudioOwnedPasses { "Pistol" } y StudioStartCash 6000 (para comprar el machete).
+- [HECHO] (probado jugando) Fallo: las luces lejanas se apagaban. Los dos places tenían `Workspace.StreamOutBehavior = Opportunistic` con `StreamingMinRadius = 64`: Roblox descargaba las piezas a más de 64 studs (lámparas incluidas). Ahora `StreamOutBehavior = Default` (solo descarga si falta memoria) y `StreamingMinRadius = 128`. Es un ajuste del PLACE (no está en git): hay que guardar/publicar el mall y el lobby para que dure.
 **Orden elegido:**
 - La Fase 3 cambia la base de cómo aparece el peligro; el resto se apoya en ella.
 - Las armas van antes que los enemigos nuevos porque cada enemigo necesita su contramedida.

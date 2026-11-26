@@ -49,20 +49,20 @@ local function buildRadio(point: Vector3): BasePart
 	end
 	piece("Antenna", Vector3.new(0.1, 2.2, 0.1), CFrame.new(0.5, 2, 0), Color3.fromRGB(60, 60, 65), Enum.Material.Metal)
 	piece("Speaker", Vector3.new(1, 0.8, 0.05), CFrame.new(0, 0.2, -0.46), Color3.fromRGB(70, 70, 75), Enum.Material.DiamondPlate)
-	local led = piece("Led", Vector3.new(0.2, 0.2, 0.2), CFrame.new(0.5, 3.15, 0), Color3.fromRGB(255, 40, 30), Enum.Material.Neon)
-	local light = Instance.new("PointLight")
-	light.Color = Color3.fromRGB(255, 40, 30)
-	light.Range = 9
-	light.Brightness = 1.2
-	light.Parent = led
-	-- Parpadeo: se la ve de lejos en la oscuridad
+	-- Piloto diminuto sin luz (ya no se ve de lejos: las radios se buscan por el oido)
+	local led = piece("Led", Vector3.new(0.12, 0.12, 0.12), CFrame.new(0.5, 3.15, 0), Color3.fromRGB(255, 40, 30), Enum.Material.Neon)
 	task.spawn(function()
 		while led.Parent do
-			light.Enabled = not light.Enabled
-			led.Transparency = if light.Enabled then 0 else 0.7
+			led.Transparency = if led.Transparency < 0.5 then 0.8 else 0
 			task.wait(0.6)
 		end
 	end)
+	-- Voces de walkie con estatica: se oyen hasta RadioSoundDistance
+	local sound = MissionsCommon.loopSound(radio, "ManagerRadio", Config.Bosses.Manager.RadioSoundDistance)
+	if sound then
+		sound.RollOffMinDistance = 6
+		sound.TimePosition = math.random() * 30 -- (que no suenen todas a la vez igual)
+	end
 	return radio
 end
 
@@ -143,6 +143,7 @@ return {
 				HoldSeconds = def.RadioHoldSeconds,
 				TimeLimit = 900,
 				Silent = true,
+				MarkerDistance = def.RadioMarkerDistance, -- escondidas: el "!" solo de muy cerca
 				OnComplete = function(player: Player)
 					radios[radio] = nil
 					sparks(radio.Position)

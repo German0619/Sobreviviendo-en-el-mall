@@ -1,7 +1,11 @@
 -- Maletin perdido: un maletin con billetes aparece en una zona oscura (peligrosa) de una
--- planta. Quien lo recoge lo lleva en la mano y va mas lento; si lo entrega en Objetos
--- perdidos (tag LostAndFound; si no hay, en el mostrador de la tienda o la entrada) gana
--- los billetes. Si muere, el maletin cae al suelo y otro puede recogerlo.
+-- planta. Quien lo recoge lo lleva en la mano y va mas lento. Si muere, el maletin cae al
+-- suelo y otro puede recogerlo. Tres finales (2026-11-25):
+--   * Entregarlo en Objetos perdidos (tag LostAndFound; si no hay, en el mostrador de la
+--     tienda o la entrada): +Reward para quien lo entrega.
+--   * Quedarselo (prompt "Quedármelo" con [F] mientras lo llevas): +Reward y quedas maldito
+--     tu solo (CurseService: doble de dano hasta caer o hasta el final de la noche).
+--   * Se acaba el tiempo y nadie hizo nada: malditos TODOS los que siguen en pie.
 
 local CollectionService = game:GetService("CollectionService")
 local Shared = game:GetService("ReplicatedStorage"):WaitForChild("Shared")
@@ -15,6 +19,7 @@ local MissionService = require(Server.MissionService)
 local PlayerStats = require(Server.PlayerStats)
 local RunState = require(Server.RunState)
 local SfxService = require(Server.SfxService)
+local CurseService = require(Server.CurseService)
 local MissionsCommon = require(Server.Missions.Common)
 local EventUtil = require(script.Parent.EventUtil)
 
@@ -101,9 +106,15 @@ return {
 		local removeSlow: (() -> ())? = nil
 		local diedConn: RBXScriptConnection? = nil
 		local pickupMission, deliverMission = nil, nil
+		local keepPrompt: ProximityPrompt? = nil
+		local resolved = false -- entregado o alguien se lo quedo
 		local offerPickup -- (definida abajo)
 
 		local function release()
+			if keepPrompt then
+				keepPrompt:Destroy()
+				keepPrompt = nil
+			end
 			if weld then
 				weld:Destroy()
 				weld = nil
@@ -123,6 +134,7 @@ return {
 		end
 
 		local function deliver(player: Player)
+			resolved = true
 			release()
 			RunState.AddCash(player, reward)
 			SfxService.PlayFor(player, "Pickup")
@@ -130,6 +142,34 @@ return {
 				string.format("%s entregó el maletín perdido: +%s.", player.DisplayName, Util.formatMoney(reward)),
 				"good"
 			)
+			ctx.Finish()
+		end
+
+		-- Quedarselo: el dinero para el y la maldicion tambien
+		local function keep(player: Player)
+			if resolved or player ~= carrier then
+				return
+			end
+			resolved = true
+			release()
+			if deliverMission then
+				deliverMission.Cancel()
+				deliverMission = nil
+			end
+			RunState.AddCash(player, reward)
+			SfxService.PlayFor(player, "Pickup")
+			CurseService.Curse(player)
+			Remotes.event("Notify"):FireClient(
+				player,
+				string.format("Te quedaste el maletín: +%s. Estás MALDITO: recibes el doble de daño hasta que caigas.", Util.formatMoney(reward)),
+				"bad"
+			)
+			for _, other in game:GetService("Players"):GetPlayers() do
+				if other ~= player then
+					Remotes.event("Notify"):FireClient(other, string.format("%s se quedó el maletín y ahora está maldito.", player.DisplayName), "info")
+				end
+			end
+			case:Destroy()
 			ctx.Finish()
 		end
 
@@ -150,7 +190,23 @@ return {
 			weld.Parent = case
 			player:SetAttribute("Carrying", "Maletín")
 			removeSlow = PlayerStats.AddEffect(player, "Briefcase", { WalkSpeed = def.CarryWalkMultiplier })
-			Remotes.event("Notify"):FireClient(player, "Llevas el maletín: pesa. Llévalo a Objetos perdidos.", "info")
+			Remotes.event("Notify"):FireClient(
+				player,
+				string.format("Llevas el maletín (pesa). Entrégalo en Objetos perdidos, o quédatelo [F]: +%s pero quedarás maldito.", Util.formatMoney(reward)),
+				"info"
+			)
+			-- Quedarselo: prompt en el propio maletin con otra tecla (la E es la de entregar)
+			keepPrompt = MissionsCommon.makePrompt(case, "Quedármelo", string.format("Maletín (+%s, maldito)", Util.formatMoney(reward)), 2)
+			keepPrompt.KeyboardKeyCode = Enum.KeyCode.F
+			keepPrompt.GamepadKeyCode = Enum.KeyCode.ButtonY
+			keepPrompt.MaxActivationDistance = 10
+			keepPrompt.Triggered:Connect(function(p: Player)
+				if p ~= carrier then
+					Remotes.event("Notify"):FireClient(p, "Solo quien lleva el maletín puede quedárselo.", "info")
+					return
+				end
+				keep(p)
+			end)
 			diedConn = humanoid.Died:Connect(function()
 				-- Cae al suelo donde murio
 				local at = case.Position
@@ -199,7 +255,29 @@ return {
 
 		offerPickup(CFrame.new(point + Vector3.new(0, 0.7, 0)))
 		ctx.SetEndsAt(def.MaxSeconds)
-		task.delay(def.MaxSeconds, ctx.Finish)
+		task.delay(def.MaxSeconds, function()
+			if ctx.Ended then
+				return -- (la noche termino antes)
+			end
+			if not resolved then
+				-- Nadie lo entrego ni se lo quedo: malditos todos los que siguen en pie
+				resolved = true
+				local cursed = 0
+				for _, player in game:GetService("Players"):GetPlayers() do
+					if player:GetAttribute("Alive") == true then
+						CurseService.Curse(player)
+						cursed += 1
+					end
+				end
+				if cursed > 0 then
+					Remotes.event("Notify"):FireAllClients(
+						"Nadie entregó el maletín... Están todos MALDITOS: reciben el doble de daño hasta que caigan.",
+						"bad"
+					)
+				end
+			end
+			ctx.Finish()
+		end)
 
 		return function()
 			for _, mission in { pickupMission, deliverMission } do

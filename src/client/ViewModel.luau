@@ -34,15 +34,20 @@ local rightKey: string? = nil -- ModelId|Skin del modelo de la derecha
 local leftModel: Model? = nil
 local leftPremium = false
 
+-- Siempre la MISMA carpeta: al morir se descuelga de la camara (folder.Parent = nil) y al
+-- revivir se vuelve a colgar con sus modelos. (Antes se creaba otra vacia y los modelos se
+-- quedaban en la vieja, fuera de la camara: la linterna desaparecia de la mano al revivir.)
 local function getFolder(): Folder
 	local camera = Workspace.CurrentCamera
-	if folder and folder.Parent == camera then
-		return folder
+	if not folder then
+		local f = Instance.new("Folder")
+		f.Name = "ViewModel"
+		folder = f
 	end
-	local f = Instance.new("Folder")
-	f.Name = "ViewModel"
-	f.Parent = camera
-	folder = f
+	local f = folder :: Folder
+	if f.Parent ~= camera then
+		f.Parent = camera
+	end
 	return f
 end
 
@@ -85,7 +90,7 @@ local function updateRight()
 	local id = tool and tool:GetAttribute("ModelId")
 	local skin = tool and tool:GetAttribute("Skin")
 	local key = if type(id) == "string" then id .. "|" .. tostring(skin) else nil
-	if key == rightKey and (rightModel == nil or rightModel.Parent ~= nil) then
+	if key == rightKey and (rightModel == nil or rightModel.Parent == folder) then
 		return
 	end
 	if rightModel then
@@ -108,7 +113,7 @@ local function updateLeft()
 	-- Skin equipada en el lobby; si no tiene, la dorada del pase Linterna Premium
 	local equipped = player:GetAttribute("Skin_Flashlight")
 	local skin = if type(equipped) == "string" then equipped elseif premium then "Gold" else nil
-	if leftModel and leftModel.Parent and premium == leftPremium and skin == leftSkin then
+	if leftModel and leftModel.Parent == folder and premium == leftPremium and skin == leftSkin then
 		return
 	end
 	if leftModel then

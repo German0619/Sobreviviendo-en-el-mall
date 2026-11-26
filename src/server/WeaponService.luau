@@ -30,6 +30,7 @@ local Workspace = game:GetService("Workspace")
 local Shared = ReplicatedStorage:WaitForChild("Shared")
 local Config = require(Shared.Config)
 local Remotes = require(Shared.Remotes)
+local GameState = require(Shared.GameState)
 
 local DefenseService = require(script.Parent.DefenseService)
 local FlashlightService = require(script.Parent.FlashlightService)
@@ -599,6 +600,176 @@ local function useMop(player: Player): boolean
 end
 
 ----------------------------------------------------------------------
+-- Armas con dano (Fase 16): machete y pistola
+----------------------------------------------------------------------
+
+-- (EnemyService se carga al usarlas: cargarlo arriba haria un ciclo de requires,
+-- EnemyService -> MissionService -> Missions/CheckExtinguishers -> WeaponService)
+local function enemyService()
+	return require(script.Parent.EnemyService) :: any
+end
+
+-- Machete: tajo al enemigo mas cercano de enfrente. Se desgasta con cada tajo.
+local function useMachete(player: Player): boolean
+	local def = W.Machete
+	local root = getRoot(player)
+	if not root then
+		return false
+	end
+	local origin = root.Position + Vector3.new(0, 1, 0)
+	local look = Vector3.new(root.CFrame.LookVector.X, 0, root.CFrame.LookVector.Z)
+	look = if look.Magnitude > 0.01 then look.Unit else Vector3.new(0, 0, -1)
+	local cosHalf = math.cos(math.rad(def.HalfAngle))
+	local params = rayParams(player)
+	local enemies = enemyService()
+	local best, bestDist = nil, math.huge
+	for _, enemy in DefenseService.GetEnemies() do
+		if enemies.CanBeDamaged(enemy) then
+			local pos = enemy.Model:GetPivot().Position
+			local offset = pos - origin
+			local flat = Vector3.new(offset.X, 0, offset.Z)
+			local dist = flat.Magnitude
+			if dist <= def.Range and dist < bestDist and math.abs(offset.Y) < 8 and (dist < 2 or look:Dot(flat.Unit) >= cosHalf) then
+				local hit = Workspace:Raycast(origin, offset, params)
+				if not hit or (hit.Position - origin).Magnitude >= offset.Magnitude - 2 then
+					best, bestDist = enemy, dist
+				end
+			end
+		end
+	end
+	-- Estela del tajo delante del jugador
+	local slash = part({
+		Name = "MacheteSlash",
+		Size = Vector3.new(4, 0.1, 1.6),
+		CFrame = CFrame.lookAt(origin + look * 2.5, origin + look * 5) * CFrame.Angles(0, 0, math.rad(-25)),
+		Material = Enum.Material.Neon,
+		Color = Color3.fromRGB(230, 230, 240),
+		Transparency = 0.4,
+	})
+	slash.Parent = propsFolder()
+	TweenService:Create(slash, TweenInfo.new(0.18), { Transparency = 1, Size = Vector3.new(5, 0.05, 2) }):Play()
+	task.delay(0.2, function()
+		slash:Destroy()
+	end)
+	if best then
+		local _, killed = enemies.Damage(best, "Machete", player)
+		if not killed and best.Model and best.Model.Parent then
+			DefenseService.Stun(best.Model, def.HitStunSeconds)
+		end
+	end
+	return true -- se desgasta con cada tajo (acierte o no)
+end
+
+-- Distancia de un punto a un rayo (y cuanto avanza el rayo hasta el).
+local function rayDistance(origin: Vector3, dir: Vector3, point: Vector3): (number, number)
+	local t = (point - origin):Dot(dir)
+	local closest = origin + dir * math.max(t, 0)
+	return (point - closest).Magnitude, t
+end
+
+-- Pistola: disparo hacia la mirilla (aim = direccion de la camara del cliente).
+local function usePistol(player: Player, aim: Vector3?): boolean
+	local def = W.Pistol
+	local character = player.Character
+	local root = getRoot(player)
+	local head = character and character:FindFirstChild("Head") :: BasePart?
+	if not root then
+		return false
+	end
+	local origin = if head then head.Position else root.Position + Vector3.new(0, 1.5, 0)
+	-- Direccion: la de la mirilla si es valida (no mas de MaxAimAngle respecto a donde
+	-- mira el personaje), si no hacia delante
+	local forward = root.CFrame.LookVector
+	local dir = forward
+	if typeof(aim) == "Vector3" and aim.Magnitude > 0.5 then
+		local unit = aim.Unit
+		local flatAim = Vector3.new(unit.X, 0, unit.Z)
+		local flatFwd = Vector3.new(forward.X, 0, forward.Z)
+		if flatAim.Magnitude < 0.05 or flatFwd.Magnitude < 0.05 or flatAim.Unit:Dot(flatFwd.Unit) >= math.cos(math.rad(def.MaxAimAngle)) then
+			dir = unit
+		end
+	end
+
+	-- Hasta donde llega la bala (pared)
+	local params = rayParams(player)
+	local wall = Workspace:Raycast(origin, dir * def.Range, params)
+	local maxT = if wall then (wall.Position - origin).Magnitude else def.Range
+
+	-- Enemigo alcanzado: el mas cercano a lo largo del disparo cuyo cuerpo pase cerca
+	local enemies = enemyService()
+	local best, bestT = nil, math.huge
+	for _, enemy in DefenseService.GetEnemies() do
+		if enemies.CanBeDamaged(enemy) then
+			local model = enemy.Model :: Model
+			local pivot = model:GetPivot().Position
+			local height = enemy.Height or 6
+			for _, dy in { -height * 0.3, 0, height * 0.3 } do
+				local point = pivot + Vector3.new(0, dy, 0)
+				local d, t = rayDistance(origin, dir, point)
+				local radius = def.HitRadius + def.HitRadiusPerStud * t
+				if t > 0 and t <= maxT + 1 and d <= radius and t < bestT then
+					best, bestT = enemy, t
+				end
+			end
+		end
+	end
+
+	-- Trazo de la bala y fogonazo
+	local endPoint = origin + dir * (if best then bestT else maxT)
+	local muzzle = origin + dir * 1.5
+	local tracer = part({
+		Name = "Tracer",
+		Size = Vector3.new(0.08, 0.08, math.max((endPoint - muzzle).Magnitude, 0.1)),
+		CFrame = CFrame.lookAt((muzzle + endPoint) / 2, endPoint),
+		Material = Enum.Material.Neon,
+		Color = Color3.fromRGB(255, 225, 140),
+		Transparency = 0.2,
+	})
+	local flash = Instance.new("PointLight")
+	flash.Color = Color3.fromRGB(255, 200, 120)
+	flash.Range = 16
+	flash.Brightness = 4
+	flash.Parent = tracer
+	tracer.Parent = propsFolder()
+	TweenService:Create(tracer, TweenInfo.new(0.12), { Transparency = 1 }):Play()
+	task.delay(0.15, function()
+		tracer:Destroy()
+	end)
+
+	if best then
+		local _, killed = enemies.Damage(best, "Pistol", player)
+		if not killed and best.Model and best.Model.Parent then
+			DefenseService.Stun(best.Model, def.HitStunSeconds)
+		end
+	end
+	return true -- gasta la bala acierte o no
+end
+
+-- Pase Pistola: 12 balas al empezar cada noche (recarga la que lleve o le da una).
+function WeaponService.GivePassPistol(player: Player)
+	if player:GetAttribute("Pass_Pistol") ~= true then
+		return
+	end
+	local character = player.Character
+	local humanoid = character and character:FindFirstChildOfClass("Humanoid")
+	if not humanoid or humanoid.Health <= 0 then
+		return
+	end
+	local entry = ownedOf(player).Pistol
+	if entry then
+		entry.Uses = W.Pistol.Uses
+		publish(player, "Pistol")
+	else
+		local previous = WeaponService.Get(player)
+		WeaponService.Equip(player, "Pistol")
+		-- (no le cambia el arma activa que ya tenia)
+		if previous then
+			WeaponService.SetActive(player, previous)
+		end
+	end
+end
+
+----------------------------------------------------------------------
 -- Uso
 ----------------------------------------------------------------------
 
@@ -608,6 +779,8 @@ local USES = {
 	WetFloorSign = useWetFloorSign,
 	UVFlashlight = useUV,
 	Mop = useMop,
+	Machete = useMachete,
+	Pistol = usePistol,
 }
 
 -- Sonido de cada arma al usarla (Config.Sounds.Sfx), en 3D desde quien la usa
@@ -617,10 +790,13 @@ local USE_SOUNDS = {
 	WetFloorSign = "WetFloorSign",
 	UVFlashlight = "UV",
 	Mop = "Mop",
+	Machete = "Machete",
+	Pistol = "Pistol",
 }
 
 -- weaponId: la de la herramienta que se uso; nil = la activa ([R]).
-function WeaponService.Use(player: Player, weaponId: string?)
+-- aim: direccion de la mirilla (camara del cliente), solo para la pistola.
+function WeaponService.Use(player: Player, weaponId: string?, aim: Vector3?)
 	weaponId = weaponId or WeaponService.Get(player)
 	local entry = weaponId and ownedOf(player)[weaponId]
 	if not weaponId or not entry then
@@ -637,7 +813,7 @@ function WeaponService.Use(player: Player, weaponId: string?)
 		return
 	end
 	local fn = USES[weaponId]
-	local ok, used = pcall(fn, player)
+	local ok, used = pcall(fn, player, aim)
 	if not ok then
 		warn("[WeaponService] Error usando", weaponId, used)
 		return
@@ -653,13 +829,25 @@ function WeaponService.Use(player: Player, weaponId: string?)
 end
 
 function WeaponService.Start()
-	Remotes.event("UseWeapon").OnServerEvent:Connect(function(player: Player)
+	-- (weaponId, aim): el cliente manda el arma de la herramienta (o nil = la activa) y la
+	-- direccion de su camara (la usa la pistola para apuntar con la mirilla)
+	Remotes.event("UseWeapon").OnServerEvent:Connect(function(player: Player, weaponId: any, aim: any)
 		local now = os.clock()
 		if lastUse[player] and now - lastUse[player] < 0.2 then
 			return
 		end
 		lastUse[player] = now
-		WeaponService.Use(player)
+		local id = if type(weaponId) == "string" and W[weaponId] then weaponId else nil
+		WeaponService.Use(player, id, if typeof(aim) == "Vector3" then aim else nil)
+	end)
+
+	-- Pase Pistola: balas al empezar cada noche (y si lo compra a mitad de noche)
+	GameState.Folder:GetAttributeChangedSignal("Phase"):Connect(function()
+		if GameState.Folder:GetAttribute("Phase") == "Night" then
+			for _, player in Players:GetPlayers() do
+				WeaponService.GivePassPistol(player)
+			end
+		end
 	end)
 
 	-- La UV se apaga si se apaga la linterna (sin bateria, escondido...)
@@ -667,6 +855,11 @@ function WeaponService.Start()
 		player:GetAttributeChangedSignal("FlashlightOn"):Connect(function()
 			if player:GetAttribute("FlashlightOn") ~= true and player:GetAttribute("UVOn") == true then
 				WeaponService.SetUV(player, false)
+			end
+		end)
+		player:GetAttributeChangedSignal("Pass_Pistol"):Connect(function()
+			if GameState.Folder:GetAttribute("Phase") == "Night" then
+				WeaponService.GivePassPistol(player)
 			end
 		end)
 		-- Pase Taser infinito comprado durante la partida: el taser que lleva pasa a infinito

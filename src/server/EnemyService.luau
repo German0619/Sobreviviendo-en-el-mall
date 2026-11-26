@@ -5,11 +5,14 @@
 -- * La primera vez que un tipo aparece en la partida se avisa con su Hint (contramedida).
 -- * Cuando aparece un Vigilante se activan las camaras de seguridad (tag SecurityCamera).
 -- * Cada mision fallada suma "amenaza", que potencia a los enemigos.
+-- * Vida (Fase 16): las armas con dano los hieren (Damage) y matan (Kill); el muerto
+--   reaparece lejos a los Config.Combat.RespawnSeconds.
 
 local CollectionService = game:GetService("CollectionService")
 local ReplicatedStorage = game:GetService("ReplicatedStorage")
 local RunService = game:GetService("RunService")
 local ServerScriptService = game:GetService("ServerScriptService")
+local Workspace = game:GetService("Workspace")
 
 local Shared = ReplicatedStorage:WaitForChild("Shared")
 local Config = require(Shared.Config)
@@ -22,6 +25,8 @@ local LightService = require(script.Parent.LightService)
 local MissionService = require(script.Parent.MissionService)
 local DefenseService = require(script.Parent.DefenseService)
 local SpawnDirector = require(script.Parent.SpawnDirector)
+local SfxService = require(script.Parent.SfxService)
+local RunState = require(script.Parent.RunState)
 
 local EnemiesFolder = ServerScriptService:WaitForChild("Enemies")
 local Common = require(EnemiesFolder.Common)
@@ -368,6 +373,7 @@ function EnemyService.SpawnTemporary(enemyType: string, floor: number?, seconds:
 	local token = nightToken
 	local enemy = spawnEnemy(enemyType, currentCtx, floor, at)
 	if enemy then
+		enemy.Temporary = true -- (si lo matan no reaparece: era de un evento o de un jefe)
 		task.delay(seconds, function()
 			if token == nightToken then
 				EnemyService.RemoveEnemy(enemy)
@@ -431,6 +437,169 @@ function EnemyService.RevealAll(seconds: number)
 		end
 	end)
 	return #marks
+end
+
+----------------------------------------------------------------------
+-- Vida y muerte (armas con dano, Fase 16: Config.Combat)
+----------------------------------------------------------------------
+-- Cada enemigo empieza con Health = 1 (fraccion). Un golpe de un arma quita
+-- 1 / HitsToKill[arma][nivel]. A 0 muere: billetes para quien lo mato, se quita y, si no
+-- era temporal (evento, jefe), reaparece lejos a los RespawnSeconds.
+
+local barTokens = setmetatable({}, { __mode = "k" })
+
+-- Se le puede herir? (con cuerpo, no jefe, no la Estatua ni los sin cuerpo)
+function EnemyService.CanBeDamaged(enemy): boolean
+	local model = enemy and enemy.Model
+	return enemy ~= nil
+		and enemy.EnemyType ~= nil
+		and not Config.Combat.Unkillable[enemy.EnemyType]
+		and model ~= nil
+		and model:IsA("Model")
+		and model.Parent ~= nil
+		and table.find(activeEnemies, enemy) ~= nil
+end
+
+-- Barra de vida sobre el enemigo (la ven todos unos segundos tras cada golpe)
+local function showHealthBar(enemy)
+	local model = enemy.Model :: Model
+	local bar = model:FindFirstChild("HealthBar") :: BillboardGui?
+	if not bar then
+		local gui = Instance.new("BillboardGui")
+		gui.Name = "HealthBar"
+		gui.Size = UDim2.fromOffset(90, 9)
+		gui.StudsOffsetWorldSpace = Vector3.new(0, (enemy.Height or 6) / 2 + 1.2, 0)
+		gui.AlwaysOnTop = true
+		gui.MaxDistance = 80
+		gui.LightInfluence = 0
+		local back = Instance.new("Frame")
+		back.Name = "Back"
+		back.Size = UDim2.fromScale(1, 1)
+		back.BackgroundColor3 = Color3.fromRGB(20, 20, 24)
+		back.BorderSizePixel = 0
+		back.Parent = gui
+		local fill = Instance.new("Frame")
+		fill.Name = "Fill"
+		fill.Size = UDim2.fromScale(1, 1)
+		fill.BackgroundColor3 = Color3.fromRGB(220, 50, 50)
+		fill.BorderSizePixel = 0
+		fill.Parent = back
+		local stroke = Instance.new("UIStroke")
+		stroke.Color = Color3.new(0, 0, 0)
+		stroke.Thickness = 1.5
+		stroke.Parent = back
+		gui.Adornee = model.PrimaryPart
+		gui.Parent = model
+		bar = gui
+	end
+	local fill = (bar :: BillboardGui).Back.Fill :: Frame
+	fill.Size = UDim2.fromScale(math.clamp(enemy.Health or 1, 0, 1), 1)
+	bar.Enabled = true
+	local token = (barTokens[enemy] or 0) + 1
+	barTokens[enemy] = token
+	task.delay(Config.Combat.HealthBarSeconds, function()
+		if barTokens[enemy] == token and bar.Parent then
+			bar.Enabled = false
+		end
+	end)
+end
+
+-- Destello rojo breve en el enemigo herido
+local function flashHit(model: Model)
+	local h = Instance.new("Highlight")
+	h.Name = "HitFlash"
+	h.FillColor = Color3.fromRGB(255, 40, 40)
+	h.FillTransparency = 0.35
+	h.OutlineTransparency = 1
+	h.DepthMode = Enum.HighlightDepthMode.Occluded
+	h.Parent = model
+	task.delay(0.15, function()
+		h:Destroy()
+	end)
+end
+
+local function deathPuff(position: Vector3)
+	local fx = Instance.new("Part")
+	fx.Size = Vector3.new(0.2, 0.2, 0.2)
+	fx.CFrame = CFrame.new(position)
+	fx.Anchored = true
+	fx.CanCollide = false
+	fx.CanQuery = false
+	fx.CanTouch = false
+	fx.Transparency = 1
+	fx.Parent = Workspace
+	local smoke = Instance.new("ParticleEmitter")
+	smoke.Color = ColorSequence.new(Color3.fromRGB(20, 18, 22))
+	smoke.Size = NumberSequence.new({ NumberSequenceKeypoint.new(0, 2), NumberSequenceKeypoint.new(1, 6) })
+	smoke.Transparency = NumberSequence.new({ NumberSequenceKeypoint.new(0, 0.2), NumberSequenceKeypoint.new(1, 1) })
+	smoke.Lifetime = NumberRange.new(1, 1.8)
+	smoke.Speed = NumberRange.new(2, 6)
+	smoke.SpreadAngle = Vector2.new(180, 180)
+	smoke.Rate = 0
+	smoke.Parent = fx
+	smoke:Emit(40)
+	task.delay(2.5, function()
+		fx:Destroy()
+	end)
+end
+
+-- Muere: recompensa, se quita y (si no era temporal) vuelve a los RespawnSeconds.
+function EnemyService.Kill(enemy, killer: Player?)
+	if not table.find(activeEnemies, enemy) then
+		return
+	end
+	local enemyType = enemy.EnemyType
+	local model = enemy.Model
+	local position = if model and model:IsA("Model") then model:GetPivot().Position else nil
+	-- El Cajero suelta lo que llevaba robado para quien lo mata
+	if enemy.DropLoot then
+		pcall(enemy.DropLoot, enemy, killer)
+	end
+	if position then
+		deathPuff(position)
+		SfxService.PlayAt("EnemyKill", position)
+	end
+	if killer then
+		RunState.AddCash(killer, Config.Combat.KillReward)
+		local def = Config.Enemies[enemyType]
+		Remotes.event("Notify"):FireClient(
+			killer,
+			string.format("Mataste a %s: +%d billetes. Volverá en %d s.", if def then def.DisplayName else enemyType, Config.Combat.KillReward, Config.Combat.RespawnSeconds),
+			"good"
+		)
+	end
+	EnemyService.RemoveEnemy(enemy)
+	if not enemy.Temporary and currentCtx then
+		local token = nightToken
+		local ctx = currentCtx
+		task.delay(Config.Combat.RespawnSeconds, function()
+			if token == nightToken then
+				spawnEnemy(enemyType, ctx, nil)
+			end
+		end)
+	end
+end
+
+-- Hiere al enemigo con un arma (weaponId de Config.Combat.HitsToKill). Devuelve
+-- (herido, muerto). No hace nada si no se le puede herir.
+function EnemyService.Damage(enemy, weaponId: string, attacker: Player?): (boolean, boolean)
+	if not EnemyService.CanBeDamaged(enemy) then
+		return false, false
+	end
+	local def = Config.Enemies[enemy.EnemyType]
+	local tier = math.clamp(def and def.Tier or 2, 1, 3)
+	local hits = Config.Combat.HitsToKill[weaponId]
+	local needed = hits and hits[tier] or 3
+	enemy.Health = (enemy.Health or 1) - 1 / needed
+	local model = enemy.Model :: Model
+	flashHit(model)
+	if enemy.Health <= 0.001 then
+		EnemyService.Kill(enemy, attacker)
+		return true, true
+	end
+	showHealthBar(enemy)
+	SfxService.PlayAt("EnemyHit", model:GetPivot().Position)
+	return true, false
 end
 
 function EnemyService.StopNight()

@@ -360,7 +360,9 @@ local function bindWeapon()
 	if item then
 		ContextActionService:BindAction("Weapon", function(_, state)
 			if state == Enum.UserInputState.Begin then
-				Remotes.event("UseWeapon"):FireServer()
+				-- (con la direccion de la camara: la pistola dispara hacia la mirilla)
+				local camera = Workspace.CurrentCamera
+				Remotes.event("UseWeapon"):FireServer(nil, if camera then camera.CFrame.LookVector else nil)
 			end
 			return Enum.ContextActionResult.Pass
 		end, false, Enum.KeyCode.R)
