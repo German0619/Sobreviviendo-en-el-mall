@@ -1199,6 +1199,10 @@ Config.Missions = {
 	EmptyBins = { DisplayName = "Vaciar papeleras", Weight = 10, TimeLimit = 170, Reward = 55, Duration = 1.5, Count = 3 },
 	Inventory = { DisplayName = "Inventario", Weight = 7, TimeLimit = 240, Reward = 90, Duration = 3, Count = 3 },
 	PurgeBoiler = { DisplayName = "Purgar la caldera", Weight = 7, TimeLimit = 220, Reward = 85, Duration = 2, Count = 3 },
+	-- Alas nuevas (2026-11-25): obra del Ala Sur, grandes almacenes y pasillo de servicio
+	UnplugTools = { DisplayName = "Desenchufar herramientas", Weight = 10, TimeLimit = 150, Reward = 55, Duration = 2, Count = 3 },
+	CoverMannequins = { DisplayName = "Tapar maniquíes", Weight = 9, TimeLimit = 160, Reward = 55, Duration = 2.5, Count = 3 },
+	RestoreEmergencyLights = { DisplayName = "Luces de emergencia", Weight = 9, TimeLimit = 170, Reward = 55, Duration = 3, Count = 3 },
 }
 
 -- Detalles de algunas misiones
@@ -1210,6 +1214,8 @@ Config.MissionDetails = {
 	ResetArcade = { LureRadius = 55 }, -- cada recreativa encendida atrae a los enemigos cercanos
 	PayPhone = { MarkerDistance = 25, RingDistance = 150 }, -- marcador solo de cerca; el timbre se oye lejos
 	PurgeBoiler = { FinalHold = 4 }, -- segundos manteniendo E en el panel de la caldera
+	UnplugTools = { LureRadius = 60 }, -- cada herramienta encendida en la obra atrae a los enemigos
+	RestoreEmergencyLights = { Range = 20, Brightness = 0.9 }, -- luz que deja cada una (hasta la noche siguiente)
 }
 
 -- Brillo de todas las luces del mall (multiplica el Brightness de cada luz al construir
@@ -1230,6 +1236,34 @@ Config.DarkZones = {
 	"Baños P2",
 	"Archivo",
 	"Sala de máquinas",
+	-- Mitades oeste del servicio y de las oficinas (las corta el pasaje al Ala Norte)
+	"Servicio Oeste",
+	"Oficinas Oeste",
+	-- Pasillo de servicio detras de las tiendas del Ala Norte
+	"Pasillo de servicio Oeste",
+	"Pasillo de servicio Este",
+	"Pasillo de servicio Norte",
+	"Pasillo de servicio Oeste P2",
+	"Pasillo de servicio Este P2",
+	"Pasillo de servicio Norte P2",
+	-- Tiendas cerradas del Ala Norte
+	"Novias Azahar",
+	"Disfraces Carnaval",
+	-- Ala Sur entera: en obras y a oscuras
+	"Acceso Ala Sur",
+	"Acceso Ala Sur P2",
+	"Ala Sur",
+	"Ala Sur P2",
+	"Local en obras 1",
+	"Local en obras 2",
+	"Local en obras 3",
+	"Local en obras 4",
+	"Local en obras 5",
+	"Local en obras 6",
+	"Local en obras 7",
+	"Local en obras 8",
+	"Almacenes Estrella",
+	"Almacenes Estrella P2",
 }
 
 -- Tamano del mapa: el mall tiene 2 plantas (~1.8x de superficie). Multiplica (redondeando
@@ -2275,7 +2309,7 @@ end
 Config.Sounds = {
 	FadeSeconds = 2, -- fundido entre pistas de musica
 	Music = {
-		Lobby = snd("rbxassetid://135587479626467", 0.35), -- "Rooftop Isolation" (DistroKid)
+		Lobby = snd("rbxassetid://135587479626467", 0.14), -- "Rooftop Isolation" (DistroKid); bajada al 40 % (sonaba muy fuerte)
 		Preparation = snd("rbxassetid://139053896078359", 0.18), -- "Eerie Music Box" (APM)
 		Night = snd("rbxassetid://138890398994853", 0.35), -- "Horror Cinematic Dark Scary Ambience" (DistroKid)
 		LateNight = snd("rbxassetid://102615842265981", 0.35), -- desde LateNightFrom
@@ -2333,8 +2367,10 @@ Config.Sounds = {
 		Arcade = snd("rbxassetid://118038510431692", 0.45), -- "Midnight Arcade" (DistroKid): recreativa en demo
 		Projector = snd("rbxassetid://9112890982", 0.4), -- maquina traqueteando (proyector, Pro Sound Effects)
 		Steam = snd("rbxassetid://90846999831272", 0.5), -- vapor de la caldera (DistroKid)
-		Alarm = snd("rbxassetid://9125544285", 0.6), -- timbre de alarma de emergencia (mision Apagar alarma, Pro Sound Effects)
-		FireAlarm = snd("rbxassetid://9113084849", 0.7), -- timbre de incendio continuo (evento Alarma de incendio, Pro Sound Effects)
+		PowerTool = snd("rbxassetid://9112761348", 0.6), -- herramientas electricas en la obra (Pro Sound Effects)
+		-- (los timbres con pausas sonaban a telefono: ahora alarmas continuas)
+		Alarm = snd("rbxassetid://9113089577", 0.45), -- alarma de 2 tonos rapida y continua (mision Apagar alarma, Pro Sound Effects)
+		FireAlarm = snd("rbxassetid://9114373423", 0.55), -- pitidos rapidos continuos (evento Alarma de incendio, Pro Sound Effects)
 	},
 	-- La Garra (Config.Claw): solo los oye el jugador agarrado (client/ClawFX). Al agarrar
 	-- y al matar suenan en 3D para todos: Sfx.ClawGrab y Sfx.ClawKill.

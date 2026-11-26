@@ -20,6 +20,14 @@
 --         | 2 salas | llegan las escaleras mecanicas            | (arcade)       |
 --   z=-70 +---------+-[16]-[17]-[18]-[19]-[20]-+--------------------------+
 --
+-- ALAS (2026-11-25), un pasaje en el centro de la galeria (x -24..24, donde estaban las
+-- tiendas de la columna 3), en las dos plantas:
+--   ALA NORTE  z 20..207: cruza servicio/oficinas; 4 tiendas por planta (x ±24..±74),
+--              pasillo de servicio oscuro detras (x ±74..±84 y z 207..222) con escalera.
+--   ALA SUR    z -167..-20: en obras y a oscuras, 4 locales por planta; al fondo los
+--              grandes almacenes cerrados (z -227..-167, x -74..74) con escaleras paradas.
+-- El atrio es mas estrecho (|z| < 6): los pasillos de la planta alta miden 14.
+--
 -- Usa los tags de shared/Tags (zonas, luces, misiones, escondites, camaras...).
 -- Modelos 3D opcionales (si no estan, se usan versiones hechas con piezas):
 --   ServerStorage.PropTemplates.<Nombre>  (pivote = centro de la base, mirando a -Z)
@@ -42,7 +50,11 @@ local Y0 = 0.05 -- el suelo queda un poco por encima del Baseplate (evita parpad
 local F2 = 18 -- altura del suelo de la planta alta
 local STORE_W, STORE_D, STORE_H = 48, 50, 16
 local GALLERY_TOP = F2 + 18 -- techo de los pasillos altos y base del tragaluz
-local VOID = 12 -- el atrio (hueco entre plantas) ocupa |z| < VOID
+-- El atrio (hueco entre plantas) ocupa |z| < VOID. Era 12 (pasillos altos de 8): con 6 los
+-- pasillos de la planta alta miden 14 y cuesta mas que te acorralen.
+local VOID = 6
+-- Alas nuevas: el pasillo de cada ala ocupa |x| < WING (el hueco de la tienda central)
+local WING = 24
 local FOOD_H, ENTRY_H, SERVICE_H = 16, 16, 16
 local ESC_SPEED = 6 -- studs/s de las escaleras mecanicas
 
@@ -1533,18 +1545,21 @@ local function buildStore(def, index: number, frontCenter: Vector3, inward: Vect
 	-- (a un lado del podio: en medio puede haber un maniqui)
 	deco("PromoStand", Vector3.new(0.3, 1.4, 0.3), L(base, 19, 1.3, 4.6), M.Metal, DARK)
 	local displayColor = def.Accent:Lerp(DARK, 0.5)
-	local display = box("PromoScreen", Vector3.new(3.6, 2.4, 0.3), L(base, 19, 3.2, 4.6) * OUT, M.SmoothPlastic, displayColor, {
+	local display = box("PromoScreen", Vector3.new(3.6, 2.4, 0.3), L(base, 19, 3.2, 4.6) * OUT, M.SmoothPlastic, if def.Closed then DARK else displayColor, {
 		CanCollide = false,
 		Variant = false,
 	})
-	local screenGui = glowScreen(display, Enum.NormalId.Front, def.Accent, def.Accent:Lerp(DARK, 0.6), ((def.Promo or def.Name):gsub("\n", " ")))
-	screenGui.Name = "Screen"
-	local screenGlow = Instance.new("PointLight")
-	screenGlow.Color = def.Accent
-	screenGlow.Range = 9
-	screenGlow.Brightness = 0.8
-	screenGlow.Parent = display
-	tag(display, Tags.StoreDisplay, { Wing = wing, OnColor = displayColor })
+	-- Tienda cerrada (def.Closed): pantalla apagada, sin luces y sin puntos de mision
+	if not def.Closed then
+		local screenGui = glowScreen(display, Enum.NormalId.Front, def.Accent, def.Accent:Lerp(DARK, 0.6), ((def.Promo or def.Name):gsub("\n", " ")))
+		screenGui.Name = "Screen"
+		local screenGlow = Instance.new("PointLight")
+		screenGlow.Color = def.Accent
+		screenGlow.Range = 9
+		screenGlow.Brightness = 0.8
+		screenGlow.Parent = display
+		tag(display, Tags.StoreDisplay, { Wing = wing, OnColor = displayColor })
+	end
 	-- Cabecera (de 12 hasta el suelo de la planta de arriba / techo del pasillo)
 	box("Header", Vector3.new(W, 5, 1), L(base, 0, 14.5, 0.5), M.Plaster, def.Accent:Lerp(DARK, 0.7))
 	deco("HeaderTrim", Vector3.new(W, 0.25, 1.3), L(base, 0, 12.1, 0.5), M.Metal, STEEL)
@@ -1552,7 +1567,11 @@ local function buildStore(def, index: number, frontCenter: Vector3, inward: Vect
 		CanCollide = false,
 		Variant = false,
 	})
-	litSign(signPart, def.Name, def.Accent, def.Font, Enum.NormalId.Back)
+	if def.Closed then
+		sign(signPart, def.Name, def.Accent:Lerp(DARK, 0.55), def.Font, Enum.NormalId.Back) -- rotulo apagado
+	else
+		litSign(signPart, def.Name, def.Accent, def.Font, Enum.NormalId.Back)
+	end
 	-- Tira de luz del color de la tienda bajo la cabecera (se apaga con la zona)
 	local strip = deco("AccentStrip", Vector3.new(W - 4, 0.12, 0.12), L(base, 0, 11.9, -0.25), M.Neon, def.Accent)
 	tag(strip, Tags.Light, { Zone = def.Name })
@@ -1581,7 +1600,9 @@ local function buildStore(def, index: number, frontCenter: Vector3, inward: Vect
 
 	-- Persiana (mision Bajar persianas): control junto a la entrada, persiana hija
 	local control = box("ShutterControl", Vector3.new(1, 1.4, 0.4), L(base, 10.2, 4.5, -0.3) * OUT, M.Metal, Color3.fromRGB(200, 170, 40))
-	tag(control, Tags.ShutterControl, { Wing = wing })
+	if not def.Closed then
+		tag(control, Tags.ShutterControl, { Wing = wing })
+	end
 	local openCF, closedCF = L(base, 0, 11.6, 0.9), L(base, 0, 9, 0.9)
 	local shutter = box("Shutter", Vector3.new(16, 0.8, 0.3), openCF, M.DiamondPlate, Color3.fromRGB(150, 152, 158), {
 		CanCollide = false,
@@ -1592,6 +1613,14 @@ local function buildStore(def, index: number, frontCenter: Vector3, inward: Vect
 	shutter:SetAttribute("ClosedSize", Vector3.new(16, 6, 0.3))
 	shutter:SetAttribute("ClosedCFrame", closedCF)
 	shutter.Parent = control
+	if def.Closed then
+		-- Cerrada: persiana a media altura (se pasa agachado... o no) y cartel de cierre
+		shutter.Size = Vector3.new(16, 6, 0.3)
+		shutter.CFrame = closedCF
+		shutter.Color = Color3.fromRGB(110, 110, 114)
+		local notice = deco("ClosedNotice", Vector3.new(5, 2.2, 0.05), L(base, 3, 8.6, 0.72) * OUT, M.SmoothPlastic, Color3.fromRGB(235, 232, 220))
+		sign(notice, "CERRADO\nPOR CIERRE", Color3.fromRGB(150, 25, 25), Enum.Font.GothamBlack, Enum.NormalId.Front)
+	end
 
 	-- Luces: paneles LED, rejillas de ventilacion y rociadores
 	for _, x in { -12, 12 } do
@@ -1626,7 +1655,9 @@ local function buildStore(def, index: number, frontCenter: Vector3, inward: Vect
 		CanTouch = false,
 		Variant = false,
 	})
-	tag(registerSpot, Tags.CashRegister, { Wing = wing })
+	if not def.Closed then
+		tag(registerSpot, Tags.CashRegister, { Wing = wing })
+	end
 	local counterSpot = box("CounterSpot", Vector3.new(4, 1, 1.4), L(base, -16.5, 4.2, 39), M.SmoothPlastic, Color3.new(1, 1, 1), {
 		Transparency = 1,
 		CanCollide = false,
@@ -1634,13 +1665,17 @@ local function buildStore(def, index: number, frontCenter: Vector3, inward: Vect
 		CanTouch = false,
 		Variant = false,
 	})
-	tag(counterSpot, Tags.StoreCounter, { Zone = def.Name })
 	local backShelf = box("BackWallShelf", Vector3.new(14, 0.3, 1.2), L(base, -14, 6.5, D - 1.6), M.Wood, Color3.fromRGB(150, 110, 75))
-	tag(backShelf, Tags.InventoryShelf, { Zone = def.Name }) -- (mision Inventario)
+	if not def.Closed then
+		tag(counterSpot, Tags.StoreCounter, { Zone = def.Name })
+		tag(backShelf, Tags.InventoryShelf, { Zone = def.Name }) -- (mision Inventario)
+	end
 	productRow(L(base, -14, 6.65, D - 1.6), 13, 0.9, def.Accent:Lerp(WHITE, 0.4))
-	trashBin(L(base, -21, 0, 45), wing)
+	trashBin(L(base, -21, 0, 45), if def.Closed then nil else wing)
 	-- Publicidad retroiluminada en la pared izquierda (por encima de los muebles)
-	lightbox(L(base, -23.2, 12, 34) * FACE_POS_X, 8, 3.2, def.Promo or "NUEVA TEMPORADA", def.Accent, def.Name)
+	if not def.Closed then
+		lightbox(L(base, -23.2, 12, 34) * FACE_POS_X, 8, 3.2, def.Promo or "NUEVA TEMPORADA", def.Accent, def.Name)
+	end
 
 	-- Interior segun el tipo
 	local hasHiding = INTERIORS[def.Kind](base, def)
@@ -1648,6 +1683,22 @@ local function buildStore(def, index: number, frontCenter: Vector3, inward: Vect
 	-- Escondite (armario del personal) si el interior no trae uno
 	if not hasHiding then
 		hidingSpot("Armario", L(base, 17, 3.75, D - 2.6) * OUT, Vector3.new(4, 7.5, 3), M.Metal, Color3.fromRGB(80, 95, 110))
+	end
+
+	-- Tienda cerrada: sabanas sobre el mobiliario, polvo y ningun punto de mision
+	if def.Closed then
+		for _, p in { { -12, 14 }, { 12, 14 }, { -12, 27 }, { 12, 30 }, { -2, 31 } } do
+			deco("DustSheet", Vector3.new(8.6, 5.4, 3), L(base, p[1], 2.7, p[2]), M.Fabric, Color3.fromRGB(214, 212, 204), {
+				CanCollide = false,
+				CanQuery = false,
+			})
+		end
+		for _, p in { { -6, 22 }, { 8, 40 }, { 16, 20 } } do
+			deco("Dust", Vector3.new(6, 0.04, 4), L(base, p[1], 0.02, p[2]) * CFrame.Angles(0, math.rad(p[1] * 7), 0), M.Sand, Color3.fromRGB(120, 112, 100))
+		end
+		deco("FallenBox", Vector3.new(2.2, 1.6, 2.2), L(base, 4, 0.8, 12) * CFrame.Angles(0, math.rad(25), 0), M.Cardboard, Color3.fromRGB(170, 130, 85))
+		currentParent = map
+		return center
 	end
 
 	-- Puntos de mision
@@ -1704,14 +1755,50 @@ local STORES_2 = {
 	{ Name = "Electro Casa", Kind = "Tech", Promo = "TODO PARA\nTU HOGAR", Accent = Color3.fromRGB(90, 220, 200), Font = Enum.Font.Gotham, Floor = { M.Slate, Color3.fromRGB(80, 80, 86) } },
 }
 
+-- Las tiendas del centro (columna 3, x -24..24) ya no estan en la galeria: alli se abren
+-- los pasajes a las alas (norte y sur). Sus tiendas se mudaron al Ala Norte.
+local WING_COLUMN = 3
+
 local function buildStoreRow(defs, west: string, east: string)
 	for i, def in defs do
 		local north = i <= 5
 		local col = if north then i else i - 5
-		local x = -120 + STORE_W * (col - 1) + STORE_W / 2
-		local front = Vector3.new(x, 0, if north then 20 else -20)
-		local inward = if north then Vector3.new(0, 0, 1) else Vector3.new(0, 0, -1)
-		buildStore(def, i, front, inward, if x <= 0 then west else east, north)
+		if col ~= WING_COLUMN then
+			local x = -120 + STORE_W * (col - 1) + STORE_W / 2
+			local front = Vector3.new(x, 0, if north then 20 else -20)
+			local inward = if north then Vector3.new(0, 0, 1) else Vector3.new(0, 0, -1)
+			buildStore(def, i, front, inward, if x <= 0 then west else east, north)
+		end
+	end
+end
+
+-- Ala Norte: 4 tiendas por planta a los lados del pasillo (x ±24), de sur a norte.
+-- { def, lado (-1 oeste / 1 este), centro z }. Las de la columna 3 de la galeria se mudaron aqui.
+local NORTH_STORES_1 = {
+	STORES_1[3], -- Jugueteria Pipo
+	STORES_1[8], -- Optica Vision
+	{ Name = "Relojería Tic Tac", Kind = "Jewelry", Promo = "EL TIEMPO\nES ORO", Accent = Color3.fromRGB(210, 180, 120), Font = Enum.Font.Garamond, Floor = { M.Marble, Color3.fromRGB(70, 66, 64) } },
+	{ Name = "Novias Azahar", Kind = "Clothes", Promo = "EL DÍA\nMÁS FELIZ", Accent = Color3.fromRGB(240, 225, 235), Font = Enum.Font.Fondamento, Floor = { M.Marble, Color3.fromRGB(236, 232, 228) }, Closed = true },
+}
+local NORTH_STORES_2 = {
+	STORES_2[3], -- Gimnasio Titan
+	STORES_2[8], -- Salon Glamour
+	{ Name = "Bici Ruta", Kind = "Sports", Promo = "RUEDA\nSIN LÍMITES", Accent = Color3.fromRGB(255, 170, 40), Font = Enum.Font.Oswald, Floor = { M.Rubber, Color3.fromRGB(58, 60, 66) } },
+	{ Name = "Disfraces Carnaval", Kind = "Clothes", Promo = "¿QUIÉN\nERES HOY?", Accent = Color3.fromRGB(200, 80, 230), Font = Enum.Font.Bangers, Floor = { M.WoodPlanks, Color3.fromRGB(120, 95, 80) }, Closed = true },
+}
+-- Posicion de cada tienda del ala (mismo orden que las listas): suroeste, noroeste, sureste, noreste
+local NORTH_SLOTS = { { -1, 135 }, { -1, 183 }, { 1, 135 }, { 1, 183 } }
+
+-- Ala Sur (en obras): 4 locales por planta y los grandes almacenes al fondo
+local SOUTH_Z1 = -167 -- fondo del pasillo del Ala Sur (el pasillo empieza en z = -70)
+local SOUTH_SLOTS = { { -1, -95 }, { -1, -143 }, { 1, -95 }, { 1, -143 } }
+local ANCHOR = { X1 = -74, X2 = 74, Z1 = -227, Z2 = -167 } -- grandes almacenes (2 plantas)
+
+local function buildWingStores(defs, wingName: string, floorOffset: number)
+	for i, def in defs do
+		local slot = NORTH_SLOTS[i]
+		local side, zc = slot[1], slot[2]
+		buildStore(def, floorOffset + i, Vector3.new(side * WING, 0, zc), Vector3.new(side, 0, 0), wingName, true)
 	end
 end
 
@@ -1727,6 +1814,12 @@ local MAP_AREAS = {
 		{ "PATIO DE\nCOMIDAS", -180, -120, -70, 70, Color3.fromRGB(190, 120, 50) },
 		{ "ENTRADA", 120, 180, -70, 70, Color3.fromRGB(70, 120, 170) },
 		{ "GALERÍA", -120, 120, -20, 20, Color3.fromRGB(200, 196, 186) },
+		{ "ALA NORTE", -24, 24, 20, 207, Color3.fromRGB(200, 196, 186) },
+		{ "SERVICIO", -84, 84, 207, 222, Color3.fromRGB(80, 82, 90) },
+		{ "", -84, -74, 111, 207, Color3.fromRGB(80, 82, 90) },
+		{ "", 74, 84, 111, 207, Color3.fromRGB(80, 82, 90) },
+		{ "ALA SUR\n(OBRAS)", -24, 24, -167, -20, Color3.fromRGB(150, 120, 60) },
+		{ "ALMACENES\nESTRELLA\n(CERRADO)", -74, 74, -227, -167, Color3.fromRGB(70, 60, 60) },
 	},
 	{
 		{ "ALMACÉN", -180, -90, 70, 110, Color3.fromRGB(80, 82, 90) },
@@ -1734,12 +1827,44 @@ local MAP_AREAS = {
 		{ "CINE", -180, -120, -70, 70, Color3.fromRGB(150, 35, 45) },
 		{ "ZONA DE\nJUEGOS", 120, 180, -70, 70, Color3.fromRGB(110, 60, 190) },
 		{ "ATRIO", -120, 120, -20, 20, Color3.fromRGB(200, 196, 186) },
+		{ "ALA NORTE", -24, 24, 20, 207, Color3.fromRGB(200, 196, 186) },
+		{ "SERVICIO", -84, 84, 207, 222, Color3.fromRGB(80, 82, 90) },
+		{ "", -84, -74, 111, 207, Color3.fromRGB(80, 82, 90) },
+		{ "", 74, 84, 111, 207, Color3.fromRGB(80, 82, 90) },
+		{ "ALA SUR\n(OBRAS)", -24, 24, -167, -20, Color3.fromRGB(150, 120, 60) },
+		{ "ALMACENES\nESTRELLA\n(CERRADO)", -74, 74, -227, -167, Color3.fromRGB(70, 60, 60) },
 	},
 }
+-- Limites del plano (con las alas): x -180..180, z -228..223
+local MAP_X1, MAP_X2, MAP_Z1, MAP_Z2 = -180, 180, -228, 223
 
 -- Coordenadas del mundo -> posicion relativa en el plano (norte arriba)
 local function mapPos(x: number, z: number): (number, number)
-	return (x + 180) / 360, (110 - z) / 180
+	return (x - MAP_X1) / (MAP_X2 - MAP_X1), (MAP_Z2 - z) / (MAP_Z2 - MAP_Z1)
+end
+
+-- Tiendas y locales de cada planta para el plano: { nombre, x1, x2, z1, z2, color }
+local function mapStores(floorIndex: number)
+	local list = {}
+	local defs = if floorIndex == 2 then STORES_2 else STORES_1
+	for i, def in defs do
+		local north = i <= 5
+		local col = if north then i else i - 5
+		if col ~= WING_COLUMN then
+			local x1 = -120 + STORE_W * (col - 1)
+			table.insert(list, { def.Name, x1, x1 + STORE_W, if north then 20 else -70, if north then 70 else -20, def.Accent })
+		end
+	end
+	for i, def in (if floorIndex == 2 then NORTH_STORES_2 else NORTH_STORES_1) do
+		local slot = NORTH_SLOTS[i]
+		local x1 = if slot[1] > 0 then WING else -(WING + STORE_D)
+		table.insert(list, { def.Name, x1, x1 + STORE_D, slot[2] - STORE_W / 2, slot[2] + STORE_W / 2, if def.Closed then Color3.fromRGB(60, 60, 64) else def.Accent })
+	end
+	for _, slot in SOUTH_SLOTS do
+		local x1 = if slot[1] > 0 then WING else -(WING + STORE_D)
+		table.insert(list, { "OBRAS", x1, x1 + STORE_D, slot[2] - STORE_W / 2, slot[2] + STORE_W / 2, Color3.fromRGB(120, 100, 60) })
+	end
+	return list
 end
 
 local function mapRect(parent: Instance, text: string, x1, x2, z1, z2, color: Color3, textColor: Color3?)
@@ -1781,24 +1906,20 @@ local function floorMap(parent: Instance, floorIndex: number, order: number, her
 
 	local map = Instance.new("Frame")
 	map.LayoutOrder = order + 1
-	map.Size = UDim2.fromScale(1, 0.3)
+	map.Size = UDim2.fromScale(1, 0.37)
 	map.BackgroundColor3 = Color3.fromRGB(30, 32, 40)
 	map.BorderSizePixel = 0
 	local aspect = Instance.new("UIAspectRatioConstraint")
-	aspect.AspectRatio = 2
+	aspect.AspectRatio = (MAP_X2 - MAP_X1) / (MAP_Z2 - MAP_Z1)
 	aspect.Parent = map
 	map.Parent = parent
 
 	for _, a in MAP_AREAS[floorIndex] do
-		mapRect(map, a[1], a[2], a[3], a[4], a[5], a[6], if a[1] == "GALERÍA" or a[1] == "ATRIO" then Color3.fromRGB(40, 40, 46) else nil)
+		local corridor = a[1] == "GALERÍA" or a[1] == "ATRIO" or a[1] == "ALA NORTE"
+		mapRect(map, a[1], a[2], a[3], a[4], a[5], a[6], if corridor then Color3.fromRGB(40, 40, 46) else nil)
 	end
-	local defs = if floorIndex == 2 then STORES_2 else STORES_1
-	for i, def in defs do
-		local north = i <= 5
-		local col = if north then i else i - 5
-		local x1 = -120 + STORE_W * (col - 1)
-		local z1, z2 = if north then 20 else -70, if north then 70 else -20
-		mapRect(map, def.Name, x1, x1 + STORE_W, z1, z2, def.Accent:Lerp(Color3.fromRGB(20, 20, 24), 0.45))
+	for _, s in mapStores(floorIndex) do
+		mapRect(map, s[1], s[2], s[3], s[4], s[5], s[6]:Lerp(Color3.fromRGB(20, 20, 24), 0.45))
 	end
 	-- Escaleras mecanicas y de servicio
 	for _, ex in { -76.5, 76.5 } do
@@ -1812,7 +1933,7 @@ local function floorMap(parent: Instance, floorIndex: number, order: number, her
 		local dot = Instance.new("Frame")
 		dot.AnchorPoint = Vector2.new(0.5, 0.5)
 		dot.Position = UDim2.fromScale(u, v)
-		dot.Size = UDim2.fromScale(0.05, 0.1)
+		dot.Size = UDim2.fromScale(0.06, 0.048)
 		dot.BackgroundColor3 = Color3.fromRGB(255, 40, 40)
 		dot.ZIndex = 3
 		local corner = Instance.new("UICorner")
@@ -1845,7 +1966,8 @@ local function directoryScreen(part: BasePart, here: Vector3, floorIndex: number
 	padding.Parent = root
 	local layout = Instance.new("UIListLayout")
 	layout.SortOrder = Enum.SortOrder.LayoutOrder
-	layout.Padding = UDim.new(0.015, 0)
+	layout.Padding = UDim.new(0.01, 0)
+	layout.HorizontalAlignment = Enum.HorizontalAlignment.Center
 	layout.Parent = root
 
 	local header = Instance.new("TextLabel")
@@ -2197,7 +2319,7 @@ local function buildGallery()
 
 	-- Focos bajo los pasillos de la planta alta (iluminan las fachadas)
 	for x = -108, 108, 24 do
-		for _, z in { -16, 16 } do
+		for _, z in { -16, -9.5, 9.5, 16 } do
 			downlight(at(x, F2 - 1, z), if x < 0 then "Galería Oeste" else "Galería Este")
 		end
 	end
@@ -2222,7 +2344,8 @@ local function buildGallery()
 		planter(x, 0, "Galería Oeste")
 		planter(-x, 0, "Galería Este")
 	end
-	for _, x in { -104, -35 } do
+	-- (lejos de las columnas del borde del atrio, en x = ±36 y ±108)
+	for _, x in { -100, -44 } do
 		bench(at(x, 0, -6.5))
 		bench(at(x, 0, 6.5) * CFrame.Angles(0, math.pi, 0))
 		bench(at(-x, 0, -6.5))
@@ -2354,10 +2477,10 @@ local function buildUpperGallery()
 	local i = 0
 	for x = -108, 108, 24 do
 		i += 1
-		pendant(x, if i % 2 == 0 then 6 else -6, 18.6, 9.5, if x < 0 then W1 else E1)
+		pendant(x, if i % 2 == 0 then 2.5 else -2.5, 18.6, 9.5, if x < 0 then W1 else E1)
 	end
 	for x = -108, 108, 24 do
-		for _, z in { -16, 16 } do
+		for _, z in { -16, -9.5, 9.5, 16 } do
 			ceilingPanel(at(x, 18, z), if x < 0 then W1 else E1, Vector2.new(5, 2.4), 22, 1.4)
 		end
 	end
@@ -2371,7 +2494,7 @@ local function buildUpperGallery()
 	end
 
 	-- Maceteros estrechos junto al barandal (3 por ala), papeleras y bancos
-	for _, p in { { -110, 13.6 }, { -80, -13.6 }, { -30, 13.6 } } do
+	for _, p in { { -110, 7.8 }, { -80, -7.8 }, { -30, 7.8 } } do
 		planter(p[1], p[2], W1, true)
 		planter(-p[1], -p[2], E1, true)
 	end
@@ -2380,9 +2503,10 @@ local function buildUpperGallery()
 	-- Directorios de la planta alta (junto a las fachadas)
 	directoryTotem(at(-114, 0, 18.4), 2)
 	directoryTotem(at(114, 0, -18.4) * CFrame.Angles(0, math.pi, 0), 2)
-	for _, bx in { -57, 57 } do
-		bench(at(bx, 0, -8) * CFrame.Angles(0, math.rad(90), 0))
-		bench(at(bx, 0, 8) * CFrame.Angles(0, math.rad(90), 0))
+	-- Bancos en el pasillo (los puentes ahora son cortos: alli llegan las escaleras)
+	for _, x in { -84, 84 } do
+		bench(at(x, 0, 17.4) * CFrame.Angles(0, math.pi, 0))
+		bench(at(-x, 0, -17.4))
 	end
 
 	-- Puntos de mision de la planta alta
@@ -2414,8 +2538,8 @@ local function buildUpperGallery()
 
 	-- Camaras de la planta alta (miran a traves del atrio)
 	camera(-118, 15.4, 18.6, -80, 0, -15)
-	camera(-2, 15.4, -18.6, -40, 0, 15)
-	camera(2, 15.4, 18.6, 40, 0, -15)
+	camera(-30, 15.4, -18.6, -60, 0, 15) -- (no en x = 0: alli se abren los pasajes de las alas)
+	camera(30, 15.4, 18.6, 60, 0, -15)
 	camera(118, 15.4, -18.6, 80, 0, 15)
 
 	levelY = 0
@@ -2434,8 +2558,21 @@ local function buildShell()
 	wall(Vector3.new(180.5, 0, -71), Vector3.new(180.5, 0, 111), top, {
 		Openings = { { From = 57, To = 85, Height = 14 } }, -- puertas de vidrio (z -14..14)
 	})
-	wall(Vector3.new(-180, 0, -70.5), Vector3.new(180, 0, -70.5), top)
-	wall(Vector3.new(-180, 0, 110.5), Vector3.new(180, 0, 110.5), top, { Material = M.Concrete, Color = Color3.fromRGB(165, 165, 160) })
+	-- Muro sur: abierto en x -24..24 (pasillo del Ala Sur, las dos plantas)
+	wall(Vector3.new(-180, 0, -70.5), Vector3.new(180, 0, -70.5), top, {
+		Openings = { { From = 180 - WING, To = 180 + WING, Height = top } },
+	})
+	-- Muro norte: abierto en x -24..24 (pasillo del Ala Norte) y con las puertas de los
+	-- pasillos de servicio del ala (planta baja: x -83..-75 al servicio, x 77..83 a seguridad)
+	wall(Vector3.new(-180, 0, 110.5), Vector3.new(180, 0, 110.5), top, {
+		Material = M.Concrete,
+		Color = Color3.fromRGB(165, 165, 160),
+		Openings = {
+			{ From = 97, To = 105, Height = 9 },
+			{ From = 180 - WING, To = 180 + WING, Height = top },
+			{ From = 257, To = 263, Height = 9 },
+		},
+	})
 	-- Revestimiento exterior de la fachada principal y franja de la planta alta
 	deco("FacadeCladding", Vector3.new(0.4, top - 16, 182), at(181, 16 + (top - 16) / 2, 20), M.Concrete, Color3.fromRGB(70, 72, 78))
 	deco("FacadeBand", Vector3.new(0.6, 1.2, 182), at(181.1, 16, 20), M.Metal, STEEL)
@@ -3531,10 +3668,14 @@ local function buildService()
 	folder("Servicio")
 	levelY = 0
 	zone("Bodega", -180, -90, 70, 110, SERVICE_H)
-	zone("Servicio", -90, 180, 70, 110, SERVICE_H)
+	-- (el pasaje al Ala Norte, x -24..24, parte el servicio en dos)
+	zone("Servicio Oeste", -90, -WING, 70, 110, SERVICE_H)
+	zone("Servicio", WING, 180, 70, 110, SERVICE_H)
 
-	slab("Floor", -180, 180, 70, 110, 0, M.Concrete, Color3.fromRGB(125, 125, 122))
-	slabWithHole("Ceiling", -180, 180, 70, 110, SERVICE_H + 1, STAIR_HOLE, M.Concrete, Color3.fromRGB(95, 95, 98))
+	slab("Floor", -180, -WING, 70, 110, 0, M.Concrete, Color3.fromRGB(125, 125, 122))
+	slab("Floor", WING, 180, 70, 110, 0, M.Concrete, Color3.fromRGB(125, 125, 122))
+	slab("Ceiling", -180, -WING, 70, 110, SERVICE_H + 1, M.Concrete, Color3.fromRGB(95, 95, 98))
+	slabWithHole("Ceiling", WING, 180, 70, 110, SERVICE_H + 1, STAIR_HOLE, M.Concrete, Color3.fromRGB(95, 95, 98))
 	local grey = Color3.fromRGB(165, 165, 160)
 	-- Separacion bodega / pasillo, con puerta
 	wall(Vector3.new(-90, 0, 70), Vector3.new(-90, 0, 110), SERVICE_H, {
@@ -3574,43 +3715,43 @@ local function buildService()
 	-- Pasillo de servicio: extintor y telefono en la pared de las tiendas; valvulas de la
 	-- caldera en la pared norte
 	wallExtinguisher(at(30, 0, 70) * CFrame.Angles(0, math.pi, 0), "Planta baja")
-	payPhone(at(-30, 0, 70) * CFrame.Angles(0, math.pi, 0), "Servicio")
-	boilerValve(at(-60, 0, 110), "Servicio")
+	payPhone(at(-30, 0, 70) * CFrame.Angles(0, math.pi, 0), "Servicio Oeste")
+	boilerValve(at(-87, 0, 110), "Servicio Oeste")
 	boilerValve(at(110, 0, 110), "Servicio")
 
 	-- Generador (mision Reiniciar generador: deja sin luz Servicio y Bodega)
 	box("Generator", Vector3.new(10, 6, 5), at(-70, 3, 105), M.Metal, Color3.fromRGB(200, 160, 40))
 	box("GeneratorPipe", Vector3.new(1.2, 8, 1.2), at(-74, 10, 107), M.Metal, METAL)
 	local genPanel = box("GeneratorPanel", Vector3.new(3, 3, 0.6), at(-70, 3.5, 102.2), M.Metal, Color3.fromRGB(60, 62, 66))
-	tag(genPanel, Tags.MissionSpot, { MissionType = "RestartGenerator", Zone = "Servicio", PowersZones = "Patio de comidas,Entrada" })
+	tag(genPanel, Tags.MissionSpot, { MissionType = "RestartGenerator", Zone = "Servicio Oeste", PowersZones = "Patio de comidas,Entrada" })
 
-	-- Baños
-	wall(Vector3.new(-20, 0, 88), Vector3.new(20, 0, 88), SERVICE_H, {
+	-- Baños (al oeste del pasaje al Ala Norte: x -64.5..-24.5; la pared este es la del pasaje)
+	local BX = -44.5
+	wall(Vector3.new(BX - 20, 0, 88), Vector3.new(BX + 20, 0, 88), SERVICE_H, {
 		Material = M.CeramicTiles,
 		Color = Color3.fromRGB(220, 225, 228),
 		Openings = { { From = 16, To = 24, Height = 9 } },
 	})
-	for _, x in { -20, 20 } do
-		wall(Vector3.new(x, 0, 88), Vector3.new(x, 0, 110), SERVICE_H, { Material = M.CeramicTiles, Color = Color3.fromRGB(220, 225, 228) })
-	end
-	deco("BathFloor", Vector3.new(40, 0.05, 22), at(0, 0.03, 99), M.CeramicTiles, Color3.fromRGB(235, 238, 240))
-	local bathSign = box("BathSign", Vector3.new(6, 1.2, 0.2), at(0, 10, 87.4), M.SmoothPlastic, Color3.fromRGB(30, 60, 120), { CanCollide = false })
+	wall(Vector3.new(BX - 20, 0, 88), Vector3.new(BX - 20, 0, 110), SERVICE_H, { Material = M.CeramicTiles, Color = Color3.fromRGB(220, 225, 228) })
+	deco("BathWallTile", Vector3.new(0.08, SERVICE_H, 21), at(BX + 19.46, SERVICE_H / 2, 99), M.CeramicTiles, Color3.fromRGB(220, 225, 228))
+	deco("BathFloor", Vector3.new(40, 0.05, 22), at(BX, 0.03, 99), M.CeramicTiles, Color3.fromRGB(235, 238, 240))
+	local bathSign = box("BathSign", Vector3.new(6, 1.2, 0.2), at(BX, 10, 87.4), M.SmoothPlastic, Color3.fromRGB(30, 60, 120), { CanCollide = false })
 	litSign(bathSign, "BAÑOS", Color3.new(1, 1, 1), Enum.Font.GothamBold, Enum.NormalId.Back)
 	-- 4 cubiculos al fondo (el ultimo cerrado, "fuera de servicio"), 3 urinarios,
 	-- lavabos con espejo en la pared este (uno roto), secamanos, papelera y fregona
-	stallRow({ -16.75, -11.25, -5.75, -0.25 }, 109.5, "Servicio", { SkipX = { -19.5 }, Closed = 4 })
+	stallRow({ BX - 16.75, BX - 11.25, BX - 5.75, BX - 0.25 }, 109.5, "Servicio Oeste", { SkipX = { BX - 19.5 }, Closed = 4 })
 	for i, x in { 6, 9.5, 13 } do
-		urinal(at(x, 0, 109.5))
+		urinal(at(BX + x, 0, 109.5))
 		if i < 3 then
-			deco("UrinalScreen", Vector3.new(0.12, 3.2, 1.8), at(x + 1.75, 4, 108.6), M.SmoothPlastic, PARTITION)
+			deco("UrinalScreen", Vector3.new(0.12, 3.2, 1.8), at(BX + x + 1.75, 4, 108.6), M.SmoothPlastic, PARTITION)
 		end
 	end
 	local eastWall = CFrame.Angles(0, math.rad(90), 0) -- mirando a -X
-	vanity(at(19.5, 0, 96) * eastWall, 3, 3, true, "Baños")
-	spot(0, 95, "CloseFaucets", "Baños")
-	handDryer(at(19.5, 0, 103) * eastWall)
-	handDryer(at(-19.5, 0, 96) * CFrame.Angles(0, math.rad(-90), 0))
-	bathDetails(at(0, 0, 97), at(18, 0, 89.8), at(-17.5, 0, 91))
+	vanity(at(BX + 19.5, 0, 96) * eastWall, 3, 3, true, "Baños")
+	spot(BX, 95, "CloseFaucets", "Baños")
+	handDryer(at(BX + 19.5, 0, 103) * eastWall)
+	handDryer(at(BX - 19.5, 0, 96) * CFrame.Angles(0, math.rad(-90), 0))
+	bathDetails(at(BX, 0, 97), at(BX + 18, 0, 89.8), at(BX - 17.5, 0, 91))
 
 	-- Oficina de seguridad (mision Revisar camaras) con taquillas
 	wall(Vector3.new(60, 0, 88), Vector3.new(92, 0, 88), SERVICE_H, {
@@ -3623,8 +3764,9 @@ local function buildService()
 	end
 	local secSign = box("SecuritySign", Vector3.new(8, 1.2, 0.2), at(74, 10, 87.4), M.SmoothPlastic, Color3.fromRGB(20, 20, 24), { CanCollide = false })
 	litSign(secSign, "SEGURIDAD", Color3.fromRGB(255, 80, 80), Enum.Font.GothamBold, Enum.NormalId.Back)
-	box("SecurityDesk", Vector3.new(14, 3, 3), at(76, 1.5, 104), M.Wood, Color3.fromRGB(110, 85, 60))
-	local monitors = box("Monitors", Vector3.new(12, 3.2, 0.6), at(76, 5, 105.2), M.Glass, Color3.fromRGB(20, 40, 60), {
+	-- (mesa y monitores hacia el oeste: en x 77..83 esta la puerta trasera al pasillo de servicio del Ala Norte)
+	box("SecurityDesk", Vector3.new(12, 3, 3), at(70, 1.5, 104), M.Wood, Color3.fromRGB(110, 85, 60))
+	local monitors = box("Monitors", Vector3.new(10, 3.2, 0.6), at(70, 5, 105.2), M.Glass, Color3.fromRGB(20, 40, 60), {
 		Reflectance = 0.1,
 	})
 	tag(monitors, Tags.MissionSpot, { MissionType = "CheckCameras", Zone = "Servicio" })
@@ -3634,7 +3776,7 @@ local function buildService()
 	screenGlow.Brightness = 0.6
 	screenGlow.Parent = monitors
 	sign(monitors, "CAM 1   CAM 2   CAM 3   CAM 4", Color3.fromRGB(120, 200, 255), Enum.Font.Code, Enum.NormalId.Front)
-	box("Chair", Vector3.new(2.2, 2, 2.2), at(76, 1, 100), M.Leather, DARK)
+	box("Chair", Vector3.new(2.2, 2, 2.2), at(70, 1, 100), M.Leather, DARK)
 	hidingSpot("Taquilla", at(89.6, 3.75, 94) * CFrame.Angles(0, math.rad(90), 0), Vector3.new(4, 7.5, 3), M.Metal, Color3.fromRGB(70, 90, 110))
 	hidingSpot("Taquilla", at(89.6, 3.75, 99) * CFrame.Angles(0, math.rad(90), 0), Vector3.new(4, 7.5, 3), M.Metal, Color3.fromRGB(70, 90, 110))
 
@@ -3644,9 +3786,17 @@ local function buildService()
 	litSign(stairSign, "▲ OFICINAS P2", Color3.fromRGB(240, 200, 40), Enum.Font.GothamBold, Enum.NormalId.Front)
 
 	-- Instalaciones vistas: tuberia, bandeja de cables, conductos y franjas de seguridad
-	deco("Pipe", Vector3.new(270, 1, 1), at(45, SERVICE_H - 1.5, 109), M.Metal, METAL)
-	deco("CableTray", Vector3.new(350, 0.3, 1.6), at(0, SERVICE_H - 0.9, 73), M.Metal, Color3.fromRGB(150, 150, 150))
-	deco("AirDuct", Vector3.new(320, 1.6, 2.4), at(-20, SERVICE_H - 0.8, 104), M.Metal, Color3.fromRGB(185, 188, 190))
+	-- (cortadas donde pasa el pasaje al Ala Norte)
+	local function run(name: string, x1: number, x2: number, y: number, z: number, size: Vector2, material, color: Color3)
+		for _, seg in { { x1, -WING - 0.5 }, { WING + 0.5, x2 } } do
+			if seg[2] - seg[1] > 1 then
+				deco(name, Vector3.new(seg[2] - seg[1], size.X, size.Y), at((seg[1] + seg[2]) / 2, y, z), material, color)
+			end
+		end
+	end
+	run("Pipe", -90, 180, SERVICE_H - 1.5, 109, Vector2.new(1, 1), M.Metal, METAL)
+	run("CableTray", -175, 175, SERVICE_H - 0.9, 73, Vector2.new(0.3, 1.6), M.Metal, Color3.fromRGB(150, 150, 150))
+	run("AirDuct", -180, 140, SERVICE_H - 0.8, 104, Vector2.new(1.6, 2.4), M.Metal, Color3.fromRGB(185, 188, 190))
 	for x = -170, 170, 40 do
 		if math.abs(x) > 22 and (x < 58 or x > 94) then
 			deco("HazardStripe", Vector3.new(4, 0.04, 0.5), at(x, 0.02, 71.4), M.SmoothPlastic, Color3.fromRGB(240, 190, 20), { Variant = false })
@@ -3659,12 +3809,15 @@ local function buildService()
 			end
 		end
 	end
-	emergencyLight(at(0, SERVICE_H, 99))
+	emergencyLight(at(BX, SERVICE_H, 99))
 	emergencyLight(at(150, SERVICE_H, 96), true)
 	for _, x in { -60, 30, 120 } do
 		exitSign(at(x, SERVICE_H - 2.4, 71.2) * CFrame.Angles(0, math.pi, 0))
 	end
-	spot(-40, 80, "CleanSpill", "Servicio")
+	-- Salidas al pasillo de servicio del Ala Norte (puertas en el muro norte)
+	exitSign(at(-79, 10.4, 109.2))
+	exitSign(at(80, 10.4, 109.2))
+	spot(-40, 80, "CleanSpill", "Servicio Oeste")
 	spot(130, 82, "CleanSpill", "Servicio")
 	enemySpawn(40, 100)
 	enemySpawn(120, 92)
@@ -3683,40 +3836,50 @@ local function buildOffices()
 	folder("Oficinas")
 	levelY = F2
 	local OFF = "Oficinas"
+	-- (el pasaje al Ala Norte, x -24..24, cruza las oficinas: salas reorganizadas a los lados)
 	zone("Almacén alto", -180, -90, 70, 110, STORE_H)
-	zone(OFF, -90, 130, 70, 82, STORE_H)
+	zone("Oficinas Oeste", -90, -WING, 70, 82, STORE_H)
+	zone(OFF, WING, 130, 70, 82, STORE_H)
 	zone("Escalera de servicio", 130, 180, 70, 110, STORE_H)
-	zone("Administración", -90, -40, 82, 110, STORE_H)
-	zone("Sala de descanso", -40, 0, 82, 110, STORE_H)
-	zone("Baños P2", 0, 30, 82, 110, STORE_H)
-	zone("Archivo", 30, 80, 82, 110, STORE_H)
+	zone("Administración", -90, -64, 82, 110, STORE_H)
+	zone("Sala de descanso", -64, -WING, 82, 110, STORE_H)
+	zone("Baños P2", WING, 54.5, 82, 110, STORE_H)
+	zone("Archivo", 54.5, 80, 82, 110, STORE_H)
 	zone("Sala de máquinas", 80, 130, 82, 110, STORE_H)
 
-	slabWithHole("Floor", -180, 180, 70, 110, 0, STAIR_HOLE, M.Concrete, Color3.fromRGB(150, 150, 146))
-	deco("CorridorVinyl", Vector3.new(220, 0.04, 12), at(20, 0.02, 76), M.SmoothPlastic, Color3.fromRGB(190, 192, 188), { Variant = false })
-	ceiling(-180, 180, 70, 110, STORE_H + 1)
+	slab("Floor", -180, -WING, 70, 110, 0, M.Concrete, Color3.fromRGB(150, 150, 146))
+	slabWithHole("Floor", WING, 180, 70, 110, 0, STAIR_HOLE, M.Concrete, Color3.fromRGB(150, 150, 146))
+	deco("CorridorVinyl", Vector3.new(66, 0.04, 12), at(-57, 0.02, 76), M.SmoothPlastic, Color3.fromRGB(190, 192, 188), { Variant = false })
+	deco("CorridorVinyl", Vector3.new(106, 0.04, 12), at(77, 0.02, 76), M.SmoothPlastic, Color3.fromRGB(190, 192, 188), { Variant = false })
+	ceiling(-180, -WING, 70, 110, STORE_H + 1)
+	ceiling(WING, 180, 70, 110, STORE_H + 1)
 
 	local officeWall = Color3.fromRGB(205, 205, 200)
 	wall(Vector3.new(-90, 0, 70), Vector3.new(-90, 0, 110), STORE_H, {
 		Color = officeWall,
 		Openings = { { From = 2, To = 10, Height = 9 } },
 	})
-	-- Pasillo / habitaciones (puerta de cada sala)
-	wall(Vector3.new(-90, 0, 82), Vector3.new(130, 0, 82), STORE_H, {
+	-- Pasillo / habitaciones (puerta de cada sala), a cada lado del pasaje
+	wall(Vector3.new(-90, 0, 82), Vector3.new(-WING - 0.5, 0, 82), STORE_H, {
 		Color = officeWall,
 		Openings = {
-			{ From = 20, To = 28, Height = 9 },
-			{ From = 66, To = 74, Height = 9 },
-			{ From = 101, To = 109, Height = 9 },
-			{ From = 141, To = 149, Height = 9 },
-			{ From = 191, To = 199, Height = 9 },
+			{ From = 10, To = 18, Height = 9 }, -- administracion
+			{ From = 42, To = 50, Height = 9 }, -- descanso
 		},
 	})
-	for _, x in { -40, 0, 30, 80, 130 } do
+	wall(Vector3.new(WING + 0.5, 0, 82), Vector3.new(130, 0, 82), STORE_H, {
+		Color = officeWall,
+		Openings = {
+			{ From = 11, To = 19, Height = 9 }, -- baños
+			{ From = 38.5, To = 46.5, Height = 9 }, -- archivo
+			{ From = 76.5, To = 84.5, Height = 9 }, -- maquinas
+		},
+	})
+	for _, x in { -64, 54.5, 80, 130 } do
 		wall(Vector3.new(x, 0, 82), Vector3.new(x, 0, 110), STORE_H, { Color = officeWall })
 	end
 	-- Rotulos de las puertas
-	for _, r in { { -66, "ADMINISTRACIÓN" }, { -20, "DESCANSO" }, { 15, "BAÑOS" }, { 55, "ARCHIVO" }, { 105, "MÁQUINAS" } } do
+	for _, r in { { -76, "ADMINISTRACIÓN" }, { -44, "DESCANSO" }, { 39.5, "BAÑOS" }, { 67, "ARCHIVO" }, { 105, "MÁQUINAS" } } do
 		local plate = deco("DoorPlate", Vector3.new(5, 0.9, 0.12), at(r[1], 10, 81.4), M.SmoothPlastic, Color3.fromRGB(40, 44, 52))
 		litSign(plate, r[2], Color3.fromRGB(220, 220, 220), Enum.Font.GothamBold, Enum.NormalId.Front)
 	end
@@ -3731,9 +3894,11 @@ local function buildOffices()
 	-- Luces (fluorescentes frios)
 	-- Zona de oficinas a oscuras: luces de emergencia espaciadas en el pasillo y una por sala
 	for x = -160, 170, 55 do
-		emergencyLight(at(x, STORE_H, 76), x % 2 == 0)
+		if math.abs(x) > WING + 2 then
+			emergencyLight(at(x, STORE_H, 76), x % 2 == 0)
+		end
 	end
-	for _, rx in { -65, -20, 15, 55, 105, 155 } do
+	for _, rx in { -77, -44, 39.5, 67, 105, 155 } do
 		emergencyLight(at(rx, STORE_H, 98))
 	end
 	emergencyLight(at(-140, STORE_H, 95))
@@ -3750,65 +3915,67 @@ local function buildOffices()
 	hidingSpot("Casillero", at(-178.4, 3.75, 104) * CFrame.Angles(0, math.rad(-90), 0), Vector3.new(4, 7.5, 3), M.Metal, Color3.fromRGB(70, 90, 110))
 	enemySpawn(-150, 106)
 
-	-- Administracion: escritorios y monitores de camaras
-	for _, p in { { -80, 92 }, { -64, 92 }, { -80, 102 }, { -64, 102 } } do
+	-- Administracion (x -90..-64): escritorios y monitores de camaras
+	for _, p in { { -84, 92 }, { -72, 92 }, { -84, 101 }, { -72, 101 } } do
 		propOr("OfficeDesk", at(p[1], 0, p[2]) * CFrame.Angles(0, math.pi, 0), deskFallback)
 	end
-	local monitors = box("Monitors", Vector3.new(10, 3, 0.6), at(-48, 5, 109.2), M.Glass, Color3.fromRGB(20, 40, 60), { Reflectance = 0.1 })
+	local monitors = box("Monitors", Vector3.new(10, 3, 0.6), at(-77, 5, 109.2), M.Glass, Color3.fromRGB(20, 40, 60), { Reflectance = 0.1 })
 	tag(monitors, Tags.MissionSpot, { MissionType = "CheckCameras", Zone = "Administración" })
 	sign(monitors, "CAM 5   CAM 6   CAM 7", Color3.fromRGB(120, 200, 255), Enum.Font.Code, Enum.NormalId.Front)
-	box("MonitorDesk", Vector3.new(10, 3, 2.6), at(-48, 1.5, 107.4), M.Wood, Color3.fromRGB(110, 85, 60))
+	box("MonitorDesk", Vector3.new(10, 3, 2.6), at(-77, 1.5, 107.4), M.Wood, Color3.fromRGB(110, 85, 60))
 	-- Bandeja de albaranes (mision Entrega de paquete: se firma aqui)
-	local deliveryTray = box("DeliveryTray", Vector3.new(1.6, 0.3, 1.2), at(-44.5, 3.15, 107.4), M.Plastic, Color3.fromRGB(40, 40, 44), { Variant = false })
-	deco("Paperwork", Vector3.new(1.3, 0.1, 0.9), at(-44.5, 3.35, 107.4), M.SmoothPlastic, Color3.fromRGB(240, 238, 230))
+	local deliveryTray = box("DeliveryTray", Vector3.new(1.6, 0.3, 1.2), at(-73.5, 3.15, 107.4), M.Plastic, Color3.fromRGB(40, 40, 44), { Variant = false })
+	deco("Paperwork", Vector3.new(1.3, 0.1, 0.9), at(-73.5, 3.35, 107.4), M.SmoothPlastic, Color3.fromRGB(240, 238, 230))
 	tag(deliveryTray, Tags.DeliveryDesk, { Zone = "Administración" })
-	hidingSpot("Armario", at(-88, 3.75, 107.5), Vector3.new(4, 7.5, 3), M.Metal, Color3.fromRGB(80, 95, 110))
+	hidingSpot("Armario", at(-66.4, 3.75, 104) * CFrame.Angles(0, math.rad(90), 0), Vector3.new(4, 7.5, 3), M.Metal, Color3.fromRGB(80, 95, 110))
 
-	-- Sala de descanso
-	propOr("Sofa", at(-20, 0, 107), function(cf)
+	-- Sala de descanso (x -64..-24.5)
+	local DX = -24
+	propOr("Sofa", at(DX - 20, 0, 107), function(cf)
 		box("Sofa", Vector3.new(8, 1.8, 3), cf * CFrame.new(0, 0.9, 0), M.Fabric, Color3.fromRGB(90, 100, 120))
 	end)
-	roundTable(at(-20, 0, 95), 4, Color3.fromRGB(70, 120, 160))
-	box("Fridge", Vector3.new(3, 7, 3), at(-37, 3.5, 106), M.Metal, Color3.fromRGB(230, 230, 230))
-	box("Kitchenette", Vector3.new(8, 3.4, 2.6), at(-34, 1.7, 87), M.Wood, Color3.fromRGB(200, 190, 170))
-	deco("Microwave", Vector3.new(2, 1.2, 1.4), at(-36, 4, 87), M.Metal, DARK)
+	roundTable(at(DX - 20, 0, 95), 4, Color3.fromRGB(70, 120, 160))
+	box("Fridge", Vector3.new(3, 7, 3), at(DX - 37, 3.5, 106), M.Metal, Color3.fromRGB(230, 230, 230))
+	box("Kitchenette", Vector3.new(8, 3.4, 2.6), at(DX - 34, 1.7, 87), M.Wood, Color3.fromRGB(200, 190, 170))
+	deco("Microwave", Vector3.new(2, 1.2, 1.4), at(DX - 36, 4, 87), M.Metal, DARK)
 	for _, z in { 95, 99 } do
-		hidingSpot("Taquilla", at(-1.6, 3.75, z) * CFrame.Angles(0, math.rad(90), 0), Vector3.new(4, 7.5, 3), M.Metal, Color3.fromRGB(70, 90, 110))
+		hidingSpot("Taquilla", at(-26.1, 3.75, z) * CFrame.Angles(0, math.rad(90), 0), Vector3.new(4, 7.5, 3), M.Metal, Color3.fromRGB(70, 90, 110))
 	end
-	vendingMachine(CFrame.lookAt(Vector3.new(-7, Y0 + F2 + 3.5, 107.5), Vector3.new(-7, Y0 + F2 + 3.5, 100)), "Cheap", Color3.fromRGB(180, 30, 35), "REFRESCOS")
+	vendingMachine(CFrame.lookAt(Vector3.new(DX - 7, Y0 + F2 + 3.5, 107.5), Vector3.new(DX - 7, Y0 + F2 + 3.5, 100)), "Cheap", Color3.fromRGB(180, 30, 35), "REFRESCOS")
 
-	-- Baños P2
-	deco("BathFloor", Vector3.new(30, 0.05, 28), at(15, 0.03, 96), M.CeramicTiles, Color3.fromRGB(235, 238, 240))
-	stallRow({ 3.25, 8.75, 14.25 }, 109.5, "Baños P2", { SkipX = { 0.5 }, Closed = 3 })
-	urinal(at(21, 0, 109.5))
-	urinal(at(24.5, 0, 109.5))
-	deco("UrinalScreen", Vector3.new(0.12, 3.2, 1.8), at(22.75, 4, 108.6), M.SmoothPlastic, PARTITION)
+	-- Baños P2 (x 25..54: la pared oeste es la del pasaje)
+	local PX = 24.5
+	deco("BathFloor", Vector3.new(30, 0.05, 28), at(PX + 15, 0.03, 96), M.CeramicTiles, Color3.fromRGB(235, 238, 240))
+	stallRow({ PX + 3.25, PX + 8.75, PX + 14.25 }, 109.5, "Baños P2", { SkipX = { PX + 0.5 }, Closed = 3 })
+	urinal(at(PX + 21, 0, 109.5))
+	urinal(at(PX + 24.5, 0, 109.5))
+	deco("UrinalScreen", Vector3.new(0.12, 3.2, 1.8), at(PX + 22.75, 4, 108.6), M.SmoothPlastic, PARTITION)
 	local eastWallP2 = CFrame.Angles(0, math.rad(90), 0)
-	vanity(at(29.5, 0, 90) * eastWallP2, 3, 3, false, "Baños P2")
-	spot(15, 92, "CloseFaucets", "Baños P2")
-	handDryer(at(29.5, 0, 99) * eastWallP2)
-	bathDetails(at(15, 0, 95), at(28.2, 0, 96.8), at(1.8, 0, 85))
+	vanity(at(PX + 29.5, 0, 90) * eastWallP2, 3, 3, false, "Baños P2")
+	spot(PX + 15, 92, "CloseFaucets", "Baños P2")
+	handDryer(at(PX + 29.5, 0, 99) * eastWallP2)
+	bathDetails(at(PX + 15, 0, 95), at(PX + 28.2, 0, 96.8), at(PX + 1.8, 0, 85))
 	-- Azulejo hasta 8 studs en las paredes interiores (las de oficina son de yeso)
 	local tileColor = Color3.fromRGB(215, 222, 226)
 	local TILE_H = 8
-	deco("WallTile", Vector3.new(0.08, TILE_H, 27), at(0.55, TILE_H / 2, 96), M.CeramicTiles, tileColor)
-	deco("WallTile", Vector3.new(0.08, TILE_H, 27), at(29.45, TILE_H / 2, 96), M.CeramicTiles, tileColor)
-	deco("WallTile", Vector3.new(29, TILE_H, 0.08), at(15, TILE_H / 2, 109.45), M.CeramicTiles, tileColor)
+	deco("WallTile", Vector3.new(0.08, TILE_H, 27), at(PX + 0.55, TILE_H / 2, 96), M.CeramicTiles, tileColor)
+	deco("WallTile", Vector3.new(0.08, TILE_H, 27), at(PX + 29.45, TILE_H / 2, 96), M.CeramicTiles, tileColor)
+	deco("WallTile", Vector3.new(29, TILE_H, 0.08), at(PX + 15, TILE_H / 2, 109.45), M.CeramicTiles, tileColor)
 	for _, seg in { { 0.5, 11 }, { 19, 29.5 } } do -- pared de la puerta (hueco x 11..19)
-		deco("WallTile", Vector3.new(seg[2] - seg[1], TILE_H, 0.08), at((seg[1] + seg[2]) / 2, TILE_H / 2, 82.55), M.CeramicTiles, tileColor)
-		deco("TileTrim", Vector3.new(seg[2] - seg[1], 0.25, 0.12), at((seg[1] + seg[2]) / 2, TILE_H, 82.6), M.SmoothPlastic, Color3.fromRGB(70, 95, 110))
+		deco("WallTile", Vector3.new(seg[2] - seg[1], TILE_H, 0.08), at(PX + (seg[1] + seg[2]) / 2, TILE_H / 2, 82.55), M.CeramicTiles, tileColor)
+		deco("TileTrim", Vector3.new(seg[2] - seg[1], 0.25, 0.12), at(PX + (seg[1] + seg[2]) / 2, TILE_H, 82.6), M.SmoothPlastic, Color3.fromRGB(70, 95, 110))
 	end
-	deco("TileTrim", Vector3.new(29, 0.25, 0.12), at(15, TILE_H, 109.4), M.SmoothPlastic, Color3.fromRGB(70, 95, 110))
+	deco("TileTrim", Vector3.new(29, 0.25, 0.12), at(PX + 15, TILE_H, 109.4), M.SmoothPlastic, Color3.fromRGB(70, 95, 110))
 	for _, x in { 0.6, 29.4 } do
-		deco("TileTrim", Vector3.new(0.12, 0.25, 27), at(x, TILE_H, 96), M.SmoothPlastic, Color3.fromRGB(70, 95, 110))
+		deco("TileTrim", Vector3.new(0.12, 0.25, 27), at(PX + x, TILE_H, 96), M.SmoothPlastic, Color3.fromRGB(70, 95, 110))
 	end
 
-	-- Archivo
+	-- Archivo (x 54.5..80)
 	for _, z in { 90, 100 } do
-		storageRack(at(55, 0, z), 30)
+		storageRack(at(67.5, 0, z), 22)
 	end
-	propOr("OfficeDesk", at(36, 0, 106) * CFrame.Angles(0, math.rad(-90), 0), deskFallback)
-	spot(70, 106, "LostItem", "Archivo")
+	propOr("OfficeDesk", at(60, 0, 106) * CFrame.Angles(0, math.rad(-90), 0), deskFallback)
+	spot(72, 106, "LostItem", "Archivo")
 
 	-- Sala de maquinas: segundo generador (deja sin luz las oficinas) y caldera
 	box("Generator", Vector3.new(10, 6, 5), at(105, 3, 105), M.Metal, Color3.fromRGB(200, 160, 40))
@@ -3834,20 +4001,742 @@ local function buildOffices()
 
 	-- Pasillo: carrito del conserje, puntos y camaras
 	propOr("JanitorCart", at(-70, 0, 79) * CFrame.Angles(0, math.rad(90), 0), function() end)
-	spot(-30, 76, "CleanSpill", OFF)
+	spot(-34, 76, "CleanSpill", "Oficinas Oeste")
 	spot(90, 76, "CleanSpill", OFF)
 	spot(-106, 92, "Delivery", "Almacén alto")
-	spot(-20, 78, "SecurityRound", OFF)
+	spot(-60, 76, "SecurityRound", "Oficinas Oeste")
 	spot(-70, 96, "Inventory", "Administración")
 	patrolClock(40, 79, OFF)
 	-- Extintores y telefono en la pared del pasillo (cara hacia el pasillo)
-	wallExtinguisher(at(-50, 0, 81.5), "Planta alta")
+	wallExtinguisher(at(-56, 0, 81.5), "Planta alta")
 	wallExtinguisher(at(85, 0, 81.5), "Planta alta")
-	payPhone(at(-5, 0, 81.5), OFF)
+	payPhone(at(-34, 0, 81.5), "Oficinas Oeste")
 	spot(150, 84, "CleanSpill", "Escalera de servicio")
-	enemySpawn(20, 78)
+	enemySpawn(60, 76)
 	camera(-88, 12, 72, -40, 0, 78)
 	camera(128, 12, 72, 80, 0, 78)
+
+	levelY = 0
+	currentParent = map
+end
+
+----------------------------------------------------------------------
+-- Alas nuevas (2026-11-25)
+--   * Pasajes desde el centro de la galeria (donde estaban las tiendas de la columna 3).
+--   * ALA NORTE (z 110..207, cruza el servicio y las oficinas): 4 tiendas por planta (una
+--     cerrada y a oscuras en cada planta), pasillo de servicio oscuro detras que da la
+--     vuelta, y escalera entre plantas al fondo.
+--   * ALA SUR (z -167..-70): toda en obras y a oscuras, 4 locales en obras por planta y
+--     los grandes almacenes cerrados al fondo (z -227..-167) con escaleras mecanicas paradas.
+----------------------------------------------------------------------
+
+local MARBLE = Color3.fromRGB(232, 228, 220)
+local GRANITE = Color3.fromRGB(95, 90, 88)
+local PLYWOOD = Color3.fromRGB(196, 160, 112)
+local CAUTION = Color3.fromRGB(240, 190, 20)
+local SHEET = Color3.fromRGB(214, 212, 204)
+local NORTH_END = 207 -- fondo del pasillo del Ala Norte (pared con puerta al pasillo de servicio)
+local NORTH_BACK = 222 -- muro norte del pasillo de servicio
+local BACK_X1, BACK_X2 = 74, 84 -- pasillos de servicio detras de las tiendas del Ala Norte (|x|)
+local NSTAIR = { X1 = 30, X2 = 56, Z1 = 215, Z2 = 221 } -- escalera del pasillo de servicio norte
+local NSTAIR_HOLE = { NSTAIR.X1, NSTAIR.X2, NSTAIR.Z1 - 1, NSTAIR.Z2 + 1 }
+local ESC_HOLE = { -20, 15, -206, -194 } -- hueco de las escaleras paradas de los grandes almacenes
+local SOUTH_BRANDS = { "Burger Luna", "Sushi Kame", "Mascotas Peludas", "Tatuajes Tinta", "Heladería Nube", "Bazar Oriental", "Escape Room", "Cine 4D" }
+
+-- Pasillo de un ala (|x| < WING): suelo de marmol con franja de granito (como la galeria).
+local function corridorFloor(z1: number, z2: number)
+	slab("Floor", -WING, WING, z1, z2, 0, M.Marble, MARBLE)
+	local len, zc = z2 - z1, (z1 + z2) / 2
+	deco("Runner", Vector3.new(6, 0.05, len), at(0, 0.02, zc), M.Granite, GRANITE)
+	for _, x in { -WING + 2.5, WING - 2.5 } do
+		deco("Border", Vector3.new(1.2, 0.05, len), at(x, 0.02, zc), M.Granite, GRANITE)
+	end
+end
+
+-- Cabecera con el nombre del ala sobre la entrada del pasaje (vista desde la galeria).
+-- dir = 1: el pasaje va al norte (entrada en z = 20); -1: al sur (z = -20).
+local function passageEntrance(zFront: number, dir: number, text: string, accent: Color3)
+	local face = if dir > 0 then CFrame.new() else CFrame.Angles(0, math.pi, 0)
+	local h = if levelY == 0 then 5 else 6
+	local top = if levelY == 0 then F2 - 1 else 18
+	box("PassageHeader", Vector3.new(2 * WING, h, 1), at(0, top - h / 2, zFront + dir * 0.5), M.Plaster, accent:Lerp(DARK, 0.75))
+	deco("HeaderTrim", Vector3.new(2 * WING, 0.25, 1.3), at(0, top - h + 0.1, zFront + dir * 0.5), M.Metal, STEEL)
+	local signPart = box("PassageSign", Vector3.new(34, 2.8, 0.3), at(0, top - h / 2, zFront - dir * 0.15) * face, M.SmoothPlastic, Color3.fromRGB(14, 14, 18), {
+		CanCollide = false,
+		Variant = false,
+	})
+	litSign(signPart, text, accent, Enum.Font.GothamBlack, Enum.NormalId.Front)
+end
+
+-- Escalera de servicio entre plantas a lo largo de x (rampa, peldaños y barandillas).
+-- Se llama con levelY = 0: sube de x1 (planta baja) a x2 (planta alta).
+local function stairs(x1: number, x2: number, z1: number, z2: number)
+	local W = z2 - z1
+	local zc = (z1 + z2) / 2
+	local ramp = rampBody("Stairs", x1, x2, zc, W, M.Concrete, Color3.fromRGB(150, 150, 146))
+	tag(ramp, Tags.FloorConnector, { Low = Vector3.new(x1, Y0, zc), High = Vector3.new(x2, Y0 + F2, zc), Width = W })
+	local steps = 16
+	for i = 0, steps - 1 do
+		local x = x1 + (i + 0.5) * (x2 - x1) / steps
+		local y = (i + 1) * F2 / steps
+		deco("StairTread", Vector3.new((x2 - x1) / steps + 0.05, 0.3, W), at(x, y - 0.15, zc), M.Concrete, Color3.fromRGB(165, 165, 160))
+		deco("StairNosing", Vector3.new(0.25, 0.32, W), at(x - (x2 - x1) / steps / 2, y - 0.15, zc), M.SmoothPlastic, CAUTION, { Variant = false })
+	end
+	local low = Vector3.new(x1, Y0, zc)
+	local high = Vector3.new(x2, Y0 + F2, zc)
+	local slope = CFrame.lookAt((low + high) / 2, high)
+	for _, side in { -1, 1 } do
+		box("StairRail", Vector3.new(0.2, 3.4, (high - low).Magnitude), slope * CFrame.new(side * (W / 2 + 0.1), 1.7, 0), M.Metal, CAUTION, {
+			Transparency = 0.999,
+			Variant = false,
+		})
+		deco("StairHandrail", Vector3.new(0.25, 0.25, (high - low).Magnitude), slope * CFrame.new(side * (W / 2 + 0.1), 3.2, 0), M.Metal, CAUTION)
+	end
+end
+
+-- Cartel de pared "SOLO PERSONAL" (frente -Z de cf).
+local function staffSign(cf: CFrame)
+	local plate = deco("StaffPlate", Vector3.new(4.4, 0.9, 0.12), cf, M.SmoothPlastic, Color3.fromRGB(40, 44, 52))
+	litSign(plate, "SOLO PERSONAL", Color3.fromRGB(230, 230, 230), Enum.Font.GothamBold, Enum.NormalId.Front)
+end
+
+-- Luz de emergencia SIN bateria en una pared (mision Luces de emergencia). cf = punto de la
+-- pared a 7 de altura, frente (-Z) hacia el pasillo. La lente apagada es su hijo "Lens".
+local function deadEmergencyLight(cf: CFrame, missionZone: string)
+	local body = box("EmergencyBox", Vector3.new(1.8, 0.7, 0.7), cf * CFrame.new(0, 0, -0.35), M.SmoothPlastic, Color3.fromRGB(225, 225, 220), {
+		CanCollide = false,
+		Variant = false,
+	})
+	local lens = deco("Lens", Vector3.new(1.4, 0.16, 0.5), cf * CFrame.new(0, -0.42, -0.4), M.SmoothPlastic, Color3.fromRGB(60, 40, 30), { CastShadow = false })
+	lens.Parent = body
+	deco("BatteryLabel", Vector3.new(0.6, 0.25, 0.05), cf * CFrame.new(0.4, 0.15, -0.72), M.SmoothPlastic, CAUTION)
+	tag(body, Tags.EmergencyBox, { Zone = missionZone })
+end
+
+-- Montones de cajas de carton (con colision) a ras de suelo.
+local function boxPile(cf: CFrame, count: number)
+	for i = 0, count - 1 do
+		local w, h = rng:NextNumber(1.8, 2.8), rng:NextNumber(1.4, 2.2)
+		box("BoxPile", Vector3.new(w, h, w), cf * CFrame.new((i % 2) * 2.4, h / 2 + math.floor(i / 2) * 1.6, 0) * CFrame.Angles(0, math.rad(rng:NextNumber(-12, 12)), 0), M.Cardboard, vary(Color3.fromRGB(175, 135, 90), 0.06))
+	end
+end
+
+----------------------------------------------------------------------
+-- Atrezo de obra
+----------------------------------------------------------------------
+
+local function scaffold(cf: CFrame, w: number, d: number, h: number)
+	local tube = Color3.fromRGB(150, 155, 160)
+	for _, px in { -w / 2, w / 2 } do
+		for _, pz in { -d / 2, d / 2 } do
+			box("ScaffoldPost", Vector3.new(0.3, h, 0.3), cf * CFrame.new(px, h / 2, pz), M.Metal, tube)
+		end
+	end
+	for y = 2, h - 1, 4 do
+		for _, pz in { -d / 2, d / 2 } do
+			deco("ScaffoldTube", Vector3.new(w, 0.2, 0.2), cf * CFrame.new(0, y, pz), M.Metal, tube)
+		end
+		for _, px in { -w / 2, w / 2 } do
+			deco("ScaffoldTube", Vector3.new(0.2, 0.2, d), cf * CFrame.new(px, y, 0), M.Metal, tube)
+		end
+	end
+	box("ScaffoldDeck", Vector3.new(w, 0.25, d), cf * CFrame.new(0, h - 2.5, 0), M.WoodPlanks, Color3.fromRGB(170, 130, 85))
+	deco("ScaffoldToeBoard", Vector3.new(w, 0.6, 0.1), cf * CFrame.new(0, h - 2.1, -d / 2), M.Wood, CAUTION)
+end
+
+local function paintBuckets(cf: CFrame)
+	local colors = { Color3.fromRGB(235, 235, 230), Color3.fromRGB(70, 130, 200), Color3.fromRGB(200, 80, 60) }
+	for i, off in { Vector2.new(0, 0), Vector2.new(1.3, 0.4), Vector2.new(0.5, -1.2) } do
+		deco("PaintBucket", Vector3.new(1.2, 1, 1), cf * CFrame.new(off.X, 0.6, off.Y) * CFrame.Angles(0, 0, math.rad(90)), M.Plastic, colors[i], {
+			Shape = Enum.PartType.Cylinder,
+		})
+	end
+	deco("PaintSpill", Vector3.new(2.4, 0.04, 1.6), cf * CFrame.new(-1.2, 0.02, 1) * CFrame.Angles(0, math.rad(30), 0), M.SmoothPlastic, colors[2]:Lerp(DARK, 0.3))
+end
+
+local function cementBags(cf: CFrame)
+	for i = 0, 4 do
+		box("CementBag", Vector3.new(2.2, 0.6, 1.3), cf * CFrame.new((i % 2) * 0.3, 0.3 + i * 0.6, 0) * CFrame.Angles(0, math.rad(i * 9), 0), M.Fabric, Color3.fromRGB(205, 195, 170))
+	end
+end
+
+local function drywallStack(cf: CFrame)
+	box("DrywallStack", Vector3.new(8, 0.9, 4), cf * CFrame.new(0, 0.45, 0), M.Plaster, Color3.fromRGB(225, 222, 214), { Variant = false })
+	for i = 0, 2 do
+		deco("DrywallSheet", Vector3.new(4, 8, 0.2), cf * CFrame.new(-2 + i * 2, 4, 2.6 + i * 0.25) * CFrame.Angles(math.rad(-12), 0, 0), M.Plaster, Color3.fromRGB(228, 226, 218), { Variant = false })
+	end
+end
+
+local function ladder(cf: CFrame, h: number)
+	local lean = cf * CFrame.Angles(math.rad(-15), 0, 0)
+	for _, x in { -0.8, 0.8 } do
+		deco("LadderRail", Vector3.new(0.2, h, 0.25), lean * CFrame.new(x, h / 2, 0), M.Metal, Color3.fromRGB(205, 205, 200))
+	end
+	for y = 1, h - 0.5, 1 do
+		deco("LadderRung", Vector3.new(1.6, 0.15, 0.15), lean * CFrame.new(0, y, 0), M.Metal, Color3.fromRGB(205, 205, 200))
+	end
+end
+
+-- Foco de obra apagado (tripode con cabeza de lampara).
+local function workLamp(cf: CFrame)
+	for k = 0, 2 do
+		local a = math.rad(k * 120)
+		deco("TripodLeg", Vector3.new(0.15, 4.4, 0.15), cf * CFrame.new(math.cos(a) * 0.8, 2.1, math.sin(a) * 0.8) * CFrame.Angles(math.sin(a) * 0.2, 0, -math.cos(a) * 0.2), M.Metal, DARK)
+	end
+	deco("LampHead", Vector3.new(1.4, 1.1, 0.7), cf * CFrame.new(0, 4.6, 0) * CFrame.Angles(math.rad(-20), 0, 0), M.Metal, CAUTION)
+	deco("LampGlass", Vector3.new(1.1, 0.8, 0.05), cf * CFrame.new(0, 4.6, -0.38) * CFrame.Angles(math.rad(-20), 0, 0), M.Glass, Color3.fromRGB(60, 60, 55))
+end
+
+-- Lamina de plastico colgada del techo (tapa la vista; los enemigos ven a traves).
+local function plasticSheet(cf: CFrame, w: number, h: number)
+	deco("PlasticSheet", Vector3.new(w, h, 0.05), cf, M.SmoothPlastic, Color3.fromRGB(232, 236, 238), {
+		Transparency = 0.4,
+		CastShadow = false,
+		Variant = false,
+	})
+end
+
+-- Cinta de "precaucion" entre dos puntos (sin colision).
+local function cautionTape(p1: Vector3, p2: Vector3)
+	local a = Vector3.new(p1.X, Y0 + levelY + p1.Y, p1.Z)
+	local b = Vector3.new(p2.X, Y0 + levelY + p2.Y, p2.Z)
+	deco("CautionTape", Vector3.new(0.05, 0.3, (b - a).Magnitude), CFrame.lookAt((a + b) / 2, b), M.SmoothPlastic, CAUTION, { CastShadow = false })
+end
+
+-- Herramienta electrica de la obra (mision Desenchufar herramientas). Solo la pieza
+-- principal lleva el tag PowerTool.
+local function powerTool(kind: string, cf: CFrame, missionZone: string)
+	local main: BasePart
+	if kind == "Mixer" then
+		deco("MixerFrame", Vector3.new(2.8, 2, 1.8), cf * CFrame.new(0, 1, 0), M.Metal, Color3.fromRGB(70, 72, 76))
+		for _, x in { -1.2, 1.2 } do
+			deco("MixerWheel", Vector3.new(0.4, 1.2, 1.2), cf * CFrame.new(x, 0.6, 1.1), M.Rubber, DARK, { Shape = Enum.PartType.Cylinder })
+		end
+		main = box("Mixer", Vector3.new(3.2, 2.8, 2.8), cf * CFrame.new(0, 3.3, 0) * CFrame.Angles(0, 0, math.rad(-35)), M.Metal, Color3.fromRGB(230, 130, 30), {
+			Shape = Enum.PartType.Cylinder,
+		})
+	elseif kind == "Saw" then
+		for _, x in { -2.2, 2.2 } do
+			for _, z in { -0.6, 0.6 } do
+				deco("SawhorseLeg", Vector3.new(0.25, 3, 0.25), cf * CFrame.new(x, 1.5, z) * CFrame.Angles(math.rad(z * 18), 0, 0), M.Wood, PLYWOOD)
+			end
+		end
+		box("SawPlank", Vector3.new(6, 0.3, 2.4), cf * CFrame.new(0, 3, 0), M.Wood, PLYWOOD)
+		main = box("CircularSaw", Vector3.new(1.6, 0.9, 1.2), cf * CFrame.new(0.6, 3.6, 0), M.SmoothPlastic, Color3.fromRGB(40, 110, 200))
+		deco("SawBlade", Vector3.new(0.08, 1.4, 1.4), cf * CFrame.new(1.45, 3.5, 0) * CFrame.Angles(0, math.rad(90), 0), M.Metal, STEEL, {
+			Shape = Enum.PartType.Cylinder,
+		})
+	elseif kind == "Compressor" then
+		main = box("Compressor", Vector3.new(3, 2, 1.8), cf * CFrame.new(0, 1.4, 0), M.Metal, Color3.fromRGB(190, 40, 35))
+		deco("CompressorTank", Vector3.new(3.4, 1.4, 1.4), cf * CFrame.new(0, 0.7, 0), M.Metal, Color3.fromRGB(170, 35, 30), { Shape = Enum.PartType.Cylinder })
+		deco("Hose", Vector3.new(0.2, 0.2, 4), cf * CFrame.new(1.8, 0.1, -2), M.Rubber, DARK)
+	else -- "Generator"
+		main = box("PortableGenerator", Vector3.new(3, 2.2, 2), cf * CFrame.new(0, 1.3, 0), M.Metal, CAUTION)
+		deco("GenFrame", Vector3.new(3.3, 2.6, 2.3), cf * CFrame.new(0, 1.3, 0), M.Metal, DARK, { Transparency = 0.6 })
+		deco("ExtensionCord", Vector3.new(0.2, 0.15, 6), cf * CFrame.new(0, 0.08, -4), M.Rubber, Color3.fromRGB(230, 120, 20))
+	end
+	tag(main, Tags.PowerTool, { Zone = missionZone })
+	return main
+end
+
+-- Maniqui destapado sobre una peana (mision Tapar maniquies). El maniqui (Model) es hijo de
+-- la peana, que lleva el tag. No es un DisplayMannequin: el enemigo Maniqui no lo usa.
+local function sheetMannequin(cf: CFrame, missionZone: string)
+	local stand = box("MannequinStand", Vector3.new(2.4, 0.4, 2.4), cf * CFrame.new(0, 0.2, 0), M.Metal, DARK)
+	local model = EntityModels.mannequin()
+	model.Name = "Mannequin"
+	for _, d in model:GetDescendants() do
+		if d:IsA("BasePart") then
+			d.Anchored = true
+			d.CanTouch = false
+			d.CanCollide = d == model.PrimaryPart
+		end
+	end
+	EntityModels.placeAt(model, cf * CFrame.new(0, 0.4, 0), stand)
+	stand:SetAttribute("HomeCFrame", model:GetPivot())
+	tag(stand, Tags.SheetMannequin, { Zone = missionZone })
+end
+
+-- Maniqui tapado con una sabana (decoracion).
+local function coveredMannequin(cf: CFrame)
+	deco("Stand", Vector3.new(2, 0.2, 2), cf * CFrame.new(0, 0.1, 0), M.Metal, DARK)
+	box("CoveredFigure", Vector3.new(2.6, 5.6, 1.8), cf * CFrame.new(0, 3, 0), M.Fabric, SHEET)
+	deco("CoveredHead", Vector3.new(1.6, 1.6, 1.6), cf * CFrame.new(0, 6.2, 0), M.Fabric, SHEET, { Shape = Enum.PartType.Ball })
+end
+
+-- Mueble tapado con sabana (sofa, cama, perchero...).
+local function coveredFurniture(cf: CFrame, size: Vector3)
+	box("CoveredFurniture", size, cf * CFrame.new(0, size.Y / 2, 0), M.Fabric, SHEET)
+	deco("SheetDrape", Vector3.new(size.X + 0.6, 0.12, size.Z + 0.6), cf * CFrame.new(0, 0.06, 0), M.Fabric, SHEET:Lerp(DARK, 0.15))
+end
+
+-- Escalera mecanica parada: sin velocidad, sin animacion y cartel de "FUERA DE SERVICIO".
+local function stoppedEscalator(lowX: number, highX: number, zc: number)
+	local model = escalator(lowX, highX, zc, true)
+	CollectionService:RemoveTag(model, Tags.Escalator)
+	local body = model:FindFirstChild("EscalatorBody")
+	if body and body:IsA("BasePart") then
+		body.AssemblyLinearVelocity = Vector3.zero
+	end
+	local signPart = model:FindFirstChild("EscalatorSign")
+	local label = signPart and signPart:FindFirstChildWhichIsA("TextLabel", true)
+	if label then
+		label.Text = "FUERA DE SERVICIO"
+		label.TextColor3 = Color3.fromRGB(255, 70, 60)
+	end
+end
+
+----------------------------------------------------------------------
+-- Ala Norte
+----------------------------------------------------------------------
+
+local function buildNorthWing()
+	local wingFolder = folder("AlaNorte")
+	levelY = 0
+	local top = GALLERY_TOP + 4
+	-- Muros exteriores del ala (las dos plantas): lados de los pasillos de servicio y fondo
+	wall(Vector3.new(-(BACK_X2 + 0.5), 0, 111), Vector3.new(-(BACK_X2 + 0.5), 0, NORTH_BACK + 1), top)
+	wall(Vector3.new(BACK_X2 + 0.5, 0, 111), Vector3.new(BACK_X2 + 0.5, 0, NORTH_BACK + 1), top)
+	wall(Vector3.new(-(BACK_X2 + 1), 0, NORTH_BACK + 0.5), Vector3.new(BACK_X2 + 1, 0, NORTH_BACK + 0.5), top, {
+		Material = M.Concrete,
+		Color = Color3.fromRGB(150, 150, 146),
+	})
+	-- Escalera del pasillo de servicio norte (planta baja -> alta)
+	stairs(NSTAIR.X1, NSTAIR.X2, NSTAIR.Z1, NSTAIR.Z2)
+
+	for floorIndex, ly in { 0, F2 } do
+		levelY = ly
+		currentParent = wingFolder
+		local upper = ly > 0
+		local P2 = if upper then " P2" else ""
+		local wingName = "Ala Norte" .. P2
+		local passageZone = "Pasaje Norte" .. P2
+		local floorName = if upper then "Planta alta" else "Planta baja"
+
+		-- Pasaje desde la galeria (z 20..110) y pasillo del ala (z 110..207)
+		zone(passageZone, -WING, WING, 20, 110, 16)
+		zone(wingName, -WING, WING, 110, NORTH_END, 16)
+		corridorFloor(20, NORTH_END)
+		ceiling(-WING, WING, 20, NORTH_END, STORE_H + 1)
+		passageEntrance(20, 1, if upper then "ALA NORTE  ·  P2" else "ALA NORTE", Color3.fromRGB(130, 205, 255))
+		-- Cruce del servicio / oficinas (z 70..110): puertas de personal a cada lado
+		for _, s in { -1, 1 } do
+			wall(Vector3.new(s * (WING + 0.5), 0, 70), Vector3.new(s * (WING + 0.5), 0, 110), STORE_H, {
+				Color = Color3.fromRGB(205, 205, 200),
+				Openings = { { From = 3, To = 11, Height = 9 } },
+			})
+			staffSign(at(s * (WING - 0.1), 10, 77) * CFrame.Angles(0, if s > 0 then math.rad(90) else math.rad(-90), 0))
+		end
+
+		-- Luces
+		for z = 32, 104, 24 do
+			for _, x in { -12, 12 } do
+				ceilingPanel(at(x, STORE_H, z), passageZone, Vector2.new(6, 2.4), 24, 1.5)
+			end
+		end
+		for z = 122, 194, 24 do
+			for _, x in { -12, 12 } do
+				ceilingPanel(at(x, STORE_H, z), wingName, Vector2.new(6, 2.4), 24, 1.5)
+			end
+		end
+		for z = 44, 188, 48 do
+			ceilingVent(at(0, STORE_H, z))
+		end
+
+		-- Pasaje: directorio, macetero y banco
+		directoryTotem(at(-15, 0, 30), floorIndex, true)
+		planter(15, 44, passageZone)
+		bench(at(15, 0, 50))
+
+		-- Tiendas del ala (puerta trasera al pasillo de servicio)
+		buildWingStores(if upper then NORTH_STORES_2 else NORTH_STORES_1, wingName, if upper then 20 else 10)
+		currentParent = wingFolder
+
+		-- Fondo del pasillo: pared con puerta al pasillo de servicio (x -4..4)
+		wall(Vector3.new(-(WING + STORE_D), 0, NORTH_END + 0.5), Vector3.new(WING + STORE_D, 0, NORTH_END + 0.5), F2, {
+			Openings = { { From = WING + STORE_D - 4, To = WING + STORE_D + 4, Height = 9 } },
+		})
+		exitSign(at(0, 10.5, NORTH_END - 0.2))
+		staffSign(at(7.5, 7.5, NORTH_END - 0.1))
+
+		-- Mobiliario y puntos de mision del pasillo
+		for _, z in { 128, 160, 192 } do
+			planter(0, z, wingName)
+		end
+		for _, z in { 128, 192 } do
+			bench(at(-7.5, 0, z) * CFrame.Angles(0, math.rad(90), 0))
+			bench(at(7.5, 0, z) * CFrame.Angles(0, math.rad(-90), 0))
+		end
+		trashBin(at(-20, 0, 122), wingName)
+		trashBin(at(20, 0, 150), wingName)
+		trashBin(at(-20, 0, 178), wingName)
+		directoryTotem(at(15, 0, 116), floorIndex, true)
+		electricPanel(at(16, 3, NORTH_END - 0.3), wingName)
+		wallExtinguisher(at(-14, 0, NORTH_END), floorName)
+		payPhone(at(-20, 0, NORTH_END), wingName)
+		spot(-10, 140, "CleanSpill", wingName)
+		spot(12, 186, "CleanSpill", wingName)
+		spot(-14, 170, "TakeOutTrash", wingName)
+		spot(10, 120, "LostItem", wingName)
+		spot(6, 160, "WaterPlants", wingName)
+		spot(-6, 150, "LockDoors", wingName)
+		spot(6, 140, "ResetRegisters", wingName)
+		spot(-6, 176, "TurnOffDisplays", wingName)
+		spot(0, 202, "EmptyBins", wingName)
+		patrolClock(-20, 200, wingName)
+		camera(-22, 14, 112, 0, 0, 170)
+		camera(22, 14, 205, 0, 0, 150)
+		enemySpawn(0, 204)
+
+		-- Pasillos de servicio (a oscuras): detras de las tiendas y al fondo
+		local backZone = "Pasillo de servicio" .. P2
+		local concrete = Color3.fromRGB(118, 118, 114)
+		for _, s in { -1, 1 } do
+			local x1, x2 = if s > 0 then BACK_X1 else -BACK_X2, if s > 0 then BACK_X2 else -BACK_X1
+			zone("Pasillo de servicio " .. (if s > 0 then "Este" else "Oeste") .. P2, x1, x2, 111, NORTH_END, STORE_H)
+			slab("Floor", x1, x2, 111, NORTH_END, 0, M.Concrete, concrete)
+			slab("Ceiling", x1, x2, 111, NORTH_END, STORE_H + 1, M.Concrete, Color3.fromRGB(90, 90, 94))
+		end
+		zone("Pasillo de servicio Norte" .. P2, -BACK_X2, BACK_X2, NORTH_END, NORTH_BACK, STORE_H)
+		if upper then
+			slabWithHole("Floor", -BACK_X2, BACK_X2, NORTH_END, NORTH_BACK + 1, 0, NSTAIR_HOLE, M.Concrete, concrete)
+			slab("Ceiling", -BACK_X2, BACK_X2, NORTH_END, NORTH_BACK + 1, STORE_H + 1, M.Concrete, Color3.fromRGB(90, 90, 94))
+			-- Barandilla del hueco de la escalera (la llegada, x = 56, queda abierta)
+			railing(Vector3.new(NSTAIR_HOLE[1], 0, NSTAIR_HOLE[3]), Vector3.new(NSTAIR_HOLE[2], 0, NSTAIR_HOLE[3]))
+			railing(Vector3.new(NSTAIR_HOLE[1], 0, NSTAIR_HOLE[3]), Vector3.new(NSTAIR_HOLE[1], 0, NORTH_BACK))
+		else
+			slab("Floor", -BACK_X2, BACK_X2, NORTH_END, NORTH_BACK + 1, 0, M.Concrete, concrete)
+			slabWithHole("Ceiling", -BACK_X2, BACK_X2, NORTH_END, NORTH_BACK + 1, STORE_H + 1, NSTAIR_HOLE, M.Concrete, Color3.fromRGB(90, 90, 94))
+		end
+		-- Solo luces de emergencia tenues... y las que no tienen bateria (mision)
+		for _, p in { { 79, 140 }, { -79, 170 }, { -60, 214 }, { 70, 212 } } do
+			emergencyLight(at(p[1], STORE_H, p[2]), p[1] > 0)
+		end
+		deadEmergencyLight(at(BACK_X2, 7, 128) * FACE_NEG_X, backZone)
+		deadEmergencyLight(at(BACK_X2, 7, 190) * FACE_NEG_X, backZone)
+		deadEmergencyLight(at(-BACK_X2, 7, 150) * FACE_POS_X, backZone)
+		deadEmergencyLight(at(-BACK_X2, 7, 198) * FACE_POS_X, backZone)
+		deadEmergencyLight(at(-20, 7, NORTH_BACK), backZone)
+		deadEmergencyLight(at(-70, 7, NORTH_BACK), backZone)
+		spot(0, 214, "RestoreEmergencyLights", backZone)
+		-- Tuberias, cajas, casilleros y salidas
+		for _, s in { -1, 1 } do
+			deco("BackPipe", Vector3.new(0.8, 0.8, NORTH_END - 111), at(s * (BACK_X2 - 1), STORE_H - 1.2, (111 + NORTH_END) / 2), M.Metal, METAL)
+			boxPile(at(s * 82, 0, 150 + s * 10), 4)
+			hidingSpot("Casillero", at(s * 82.5, 3.75, 120 + (s + 1) * 25) * (if s > 0 then FACE_NEG_X else FACE_POS_X), Vector3.new(4, 7.5, 3), M.Metal, Color3.fromRGB(70, 90, 110))
+		end
+		deco("BackPipe", Vector3.new(2 * BACK_X2, 0.8, 0.8), at(0, STORE_H - 1.2, NORTH_BACK - 1), M.Metal, METAL)
+		propOr("JanitorCart", at(-40, 0, 211) * CFrame.Angles(0, math.rad(90), 0), function() end)
+		boxPile(at(-78, 0, 216), 3)
+		exitSign(at(0, 10.5, NORTH_END + 1.2) * CFrame.Angles(0, math.pi, 0))
+		if not upper then
+			for _, x in { -79, 80 } do
+				exitSign(at(x, 10.4, 111.8) * CFrame.Angles(0, math.pi, 0))
+			end
+		end
+		spot(79, 160, "CleanSpill", "Pasillo de servicio Este" .. P2)
+		spot(-79, 130, "CleanSpill", "Pasillo de servicio Oeste" .. P2)
+		patrolClock(-79, 186, "Pasillo de servicio Oeste" .. P2)
+		enemySpawn(79, 196)
+		enemySpawn(-79, 140)
+		enemySpawn(-60, 216)
+		camera(-82, 13, 220, -40, 0, 212)
+	end
+
+	levelY = 0
+	currentParent = map
+end
+
+----------------------------------------------------------------------
+-- Ala Sur (en obras) y grandes almacenes cerrados
+----------------------------------------------------------------------
+
+-- Local en obras: x de side*24 a side*74, z = zc ± 24. Valla de tablero con puerta,
+-- interior a medio hacer y sin luz (zona oscura "Local en obras N").
+local function constructionUnit(n: number, side: number, zc: number, toolZone: string, withTool: string?)
+	local unitFolder = Instance.new("Folder")
+	unitFolder.Name = "LocalObras" .. n
+	unitFolder.Parent = map
+	local previous = currentParent
+	currentParent = unitFolder
+
+	local zoneName = "Local en obras " .. n
+	local xIn, xOut = side * WING, side * (WING + STORE_D)
+	local x1, x2 = math.min(xIn, xOut), math.max(xIn, xOut)
+	local z1, z2 = zc - STORE_W / 2, zc + STORE_W / 2
+	local origin = Vector3.new(xIn, Y0 + levelY, zc)
+	local base = CFrame.lookAt(origin, origin + Vector3.new(side, 0, 0))
+	local faceCorridor = if side > 0 then FACE_NEG_X else FACE_POS_X
+
+	zone(zoneName, x1, x2, z1, z2, STORE_H)
+	slab("Floor", x1, x2, z1, z2, 0, M.Concrete, Color3.fromRGB(122, 120, 116))
+	slab("Ceiling", x1, x2, z1, z2, STORE_H + 1, M.Concrete, Color3.fromRGB(88, 88, 92))
+	local drywall = Color3.fromRGB(196, 192, 184)
+	for _, z in { z1 + 0.5, z2 - 0.5 } do
+		wall(Vector3.new(x1, 0, z), Vector3.new(x2, 0, z), STORE_H, { Color = drywall, Baseboard = false })
+	end
+	wall(Vector3.new(xOut - side * 0.5, 0, z1), Vector3.new(xOut - side * 0.5, 0, z2), STORE_H, { Material = M.Concrete, Color = Color3.fromRGB(150, 150, 146), Baseboard = false })
+	-- Valla de obra (tablero) con puerta en el centro
+	wall(Vector3.new(xIn + side * 0.5, 0, z1), Vector3.new(xIn + side * 0.5, 0, z2), STORE_H, {
+		Material = M.Wood,
+		Color = PLYWOOD,
+		Baseboard = false,
+		Openings = { { From = STORE_W / 2 - 4, To = STORE_W / 2 + 4, Height = 9 } },
+	})
+	local banner = deco("HoardingBanner", Vector3.new(22, 4.4, 0.1), at(side * (WING - 0.1), 12, zc) * faceCorridor, M.SmoothPlastic, Color3.fromRGB(30, 32, 40))
+	sign(banner, "PRÓXIMA APERTURA\n" .. string.upper(SOUTH_BRANDS[(n - 1) % #SOUTH_BRANDS + 1]), Color3.fromRGB(235, 200, 90), Enum.Font.GothamBlack, Enum.NormalId.Front)
+	for _, dz in { -4.3, 4.3 } do
+		deco("DoorStripe", Vector3.new(0.3, 9, 0.6), at(side * (WING - 0.05), 4.5, zc + dz), M.SmoothPlastic, CAUTION)
+	end
+	cautionTape(Vector3.new(side * (WING - 0.3), 3.2, zc - 4), Vector3.new(side * (WING - 0.3), 3.6, zc + 4))
+
+	-- Montantes de pladur a la vista en una pared lateral
+	for d = 6, 46, 2.5 do
+		deco("Stud", Vector3.new(0.3, STORE_H, 0.6), L(base, -STORE_W / 2 + 1.3, STORE_H / 2, d), M.Metal, Color3.fromRGB(170, 172, 176))
+	end
+	-- Atrezo segun el local
+	local variant = n % 4
+	if variant == 1 then
+		scaffold(L(base, 10, 0, 30), 8, 4, 12)
+		drywallStack(L(base, -12, 0, 16))
+		paintBuckets(L(base, 4, 0, 12))
+		ladder(L(base, 18, 0, 44), 10)
+	elseif variant == 2 then
+		cementBags(L(base, 14, 0, 14))
+		cementBags(L(base, 16, 0, 17))
+		workLamp(L(base, -6, 0, 22) * CFrame.Angles(0, math.rad(150), 0))
+		plasticSheet(L(base, 0, 7, 30), 30, 13)
+		boxPile(L(base, -16, 0, 40), 5)
+	elseif variant == 3 then
+		scaffold(L(base, -12, 0, 24), 8, 4, 12)
+		scaffold(L(base, 8, 0, 38), 8, 4, 12)
+		paintBuckets(L(base, 14, 0, 12))
+		ladder(L(base, -2, 0, 12), 9)
+	else
+		drywallStack(L(base, 10, 0, 18))
+		workLamp(L(base, -10, 0, 30))
+		plasticSheet(L(base, 4, 7, 26), 24, 13)
+		cementBags(L(base, -16, 0, 44))
+	end
+	if withTool then
+		powerTool(withTool, L(base, 0, 0, 34), toolZone)
+	end
+	-- Escondite: baño portatil (impares) o armario de herramientas (pares)
+	if n % 2 == 1 then
+		hidingSpot("Baño portátil", L(base, 19, 4, 44) * OUT, Vector3.new(4.4, 8, 4.4), M.Plastic, Color3.fromRGB(40, 95, 170))
+	else
+		hidingSpot("Armario de obra", L(base, -19, 3.75, 46.6) * OUT, Vector3.new(4, 7.5, 3), M.Metal, Color3.fromRGB(120, 90, 40))
+	end
+	emergencyLight(L(base, 0, STORE_H, 40), n % 2 == 0)
+	-- Puntos de mision y enemigos
+	local spill = L(base, -8, 0, 28).Position
+	spot(spill.X, spill.Z, "CleanSpill", zoneName)
+	if n % 2 == 0 then
+		local lost = L(base, 8, 0, 44).Position
+		spot(lost.X, lost.Z, "LostItem", zoneName)
+	end
+	local spawnPos = L(base, 0, 0, 44).Position
+	enemySpawn(spawnPos.X, spawnPos.Z)
+
+	currentParent = previous
+end
+
+local function buildAnchorStore(upper: boolean)
+	local P2 = if upper then " P2" else ""
+	local zoneName = "Almacenes Estrella" .. P2
+	local A = ANCHOR
+	zone(zoneName, A.X1, A.X2, A.Z1, A.Z2, STORE_H)
+	if upper then
+		slabWithHole("Floor", A.X1, A.X2, A.Z1, A.Z2 - 1, 0, ESC_HOLE, M.Marble, Color3.fromRGB(205, 198, 186))
+		slab("Ceiling", A.X1, A.X2, A.Z1, A.Z2 - 1, STORE_H + 1, M.Plaster, WHITE)
+	else
+		slab("Floor", A.X1, A.X2, A.Z1, A.Z2 - 1, 0, M.Marble, Color3.fromRGB(205, 198, 186))
+		slabWithHole("Ceiling", A.X1, A.X2, A.Z1, A.Z2 - 1, STORE_H + 1, ESC_HOLE, M.Plaster, WHITE)
+	end
+	-- Fachada hacia el pasillo del ala: abertura x -16..16 con la persiana a medio bajar
+	wall(Vector3.new(A.X1, 0, A.Z2 - 0.5), Vector3.new(A.X2, 0, A.Z2 - 0.5), F2, {
+		Color = Color3.fromRGB(70, 66, 64),
+		Openings = { { From = 58, To = 90, Height = 12 } },
+	})
+	box("RollingGate", Vector3.new(32, 4, 0.3), at(0, 10, A.Z2 - 0.1), M.DiamondPlate, Color3.fromRGB(110, 110, 114), { CanCollide = false })
+	local storeSign = deco("AnchorSign", Vector3.new(40, 3, 0.2), at(0, 14.2, A.Z2 + 0.05) * CFrame.Angles(0, math.pi, 0), M.SmoothPlastic, Color3.fromRGB(20, 20, 24))
+	sign(storeSign, if upper then "ALMACENES ESTRELLA · HOGAR" else "★ ALMACENES ESTRELLA ★", Color3.fromRGB(150, 130, 70), Enum.Font.Garamond, Enum.NormalId.Front)
+	local notice = deco("ClosingNotice", Vector3.new(6, 3, 0.05), at(-20, 5, A.Z2 + 0.06) * CFrame.Angles(0, math.pi, 0), M.SmoothPlastic, Color3.fromRGB(235, 232, 220))
+	sign(notice, "CERRADO\nDEFINITIVAMENTE\nGracias por 30 años", Color3.fromRGB(140, 25, 25), Enum.Font.GothamBold, Enum.NormalId.Front)
+
+	-- Columnas
+	for _, x in { -40, 40 } do
+		for _, z in { -185, -210 } do
+			box("Column", Vector3.new(2.4, STORE_H, 2.4), at(x, STORE_H / 2, z), M.Plaster, Color3.fromRGB(220, 214, 204))
+		end
+	end
+	-- Pancarta de liquidacion colgando torcida
+	local banner = deco("SaleBanner", Vector3.new(22, 3, 0.1), at(0, 12.5, -180) * CFrame.Angles(0, 0, math.rad(7)), M.SmoothPlastic, Color3.fromRGB(170, 30, 30))
+	sign(banner, "LIQUIDACIÓN TOTAL  -70%", Color3.fromRGB(255, 235, 200), Enum.Font.GothamBlack, Enum.NormalId.Front)
+	sign(banner, "LIQUIDACIÓN TOTAL  -70%", Color3.fromRGB(255, 235, 200), Enum.Font.GothamBlack, Enum.NormalId.Back)
+
+	if upper then
+		-- Planta de hogar: sofas y camas tapados, armarios de exposicion (escondites)
+		for _, p in { { -56, -182 }, { -56, -202 }, { 56, -182 }, { 56, -202 } } do
+			coveredFurniture(at(p[1], 0, p[2]), Vector3.new(9, 3.2, 4.5))
+		end
+		for _, x in { -40, 40 } do
+			coveredFurniture(at(x, 0, -220), Vector3.new(8, 2.4, 10))
+		end
+		coveredMannequin(at(-24, 0, -178))
+		coveredMannequin(at(66, 0, -214))
+		hidingSpot("Armario", at(72.4, 3.75, -190) * FACE_NEG_X, Vector3.new(4, 7.5, 3), M.Wood, Color3.fromRGB(150, 115, 80))
+		hidingSpot("Armario", at(-72.4, 3.75, -214) * FACE_POS_X, Vector3.new(4, 7.5, 3), M.Wood, Color3.fromRGB(150, 115, 80))
+		for _, p in { { -34, -190 }, { 34, -186 }, { -60, -216 }, { 60, -220 } } do
+			sheetMannequin(at(p[1], 0, p[2]) * CFrame.Angles(0, math.rad(rng:NextNumber(0, 360)), 0), zoneName)
+		end
+		-- Barandilla del hueco de las escaleras (la llegada, x = 15, entre las dos queda abierta)
+		local h = ESC_HOLE
+		railing(Vector3.new(h[1], 0, h[3]), Vector3.new(h[2], 0, h[3]))
+		railing(Vector3.new(h[1], 0, h[4]), Vector3.new(h[2], 0, h[4]))
+		railing(Vector3.new(h[1], 0, h[3]), Vector3.new(h[1], 0, h[4]))
+		railing(Vector3.new(h[2], 0, h[3]), Vector3.new(h[2], 0, -204.4))
+		railing(Vector3.new(h[2], 0, -195.6), Vector3.new(h[2], 0, h[4]))
+		enemySpawn(60, -190)
+	else
+		-- Planta baja: moda. Percheros tapados, mostradores, maniquies (algunos tapados)
+		for _, p in { { -58, -182 }, { -58, -198 }, { -58, -214 }, { 58, -182 }, { 58, -198 }, { 58, -214 } } do
+			clothesRack(CFrame.new(p[1], Y0 + levelY, p[2]), 0, 0, pick(4, math.abs(p[2]) % 6))
+			deco("DustSheet", Vector3.new(8.6, 5.4, 3), at(p[1], 2.7, p[2]), M.Fabric, SHEET)
+		end
+		for _, x in { -36, 36 } do
+			box("Counter", Vector3.new(10, 3.5, 3), at(x, 1.75, -184), M.Wood, Color3.fromRGB(200, 190, 175))
+			deco("CounterTop", Vector3.new(10.4, 0.2, 3.4), at(x, 3.6, -184), M.Marble, Color3.fromRGB(45, 44, 44))
+		end
+		box("CashDesk", Vector3.new(10, 3.5, 3), at(-56, 1.75, -172), M.Wood, Color3.fromRGB(110, 85, 60))
+		for _, x in { -26, 26 } do
+			displayMannequin(at(x, 0.6, -176) * CFrame.Angles(0, math.pi, 0))
+		end
+		coveredMannequin(at(-26, 0, -222))
+		coveredMannequin(at(26, 0, -222))
+		coveredMannequin(at(66, 0, -200))
+		for _, p in { { -44, -196 }, { 44, -208 }, { -40, -216 }, { 30, -196 } } do
+			sheetMannequin(at(p[1], 0, p[2]) * CFrame.Angles(0, math.rad(rng:NextNumber(0, 360)), 0), zoneName)
+		end
+		for _, z in { -192, -198 } do
+			hidingSpot("Probador", at(-71.9, 4, z) * FACE_POS_X, Vector3.new(4.4, 8, 4), M.Fabric, Color3.fromRGB(90, 40, 50))
+		end
+		for k = 0, 1 do
+			box("ShoppingCart", Vector3.new(2.2, 2.4, 3.4), at(8 + k * 2.6, 1.2, -178 - k), M.Metal, STEEL, { Transparency = 0.3 })
+		end
+		-- Escaleras mecanicas paradas (unen las dos plantas)
+		stoppedEscalator(-16, 15, -198)
+		stoppedEscalator(-16, 15, -202)
+		enemySpawn(-60, -224)
+	end
+	for _, p in { { -40, -200 }, { 40, -200 }, { 0, -222 }, { 0, -176 } } do
+		emergencyLight(at(p[1], STORE_H, p[2]), p[1] == 0)
+	end
+	spot(0, -186, "CoverMannequins", zoneName)
+	spot(-20, -212, "CleanSpill", zoneName)
+	spot(50, -224, "LostItem", zoneName)
+	patrolClock(-66, -172, zoneName)
+	enemySpawn(60, -224)
+	camera(-70, 13, -170, -20, 0, -200)
+end
+
+local function buildSouthWing()
+	local wingFolder = folder("AlaSur")
+	levelY = 0
+	local top = GALLERY_TOP + 4
+	-- Muros exteriores: lados (x ±74.5) y fondo de los grandes almacenes
+	for _, s in { -1, 1 } do
+		wall(Vector3.new(s * (ANCHOR.X2 + 0.5), 0, -71), Vector3.new(s * (ANCHOR.X2 + 0.5), 0, ANCHOR.Z1 - 1), top)
+	end
+	wall(Vector3.new(-(ANCHOR.X2 + 1), 0, ANCHOR.Z1 - 0.5), Vector3.new(ANCHOR.X2 + 1, 0, ANCHOR.Z1 - 0.5), top)
+	-- Contenedor de escombros (vale para Sacar la basura y Vaciar papeleras)
+	local skip = box("DebrisSkip", Vector3.new(10, 4.5, 5), at(-16, 2.25, -160), M.Metal, Color3.fromRGB(200, 120, 30))
+	tag(skip, Tags.TrashDropoff)
+	deco("Rubble", Vector3.new(9, 1.4, 4), at(-16, 4.6, -160) * CFrame.Angles(math.rad(4), 0, math.rad(-3)), M.Slate, Color3.fromRGB(120, 116, 110))
+
+	for floorIndex, ly in { 0, F2 } do
+		levelY = ly
+		currentParent = wingFolder
+		local upper = ly > 0
+		local P2 = if upper then " P2" else ""
+		local wingName = "Ala Sur" .. P2
+		local accessName = "Acceso Ala Sur" .. P2
+		local floorName = if upper then "Planta alta" else "Planta baja"
+
+		zone(accessName, -WING, WING, -70, -20, 16)
+		zone(wingName, -WING, WING, SOUTH_Z1, -70, 16)
+		corridorFloor(SOUTH_Z1, -20)
+		ceiling(-WING, WING, SOUTH_Z1, -20, STORE_H + 1)
+		passageEntrance(-20, -1, if upper then "ALA SUR  ·  P2  ·  EN OBRAS" else "ALA SUR  ·  EN REMODELACIÓN", CAUTION)
+		-- Valla de obra a la entrada del pasaje (paso de 10 en el centro) con avisos
+		wall(Vector3.new(-WING, 0, -22.5), Vector3.new(WING, 0, -22.5), 11, {
+			Material = M.Wood,
+			Color = PLYWOOD,
+			Baseboard = false,
+			Openings = { { From = WING - 5, To = WING + 5, Height = 9 } },
+		})
+		for _, x in { -14.5, 14.5 } do
+			local panel = deco("HoardingPrint", Vector3.new(16, 6, 0.1), at(x, 5, -21.9) * CFrame.Angles(0, math.pi, 0), M.SmoothPlastic, Color3.fromRGB(28, 30, 38))
+			sign(panel, if x < 0 then "DISCULPEN LAS\nMOLESTIAS" else "ESTAMOS MEJORANDO\nPARA USTED", Color3.fromRGB(235, 200, 90), Enum.Font.GothamBlack, Enum.NormalId.Front)
+		end
+		cautionTape(Vector3.new(-5, 3.4, -22.4), Vector3.new(5, 3.9, -22.4))
+		cautionTape(Vector3.new(-5, 5.6, -22.4), Vector3.new(5, 5.1, -22.4))
+
+		-- Suelo levantado: parches de cemento sobre el marmol
+		for _, p in { { -10, -40, 12, 9 }, { 8, -88, 16, 12 }, { -6, -122, 20, 10 }, { 12, -150, 10, 14 } } do
+			deco("ConcretePatch", Vector3.new(p[3], 0.06, p[4]), at(p[1], 0.03, p[2]) * CFrame.Angles(0, math.rad(p[1]), 0), M.Concrete, Color3.fromRGB(128, 126, 120))
+		end
+		-- Laminas de plastico colgando en el pasillo (no dejan ver lo que hay detras)
+		for _, z in { -64, -112, -152 } do
+			for _, x in { -14, -4, 9 } do
+				plasticSheet(at(x + rng:NextNumber(-1.5, 1.5), 8, z + rng:NextNumber(-1, 1)) * CFrame.Angles(0, math.rad(rng:NextNumber(-8, 8)), 0), 9, 15.6)
+			end
+		end
+		-- Andamios, escaleras, material
+		scaffold(at(-19, 0, -84), 8, 4, 14)
+		scaffold(at(19, 0, -132), 8, 4, 14)
+		ladder(at(18, 0, -98) * CFrame.Angles(0, math.rad(-90), 0), 12)
+		cementBags(at(-19, 0, -120))
+		paintBuckets(at(17, 0, -78))
+		drywallStack(at(-14, 0, -146) * CFrame.Angles(0, math.rad(90), 0))
+		workLamp(at(0, 0, -96))
+		workLamp(at(-6, 0, -158))
+		-- Cables colgando del techo
+		for _, p in { { -8, -52 }, { 6, -100 }, { -2, -138 } } do
+			deco("HangingCable", Vector3.new(0.12, 5, 0.12), at(p[1], STORE_H - 2.5, p[2]) * CFrame.Angles(math.rad(8), 0, math.rad(6)), M.Rubber, DARK)
+		end
+		for z = -60, -160, -50 do
+			emergencyLight(at(0, STORE_H, z), z % 100 == 0)
+		end
+
+		-- Locales en obras (4 por planta) y herramientas de la mision (4 por planta)
+		local base = if upper then 4 else 0
+		local tools = { "Compressor", nil, nil, "Generator" }
+		for i, slot in SOUTH_SLOTS do
+			constructionUnit(base + i, slot[1], slot[2], wingName, tools[i])
+		end
+		currentParent = wingFolder
+		powerTool("Mixer", at(14, 0, -114) * CFrame.Angles(0, math.rad(20), 0), wingName)
+		powerTool("Saw", at(-13, 0, -100) * CFrame.Angles(0, math.rad(90), 0), wingName)
+
+		-- Puntos de mision del pasillo
+		spot(0, -120, "UnplugTools", wingName)
+		spot(-8, -104, "CleanSpill", wingName)
+		spot(10, -150, "CleanSpill", wingName)
+		spot(6, -140, "LostItem", wingName)
+		spot(-8, -88, "TakeOutTrash", wingName)
+		patrolClock(20, -76, wingName)
+		wallExtinguisher(at(-20, 0, SOUTH_Z1) * CFrame.Angles(0, math.pi, 0), floorName)
+		if upper then
+			hidingSpot("Baño portátil", at(19, 4, -160), Vector3.new(4.4, 8, 4.4), M.Plastic, Color3.fromRGB(40, 95, 170))
+		end
+		camera(22, 13, -72, 0, 0, -120)
+		enemySpawn(0, -160)
+		enemySpawn(-14, -74)
+
+		-- Grandes almacenes del fondo
+		buildAnchorStore(upper)
+	end
 
 	levelY = 0
 	currentParent = map
@@ -3888,6 +4777,9 @@ function MallBuilder.BuildIfNeeded()
 	buildCinema()
 	buildArcade()
 	buildOffices()
+	-- Alas nuevas (2026-11-25): Ala Norte (tiendas + pasillo de servicio) y Ala Sur (obras)
+	buildNorthWing()
+	buildSouthWing()
 
 	-- Atenuar todas las luces (ambiente de terror). Config.MallLightScale = 1 para el brillo original.
 	local scale = Config.MallLightScale or 1

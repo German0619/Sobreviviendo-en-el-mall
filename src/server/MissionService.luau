@@ -60,6 +60,10 @@ local handlers = {
 	EmptyBins = require(MissionsFolder.EmptyBins),
 	Inventory = require(MissionsFolder.Inventory),
 	PurgeBoiler = require(MissionsFolder.PurgeBoiler),
+	-- Alas nuevas: obra del Ala Sur, grandes almacenes, pasillo de servicio del Ala Norte
+	UnplugTools = require(MissionsFolder.UnplugTools),
+	CoverMannequins = require(MissionsFolder.CoverMannequins),
+	RestoreEmergencyLights = require(MissionsFolder.RestoreEmergencyLights),
 }
 
 local MissionService = {}

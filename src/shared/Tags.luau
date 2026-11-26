@@ -94,6 +94,14 @@ return {
 	BoilerValve = "BoilerValve",
 	-- Panel de la caldera (mision PurgeBoiler: se reinicia al final).
 	BoilerControl = "BoilerControl",
+	-- Herramienta de la obra del Ala Sur (mision UnplugTools). Atributo Zone = "Ala Sur" / "Ala Sur P2".
+	PowerTool = "PowerTool",
+	-- Peana de un maniqui destapado de los grandes almacenes (mision CoverMannequins).
+	-- Atributo Zone. El maniqui es un Model hijo de la peana; HomeCFrame = su sitio.
+	SheetMannequin = "SheetMannequin",
+	-- Luz de emergencia sin bateria del pasillo de servicio (mision RestoreEmergencyLights).
+	-- Atributo Zone = "Pasillo de servicio" / "Pasillo de servicio P2". Hijo "Lens".
+	EmergencyBox = "EmergencyBox",
 
 	-- Escalera mecanica (Model). La rampa transporta a los jugadores (AssemblyLinearVelocity);
 	-- el cliente anima los escalones de su carpeta "Steps".
