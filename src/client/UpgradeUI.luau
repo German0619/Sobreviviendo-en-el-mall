@@ -1,5 +1,5 @@
 -- UpgradeUI: ventana para comprar niveles de estadisticas.
--- Se abre sola en la fase de Mejoras y con la tecla U fuera de la noche.
+-- Se abre sola tras la pantalla de victoria (en la preparacion) y con la tecla U fuera de la noche.
 
 local ContextActionService = game:GetService("ContextActionService")
 local Players = game:GetService("Players")
@@ -323,16 +323,20 @@ function UpgradeUI.Start()
 		player:GetAttributeChangedSignal("Level_" .. statName):Connect(refresh)
 	end
 
+	-- Noche ganada: se abre sola al terminar la pantalla de victoria (VictoryScreen),
+	-- durante la preparacion de la siguiente noche
+	Remotes.event("NightResults").OnClientEvent:Connect(function(data)
+		if type(data) ~= "table" or not data.Survived or data.GameOver then
+			return
+		end
+		task.delay(Config.Night.VictorySeconds + 0.4, function()
+			if GameState.Folder:GetAttribute("Phase") == "Preparation" then
+				UpgradeUI.Open()
+			end
+		end)
+	end)
 	GameState.Folder:GetAttributeChangedSignal("Phase"):Connect(function()
-		local phase = GameState.Folder:GetAttribute("Phase")
-		if phase == "Upgrades" then
-			-- Dejar ver unos segundos los resultados antes de abrir
-			task.delay(4, function()
-				if GameState.Folder:GetAttribute("Phase") == "Upgrades" then
-					UpgradeUI.Open()
-				end
-			end)
-		elseif phase == "Night" then
+		if GameState.Folder:GetAttribute("Phase") == "Night" then
 			UpgradeUI.Close()
 		end
 	end)

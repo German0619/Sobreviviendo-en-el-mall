@@ -536,6 +536,7 @@ Que toda la interfaz use las herramientas nativas de Roblox para adaptarse a cad
   - Cuadros de sala: zócalo de granito con filo de latón y postes de acero con remate dorado (base azul y muros de color sin cambios).
   - Dos lámparas de anillo de latón colgadas del tragaluz, 6 bancos de nogal y acero (2 junto a la fuente, 4 bajo los balcones), dos máquinas expendedoras junto a la entrada y pantallas de récords 4 studs más arriba (la rueda de clases las tapaba).
   - Nota: en Studio, `Glass` oculta las SurfaceGui y lo transparente que hay detrás; los escaparates y vitrinas usan SmoothPlastic transparente.
+- [PROGRAMADO, falta probar] **Victoria más llamativa y sin tiempo de mejoras** (2026-11-26). Entre noches solo queda la preparación (30 s): se quitaron las fases Results (10 s) y Upgrades (30 s). Al ganar, `client/VictoryScreen` (7 s, `Config.Night.VictorySeconds`): destello dorado, rayos que giran, resplandor, bordes dorados, dos ráfagas de confeti, "¡SOBREVIVISTE!" enorme que entra con rebote, "NOCHE X SUPERADA" y el pago con el total contando. Después se abre sola la ventana de mejoras ([U] sigue funcionando en la preparación). El panel del HUD queda solo para el fin de partida. Se quitó la música Results.
 
 **Orden elegido:**
 - La Fase 3 cambia la base de cómo aparece el peligro; el resto se apoya en ella.

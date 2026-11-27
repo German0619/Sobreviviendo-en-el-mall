@@ -2,7 +2,7 @@
 -- Estado de la partida replicado a todos los clientes mediante atributos.
 --
 -- GameState (Folder) atributos:
---   Phase        "Waiting" | "Preparation" | "Night" | "Results" | "Upgrades" | "GameOver"
+--   Phase        "Waiting" | "Preparation" | "Night" | "GameOver"
 --   Night        numero de noche
 --   GameHour     0..6 (12 AM -> 6 AM)
 --   PhaseEndsAt  workspace:GetServerTimeNow() en que termina la fase (0 = sin limite)

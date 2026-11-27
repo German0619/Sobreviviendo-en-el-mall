@@ -92,9 +92,9 @@ Config.Night = {
 	OvertimeSeconds = 480, -- a partir de aqui los enemigos se impacientan
 	OvertimeSpeedPerMinute = 0.05, -- +5% de velocidad por minuto extra
 	MaxOvertimeBonus = 0.5,
+	-- Entre noches solo hay preparacion: al ganar se pasa directo a la de la siguiente.
 	PreparationSeconds = 30,
-	ResultsSeconds = 10,
-	UpgradeSeconds = 30,
+	VictorySeconds = 7, -- (cliente) lo que dura la pantalla de victoria al empezar la preparacion
 }
 
 -- Cuota de tareas por noche: Base + PerNight * (noche - 1) + PerExtraPlayer * (jugadores - 1)
@@ -2621,7 +2621,6 @@ Config.Sounds = {
 		Preparation = snd("rbxassetid://139053896078359", 0.18), -- "Eerie Music Box" (APM)
 		Night = snd("rbxassetid://138890398994853", 0.35), -- "Horror Cinematic Dark Scary Ambience" (DistroKid)
 		LateNight = snd("rbxassetid://102615842265981", 0.35), -- desde LateNightFrom
-		Results = snd("rbxassetid://131480789539493", 0.3), -- "Eerie Music Box" (otra version, APM)
 		GameOver = snd("rbxasset://sounds/HalloweenGhost.wav", 0.8, 0.5), -- golpe, no se repite
 	},
 	LateNightFrom = 10, -- noche desde la que suena la musica LateNight

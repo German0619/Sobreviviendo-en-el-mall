@@ -1,6 +1,7 @@
 -- NightManager: ciclo de la partida.
 --
---   Waiting -> Preparation -> Night (12 AM -> 6 AM) -> Results -> Upgrades -> (siguiente noche)
+--   Waiting -> Preparation -> Night (12 AM -> 6 AM) -> Preparation de la siguiente noche
+--   (al ganar, el cliente muestra la pantalla de victoria y el pago al empezar la preparacion)
 --                                  \-> si todos mueren -> GameOver -> todos al lobby
 --
 -- La sala se arma en el LOBBY (LobbyService): al mall solo se llega con la
@@ -418,12 +419,13 @@ local function runGame()
 			end
 			return
 		else
-			notifyAll(string.format("Son las 6 AM. ¡El equipo completó la noche %d!", night), "good")
-			setPhase("Results", Config.Night.ResultsSeconds)
-			waitSeconds(Config.Night.ResultsSeconds)
-			setPhase("Upgrades", Config.Night.UpgradeSeconds)
-			waitSeconds(Config.Night.UpgradeSeconds)
-			night += 1
+			-- Los del equipo ya ven la pantalla de victoria; el aviso es para quien entro a mitad
+			for _, player in Players:GetPlayers() do
+				if not participants[player] then
+					Remotes.event("Notify"):FireClient(player, string.format("Son las 6 AM. ¡El equipo completó la noche %d!", night), "good")
+				end
+			end
+			night += 1 -- (sin pausa: runNight empieza ya la preparacion de la siguiente)
 		end
 	end
 end

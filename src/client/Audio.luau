@@ -1,7 +1,7 @@
 -- Audio (cliente): musica, ambiente y sonidos personales (Config.Sounds).
 --
 --   Musica: una pista por fase, con un fundido al cambiar (lobby; en el mall: espera y
---     preparacion, noche, noche avanzada desde LateNightFrom, resultados). En la noche de
+--     preparacion, noche, noche avanzada desde LateNightFrom). En la noche de
 --     jefe se calla: la pone BossAlert. Fin de partida: un golpe de sonido.
 --   Ambiente (mall): zumbido de fluorescentes (preparacion y noche), eco de nave grande
 --     (noche) y, de noche, sonidos sueltos al azar a tu alrededor (goteos, metal, crujidos).
@@ -121,8 +121,6 @@ local function wantedMusic(): string?
 		return if night >= (S.LateNightFrom or math.huge) then "LateNight" else "Night"
 	elseif phase == "Waiting" or phase == "Preparation" then
 		return "Preparation"
-	elseif phase == "Results" or phase == "Upgrades" then
-		return "Results"
 	end
 	return nil -- GameOver: solo el golpe de sonido
 end
@@ -248,7 +246,7 @@ function Audio.Start()
 		local phase = f:GetAttribute("Phase")
 		if phase == "Night" and lastPhase ~= "Night" then
 			playOnce(S.Sfx.NightStart)
-		elseif lastPhase == "Night" and (phase == "Results" or phase == "Upgrades") then
+		elseif lastPhase == "Night" and phase == "Preparation" then -- noche ganada
 			playOnce(S.Sfx.NightEnd)
 		elseif phase == "GameOver" and lastPhase ~= "GameOver" then
 			playOnce(S.Music.GameOver)

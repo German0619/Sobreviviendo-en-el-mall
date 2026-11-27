@@ -52,8 +52,6 @@ local PHASE_NAMES = {
 	Waiting = "Esperando jugadores",
 	Preparation = "Preparación",
 	Night = "Turno nocturno",
-	Results = "Resultados",
-	Upgrades = "Mejoras",
 	GameOver = "Fin del turno",
 }
 
@@ -779,14 +777,15 @@ function HUD.Toast(message: string, kind: string?)
 	end
 end
 
+-- (la noche ganada la muestra VictoryScreen; aqui solo el fin de partida)
 local function showResults(data)
+	if data.Survived and not data.GameOver then
+		return
+	end
 	local title
 	if data.GameOver then
 		title = "FIN DEL TURNO"
 		resultsTitle.TextColor3 = COLORS.Bad
-	elseif data.Survived then
-		title = string.format("NOCHE %d SUPERADA", data.Night)
-		resultsTitle.TextColor3 = COLORS.Good
 	else
 		title = string.format("CAÍSTE EN LA NOCHE %d", data.Night)
 		resultsTitle.TextColor3 = COLORS.Bad
@@ -808,25 +807,7 @@ local function showResults(data)
 		return
 	end
 
-	local lines = {
-		string.format("Pago base: <b>%s</b>", Util.formatMoney(data.Base)),
-		string.format(
-			"Tareas: <b>%s</b>  <font color=\"#9696A0\">(tu parte de %s entre %d)</font>",
-			Util.formatMoney(data.Missions),
-			Util.formatMoney(data.MissionsPool or data.Missions),
-			data.TeamSize or 1
-		),
-		string.format("Noche completada: <b>%s</b>", Util.formatMoney(data.Survival)),
-	}
-	if data.Bonus > 0 then
-		table.insert(lines, string.format("Bonus de clase: <b>%s</b>", Util.formatMoney(data.Bonus)))
-	end
-	if (data.PassBonus or 0) > 0 then
-		table.insert(lines, string.format('<font color="#FFC850">Pase x2 Billetes: <b>%s</b></font>', Util.formatMoney(data.PassBonus)))
-	end
-	table.insert(lines, "")
-	table.insert(lines, string.format('<font size="24" color="#FFC850"><b>TOTAL: %s</b></font>', Util.formatMoney(data.Total)))
-	resultsBody.Text = table.concat(lines, "\n")
+	resultsBody.Text = "Volverás en la próxima noche."
 	resultsPanel.Visible = true
 end
 
@@ -1101,7 +1082,7 @@ local function update()
 			deadSubtitle.TextColor3 = COLORS.Text
 		end
 	end
-	if phase ~= "Results" and phase ~= "GameOver" and phase ~= "Upgrades" then
+	if phase ~= "GameOver" then
 		resultsPanel.Visible = false
 	end
 end
@@ -1196,17 +1177,6 @@ function HUD.Start()
 		task.delay(0.35, function()
 			eventSound:Play()
 		end)
-	end)
-
-	-- Ocultar el panel de resultados al empezar la fase de mejoras tras unos segundos
-	GameState.Folder:GetAttributeChangedSignal("Phase"):Connect(function()
-		if GameState.Folder:GetAttribute("Phase") == "Upgrades" then
-			task.delay(4, function()
-				if GameState.Folder:GetAttribute("Phase") == "Upgrades" then
-					resultsPanel.Visible = false
-				end
-			end)
-		end
 	end)
 
 	-- Dinero: "+$120" / "-$75" que sube y se desvanece junto a la cifra
