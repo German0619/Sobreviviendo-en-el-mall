@@ -2,6 +2,8 @@
 --
 -- * Laminas de agua (atributo Spin, rad/s): giran despacio sobre su eje vertical; con
 --   dos capas girando en sentidos opuestos el dibujo de ondas/causticas parece moverse.
+-- * Texturas que corren (Texture con atributos ScrollU / ScrollV, studs/s): las ondas de
+--   la superficie y la red de luz (causticas) del fondo de la fuente del lobby.
 -- * Focos sumergidos (atributo Shimmer = true): su luz titila como la luz a traves del agua.
 
 local CollectionService = game:GetService("CollectionService")
@@ -15,7 +17,8 @@ local WaterFX = {}
 
 local ANIMATE_DISTANCE = 140
 
-type Entry = { Part: BasePart, Base: CFrame, Light: Light?, BaseBrightness: number, Seed: number }
+type Scroll = { Texture: Texture, U: number, V: number }
+type Entry = { Part: BasePart, Base: CFrame, Light: Light?, BaseBrightness: number, Seed: number, Scrolls: { Scroll } }
 local entries: { [BasePart]: Entry } = {}
 
 local function add(inst: Instance)
@@ -23,12 +26,22 @@ local function add(inst: Instance)
 		return
 	end
 	local light = inst:FindFirstChildWhichIsA("Light")
+	local scrolls = {}
+	for _, child in inst:GetChildren() do
+		if child:IsA("Texture") then
+			local u, v = child:GetAttribute("ScrollU"), child:GetAttribute("ScrollV")
+			if type(u) == "number" or type(v) == "number" then
+				table.insert(scrolls, { Texture = child, U = u or 0, V = v or 0 })
+			end
+		end
+	end
 	entries[inst] = {
 		Part = inst,
 		Base = inst.CFrame,
 		Light = light,
 		BaseBrightness = if light then light.Brightness else 0,
 		Seed = math.random() * 100,
+		Scrolls = scrolls,
 	}
 end
 
@@ -57,6 +70,12 @@ function WaterFX.Start()
 			if type(spin) == "number" then
 				-- Giro alrededor del eje vertical del mundo (la lamina es un cilindro tumbado)
 				part.CFrame = CFrame.new(e.Base.Position) * CFrame.Angles(0, now * spin, 0) * e.Base.Rotation
+			end
+			for _, s in e.Scrolls do
+				local t = s.Texture
+				t.OffsetStudsU = (now * s.U) % t.StudsPerTileU
+				-- (un vaiven suave encima del avance: el agua no corre en linea recta)
+				t.OffsetStudsV = (now * s.V + math.sin(now * 0.7 + e.Seed) * 0.4) % t.StudsPerTileV
 			end
 			if e.Light and part:GetAttribute("Shimmer") then
 				local wave = math.sin(now * 3.1 + e.Seed) * 0.5 + math.sin(now * 5.3 + e.Seed * 2) * 0.3

@@ -138,8 +138,100 @@ local function setupCharacter(player: Player, character: Model)
 	buildOverhead(player, character, humanoid)
 end
 
+-- Imagenes del agua (assets/lobby/generate.py)
+local WATER_STREAK = "rbxassetid://102168890675191"
+local WATER_SPLASH = "rbxassetid://86916911366925"
+local WATER_RING = "rbxassetid://101709116609242"
+local POUR_REACH = 3.3 -- a que distancia del centro cae el agua en el plato
+
+local function seq(a: number, b: number, c: number?, d: number?): NumberSequence
+	local keys = { NumberSequenceKeypoint.new(0, a), NumberSequenceKeypoint.new(if c then 0.85 else 1, b) }
+	if c and d then
+		keys[3] = NumberSequenceKeypoint.new(1, d)
+	end
+	return NumberSequence.new(keys)
+end
+
+-- La estatua vierte agua desde las manos: un caño (Beam con textura de agua que corre)
+-- que cae en arco al plato, con salpicadura y ondas donde cae. El plato y su agua estan
+-- modelados en el place (Fountain: Bowl es el pedestal de la estatua; Water.BowlSurface).
+local function pourFromHands(fountain: Instance, feet: Vector3, forward: Vector3)
+	local flat = Vector3.new(forward.X, 0, forward.Z)
+	forward = if flat.Magnitude > 0.01 then flat.Unit else Vector3.zAxis
+	local surface = fountain:FindFirstChild("BowlSurface", true)
+	local waterY = if surface and surface:IsA("BasePart") then surface.Position.Y else feet.Y - 0.9
+	local hands = feet + Vector3.new(0, EntityModels.STATUE_HANDS_Y + 0.1, 0) + forward * 1.15
+	local land = Vector3.new(feet.X, waterY, feet.Z) + forward * POUR_REACH
+
+	local holder = Instance.new("Part")
+	holder.Name = "FountainJet"
+	holder.Size = Vector3.new(0.3, 0.1, 0.3)
+	holder.Transparency = 1
+	holder.Anchored = true
+	holder.CanCollide = false
+	holder.CanQuery = false
+	holder.CanTouch = false
+	holder.Position = land
+	local function attachment(pos: Vector3, axis: Vector3): Attachment
+		local a = Instance.new("Attachment")
+		a.Parent = holder -- (antes de WorldCFrame: si no, la posicion queda relativa a nada)
+		local right = axis:Cross(Vector3.yAxis)
+		a.WorldCFrame = CFrame.fromMatrix(pos, axis.Unit, if right.Magnitude > 0.01 then right.Unit:Cross(axis.Unit) else Vector3.zAxis)
+		return a
+	end
+	-- dos hilos que se cruzan un poco: un chorro con cuerpo, no una linea
+	for i, offset in { -0.12, 0.12 } do
+		local side = forward:Cross(Vector3.yAxis) * offset
+		local beam = Instance.new("Beam")
+		beam.Name = "Pour" .. i
+		beam.Attachment0 = attachment(hands + side, forward + Vector3.new(0, 0.35, 0))
+		beam.Attachment1 = attachment(land - side * 2, Vector3.new(0, -1, 0) + forward * 0.25)
+		beam.CurveSize0 = 1.6
+		beam.CurveSize1 = 2.4
+		beam.Width0 = 0.32
+		beam.Width1 = 0.5
+		beam.FaceCamera = true
+		beam.Segments = 24
+		beam.Texture = WATER_STREAK
+		beam.TextureMode = Enum.TextureMode.Wrap
+		beam.TextureLength = 2.2
+		beam.TextureSpeed = 3.6 + i * 0.4
+		beam.LightEmission = 0.25
+		beam.LightInfluence = 0.6
+		beam.Color = ColorSequence.new(Color3.fromRGB(225, 242, 255))
+		beam.Transparency = seq(0.15, 0.3, 0.3, 0.7)
+		beam.Parent = holder
+	end
+	local splash = Instance.new("ParticleEmitter")
+	splash.Name = "Splash"
+	splash.Texture = WATER_SPLASH
+	splash.Rate = 45
+	splash.Lifetime = NumberRange.new(0.25, 0.45)
+	splash.Speed = NumberRange.new(2, 3.5)
+	splash.SpreadAngle = Vector2.new(40, 40)
+	splash.Acceleration = Vector3.new(0, -30, 0)
+	splash.Size = seq(0.22, 0.08)
+	splash.Transparency = seq(0.2, 1)
+	splash.LightEmission = 0.2
+	splash.EmissionDirection = Enum.NormalId.Top
+	splash.Parent = holder
+	local ripple = Instance.new("ParticleEmitter")
+	ripple.Name = "Ripple"
+	ripple.Texture = WATER_RING
+	ripple.Rate = 3
+	ripple.Lifetime = NumberRange.new(1, 1.3)
+	ripple.Speed = NumberRange.new(0.01)
+	ripple.Orientation = Enum.ParticleOrientation.VelocityPerpendicular
+	ripple.EmissionDirection = Enum.NormalId.Top
+	ripple.Size = seq(0.3, 2.4)
+	ripple.Transparency = seq(0.3, 1)
+	ripple.LightEmission = 0.3
+	ripple.Parent = holder
+	holder.Parent = fountain
+end
+
 -- La Estatua de la fuente (la misma que despierta en el mall) sobre el plato de la
--- fuente de la plaza, con la luna flotando sobre su casco.
+-- fuente de la plaza, con la luna flotando sobre su casco y vertiendo agua.
 local function placeFountainStatue()
 	local lobby = workspace:FindFirstChild("Lobby")
 	local fountain = lobby and lobby:FindFirstChild("Fountain", true)
@@ -175,31 +267,7 @@ local function placeFountainStatue()
 		end
 	end
 
-	-- Chorro de agua entre las manos de la estatua, como en la fuente del mall
-	local jet = Instance.new("Part")
-	jet.Name = "FountainJet"
-	jet.Size = Vector3.new(0.4, 0.4, 0.4)
-	jet.Transparency = 1
-	jet.Anchored = true
-	jet.CanCollide = false
-	jet.CanQuery = false
-	jet.CanTouch = false
-	jet.Position = feet + Vector3.new(0, EntityModels.STATUE_HANDS_Y + 0.3, 0)
-	local water = Instance.new("ParticleEmitter")
-	water.Name = "Water"
-	water.Texture = "rbxasset://textures/particles/sparkles_main.dds"
-	water.Color = ColorSequence.new(Color3.fromRGB(210, 232, 245))
-	water.LightEmission = 0.1
-	water.Size = NumberSequence.new({ NumberSequenceKeypoint.new(0, 0.25), NumberSequenceKeypoint.new(1, 0.1) })
-	water.Transparency = NumberSequence.new({ NumberSequenceKeypoint.new(0, 0.3), NumberSequenceKeypoint.new(1, 1) })
-	water.Lifetime = NumberRange.new(0.8, 1.1)
-	water.Rate = 120
-	water.Speed = NumberRange.new(6, 8)
-	water.SpreadAngle = Vector2.new(10, 10)
-	water.Acceleration = Vector3.new(0, -24, 0)
-	water.EmissionDirection = Enum.NormalId.Top
-	water.Parent = jet
-	jet.Parent = fountain
+	pourFromHands(fountain, feet, (lookAt - feet).Unit)
 end
 
 function PlazaService.Start()
