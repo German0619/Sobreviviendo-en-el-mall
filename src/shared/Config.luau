@@ -97,6 +97,14 @@ Config.Night = {
 	VictorySeconds = 7, -- (cliente) lo que dura la pantalla de victoria al empezar la preparacion
 }
 
+-- Marcas "!" de las tareas (client/MissionMarkers): crecen al acercarte.
+-- Tamano normal a FarDistance studs o mas; MaxScale veces mas grandes a NearDistance o menos.
+Config.MissionMarkers = {
+	FarDistance = 70,
+	NearDistance = 12,
+	MaxScale = 2.4,
+}
+
 -- Cuota de tareas por noche: Base + PerNight * (noche - 1) + PerExtraPlayer * (jugadores - 1)
 Config.NightGoal = {
 	Base = 4,
