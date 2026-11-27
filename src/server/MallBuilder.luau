@@ -1816,6 +1816,501 @@ local function pick(n: number, offset: number): { Color3 }
 	return list
 end
 
+-- Tiendas: interiores, acabado comun y mobiliario extra. Van dentro de un bloque do (el
+-- modulo no puede tener mas de 200 variables locales); fuera solo se ven estas:
+local INTERIORS, FITOUT, storeCommon
+local Kit = {} -- piezas reutilizadas fuera de las tiendas
+do
+
+----------------------------------------------------------------------
+-- Acabado realista de las tiendas: piezas comunes
+----------------------------------------------------------------------
+-- Marco de la tienda: L(base, x, y, d). La cara interior de las paredes laterales esta en
+-- x = ±23 y la del fondo en d = 49: lo que se cuelgue mas adentro queda tapado por el muro.
+
+local SIDE_FACE = 23
+local BACK_FACE = 49
+local WHITE_WALL = Color3.fromRGB(236, 233, 226)
+local LAMINATE = Color3.fromRGB(242, 240, 236)
+local BLACK = Color3.fromRGB(22, 22, 25)
+local CHROME_LIGHT = Color3.fromRGB(200, 202, 206)
+local CYL = Enum.PartType.Cylinder
+local BALL = Enum.PartType.Ball
+local UPRIGHT = CFrame.Angles(0, 0, math.rad(90)) -- cilindro de pie (su eje X pasa a ser Y)
+
+-- Colores vivos de producto (jugueteria, golosinas, packaging)
+local BRIGHT = {
+	Color3.fromRGB(220, 50, 50),
+	Color3.fromRGB(40, 110, 215),
+	Color3.fromRGB(250, 200, 40),
+	Color3.fromRGB(60, 170, 80),
+	Color3.fromRGB(240, 120, 30),
+	Color3.fromRGB(150, 70, 190),
+	Color3.fromRGB(30, 180, 190),
+	Color3.fromRGB(235, 90, 150),
+}
+
+-- Punto de una pared lateral (side -1 izquierda / 1 derecha), frente (-Z) hacia la sala y
+-- X a lo largo de la pared. inset = separacion de la pared.
+local function sideWallCF(base: CFrame, side: number, d: number, y: number, inset: number?): CFrame
+	return L(base, side * (SIDE_FACE - (inset or 0)), y, d) * (if side > 0 then FACE_NEG_X else FACE_POS_X)
+end
+
+-- Punto de la pared del fondo, mirando hacia la entrada.
+local function backWallCF(base: CFrame, x: number, y: number, inset: number?): CFrame
+	return L(base, x, y, BACK_FACE - (inset or 0)) * OUT
+end
+
+-- Texto impreso (le afecta la luz de la escena: no brilla).
+local function printed(part: BasePart, text: string, color: Color3, font: Enum.Font, face: Enum.NormalId?): SurfaceGui
+	local gui = sign(part, text, color, font, face)
+	gui.LightInfluence = 1
+	gui.Brightness = 1
+	return gui
+end
+
+-- Panel ranurado de pared (slatwall): tablero con ranuras horizontales cada 0.5.
+local function slatwall(cf: CFrame, w: number, h: number, color: Color3): Part
+	local p = deco("Slatwall", Vector3.new(w, h, 0.12), cf, M.SmoothPlastic, color, { Variant = false, CastShadow = false })
+	local gui = surface(p, Enum.NormalId.Front, 16, 1, 1)
+	local holder = guiFrame(gui, { BackgroundTransparency = 1 })
+	local groove = color:Lerp(Color3.new(0, 0, 0), 0.45)
+	local n = math.max(2, math.floor(h / 0.5))
+	for i = 1, n - 1 do
+		guiFrame(holder, {
+			Position = UDim2.fromScale(0, i / n),
+			Size = UDim2.new(1, 0, 0, 2),
+			BackgroundColor3 = groove,
+			BackgroundTransparency = 0.3,
+		})
+	end
+	return p
+end
+
+-- Fila de pilas de ropa doblada (o de toallas, platos...) sobre una balda.
+local function stackRow(cf: CFrame, length: number, depth: number, colors: { Color3 }, maxH: number, unit: number?)
+	local n = math.max(1, math.floor(length / (unit or 1.4)))
+	local seg = length / n
+	for k = 0, n - 1 do
+		local h = rng:NextNumber(maxH * 0.45, maxH)
+		deco("Stack", Vector3.new(seg - 0.22, h, depth), cf * CFrame.new(-length / 2 + seg * (k + 0.5), h / 2, 0), M.Fabric, vary(colors[k % #colors + 1], 0.05), {
+			CastShadow = false,
+		})
+	end
+end
+
+-- Hilera de lomos de libros (una pieza con los lomos dibujados: muchos libros, pocas piezas).
+local function bookRow(cf: CFrame, length: number, height: number)
+	local row = deco("BookRow", Vector3.new(length, height, 0.9), cf * CFrame.new(0, height / 2, 0), M.SmoothPlastic, Color3.fromRGB(35, 30, 28), {
+		Variant = false,
+		CastShadow = false,
+	})
+	local gui = surface(row, Enum.NormalId.Front, 20, 1, 1)
+	local holder = guiFrame(gui, { BackgroundTransparency = 1 })
+	local x = 0
+	while x < 0.97 do
+		local w = rng:NextNumber(0.018, 0.034) * (10 / length)
+		local hh = rng:NextNumber(0.72, 0.98)
+		local spine = guiFrame(holder, {
+			AnchorPoint = Vector2.new(0, 1),
+			Position = UDim2.fromScale(x, 1),
+			Size = UDim2.fromScale(math.min(w, 1 - x) - 0.002, hh),
+			BackgroundColor3 = vary(PALETTE[rng:NextInteger(1, #PALETTE)], 0.14),
+		})
+		-- Banda del titulo en algunos lomos
+		if rng:NextNumber() < 0.6 then
+			guiFrame(spine, {
+				Position = UDim2.fromScale(0.15, rng:NextNumber(0.12, 0.3)),
+				Size = UDim2.fromScale(0.7, 0.08),
+				BackgroundColor3 = Color3.fromRGB(230, 215, 170),
+				BackgroundTransparency = 0.2,
+			})
+		end
+		x += w
+	end
+end
+
+-- Mueble de pared sobre panel ranurado: montantes, colision, cartel de seccion y producto.
+-- side -1/1, d = centro a lo largo de la pared. kind:
+--   Hang (barras con prendas) · Shelves (baldas con pilas) · Cubby (casilleros) · Shoes
+--   (baldas inclinadas con pares) · Peg (ganchos con blisters) · Bottles (vidrio iluminado con
+--   frascos) · Frames (monturas de gafas) · Books (lomos) · Boxes (cajas) · Cases (vitrinas)
+local function wallBay(base: CFrame, side: number, d: number, length: number, kind: string, colors: { Color3 }, title: string?, zoneName: string?, height: number?)
+	local h = height or 8.4
+	local cf = sideWallCF(base, side, d, 0)
+	local function P(x: number, y: number, z: number): CFrame
+		return cf * CFrame.new(x, y, -z) -- z = distancia desde la pared
+	end
+	local dark = kind == "Bottles" or kind == "Cases" or kind == "Frames"
+	slatwall(P(0, 0.6 + h / 2, 0.06), length, h, if dark then Color3.fromRGB(46, 44, 48) else LAMINATE)
+	box("BayCollider", Vector3.new(length, h, 1.4), P(0, h / 2, 0.75), M.SmoothPlastic, Color3.new(1, 1, 1), { Transparency = 1, Variant = false })
+	for _, sx in { -1, 1 } do
+		deco("BayUpright", Vector3.new(0.14, h + 0.6, 1.5), P(sx * (length / 2 + 0.07), (h + 0.6) / 2, 0.75), M.Metal, CHROME_LIGHT)
+	end
+	if kind ~= "Hang" then
+		deco("BayPlinth", Vector3.new(length, 0.6, 1.4), P(0, 0.3, 0.7), M.SmoothPlastic, BLACK, { Variant = false })
+	end
+	if title then
+		local fascia = deco("BayHeader", Vector3.new(length + 0.3, 0.9, 0.25), P(0, h + 1.1, 0.25), M.SmoothPlastic, Color3.fromRGB(30, 30, 34), { Variant = false })
+		sign(fascia, title, Color3.fromRGB(245, 245, 240), Enum.Font.GothamBold, Enum.NormalId.Front)
+	end
+	local function shelf(y: number, depth: number, material, color: Color3, props)
+		return deco("BayShelf", Vector3.new(length - 0.1, 0.1, depth), P(0, y, depth / 2 + 0.1), material, color, props)
+	end
+
+	if kind == "Hang" then
+		-- Doble barra (camisas arriba, pantalones abajo) y balda con pilas encima
+		for r, rail in { 3.9, 7.4 } do
+			deco("HangRail", Vector3.new(length - 0.3, 0.14, 0.14), P(0, rail, 1.0), M.Metal, STEEL)
+			for _, sx in { -1, 1 } do
+				deco("RailBracket", Vector3.new(0.1, 0.1, 1.0), P(sx * (length / 2 - 0.4), rail, 0.5), M.Metal, STEEL)
+			end
+			local n = math.floor((length - 0.8) / 0.42)
+			for k = 0, n - 1 do
+				local len = if r == 1 then rng:NextNumber(2.4, 2.8) else rng:NextNumber(2.2, 2.7)
+				local color = vary(colors[(k // 4 + r) % #colors + 1], 0.05)
+				deco("Garment", Vector3.new(0.2, len, 1.45), P(-length / 2 + 0.6 + k * 0.42, rail - 0.2 - len / 2, 1.0), M.Fabric, color, { CastShadow = false })
+			end
+		end
+		shelf(h - 0.2, 1.2, M.Wood, LAMINATE)
+		stackRow(P(0, h - 0.15, 0.7), length - 0.4, 1.0, colors, 0.8)
+	elseif kind == "Shelves" or kind == "Cubby" or kind == "Boxes" then
+		local ys = { 1.5, 3.4, 5.3, 7.2 }
+		for i, y in ys do
+			shelf(y - 0.05, 1.25, M.Wood, LAMINATE)
+			if kind == "Boxes" then
+				productRow(P(0, y, 0.75), length - 0.3, 0.9, colors[(i - 1) % #colors + 1])
+			else
+				stackRow(P(0, y, 0.72), length - 0.3, 1.05, colors, 1.3, if kind == "Cubby" then 1.15 else 1.4)
+			end
+		end
+		if kind == "Cubby" then
+			local cols = math.max(2, math.floor(length / 2.4))
+			for c = 1, cols - 1 do
+				deco("CubbyDivider", Vector3.new(0.1, h - 0.4, 1.25), P(-length / 2 + c * length / cols, 0.6 + (h - 0.4) / 2, 0.72), M.Wood, LAMINATE)
+			end
+			shelf(h + 0.3, 1.25, M.Wood, LAMINATE)
+		end
+	elseif kind == "Shoes" then
+		for i = 0, 4 do
+			local y = 1.5 + i * 1.5
+			local s = P(0, y, 0.75) * CFrame.Angles(math.rad(-12), 0, 0)
+			deco("ShoeShelf", Vector3.new(length - 0.1, 0.08, 1.3), s, M.SmoothPlastic, Color3.fromRGB(235, 235, 235), { Transparency = 0.3, Variant = false })
+			local n = math.floor((length - 0.4) / 1.3)
+			for k = 0, n - 1 do
+				local color = vary(colors[(k + i) % #colors + 1], 0.08)
+				local px = -length / 2 + 0.85 + k * 1.3
+				for _, ox in { -0.24, 0.24 } do
+					deco("Shoe", Vector3.new(0.4, 0.42, 1.05), s * CFrame.new(px + ox, 0.25, 0), M.Leather, color, { CastShadow = false })
+				end
+				deco("ShoeSole", Vector3.new(0.92, 0.1, 1.08), s * CFrame.new(px, 0.09, 0), M.Rubber, Color3.fromRGB(240, 240, 236), { CastShadow = false })
+			end
+		end
+	elseif kind == "Peg" then
+		for row = 0, 4 do
+			local y = 2.2 + row * 1.35
+			local n = math.floor((length - 0.4) / 0.95)
+			for k = 0, n - 1 do
+				local x = -length / 2 + 0.7 + k * 0.95
+				local color = vary(colors[(k + row) % #colors + 1], 0.06)
+				deco("Blister", Vector3.new(0.72, 1.0, 0.08), P(x, y, 0.55), M.SmoothPlastic, color, { CastShadow = false, Variant = false })
+				deco("BlisterBubble", Vector3.new(0.48, 0.55, 0.18), P(x, y - 0.12, 0.66), M.SmoothPlastic, Color3.fromRGB(230, 236, 240), {
+					Transparency = 0.35,
+					Reflectance = 0.2,
+					CastShadow = false,
+					Variant = false,
+				})
+				deco("PegHook", Vector3.new(0.05, 0.05, 0.7), P(x, y + 0.55, 0.4), M.Metal, STEEL, { CastShadow = false })
+			end
+		end
+	elseif kind == "Bottles" then
+		-- Fondo retroiluminado, baldas de vidrio con tira LED y frascos
+		local back = deco("BayBacklight", Vector3.new(length - 0.2, h - 0.6, 0.05), P(0, 0.9 + (h - 0.6) / 2, 0.16), M.SmoothPlastic, Color3.fromRGB(250, 244, 236), { Variant = false })
+		glowScreen(back, Enum.NormalId.Front, Color3.fromRGB(255, 250, 242), Color3.fromRGB(235, 222, 205), nil).Brightness = 0.7
+		for i, y in { 2.2, 3.8, 5.4, 7.0 } do
+			shelf(y - 0.05, 1.1, M.Glass, Color3.fromRGB(220, 235, 238), { Transparency = 0.5, Reflectance = 0.2, Variant = false })
+			local led = deco("ShelfLED", Vector3.new(length - 0.2, 0.04, 0.04), P(0, y + 0.02, 1.18), M.Neon, Color3.fromRGB(255, 244, 225), { CastShadow = false })
+			if zoneName then
+				tag(led, Tags.Light, { Zone = zoneName })
+			end
+			local n = math.floor((length - 0.4) / 0.72)
+			for k = 0, n - 1 do
+				local x = -length / 2 + 0.55 + k * 0.72
+				local color = colors[(k + i) % #colors + 1]
+				local bh = rng:NextNumber(0.5, 0.85)
+				deco("Flacon", Vector3.new(bh, 0.38, 0.38), P(x, y + bh / 2, 0.6) * UPRIGHT, M.SmoothPlastic, color, {
+					Shape = CYL,
+					Transparency = 0.18,
+					Reflectance = 0.35,
+					CastShadow = false,
+					Variant = false,
+				})
+				deco("FlaconCap", Vector3.new(0.18, 0.2, 0.2), P(x, y + bh + 0.08, 0.6), M.Metal, Color3.fromRGB(214, 180, 110), { Reflectance = 0.3, CastShadow = false })
+			end
+		end
+	elseif kind == "Frames" then
+		for row = 0, 5 do
+			local y = 2.3 + row * 1.05
+			shelf(y - 0.05, 0.6, M.SmoothPlastic, Color3.fromRGB(230, 236, 240), { Transparency = 0.4, Variant = false })
+			local n = math.floor((length - 0.4) / 1.12)
+			for k = 0, n - 1 do
+				local x = -length / 2 + 0.75 + k * 1.12
+				local color = colors[(k + row) % #colors + 1]
+				local frame = P(x, y + 0.22, 0.32) * CFrame.Angles(math.rad(10), 0, 0)
+				for _, ox in { -0.24, 0.24 } do
+					deco("Lens", Vector3.new(0.06, 0.4, 0.4), frame * CFrame.new(ox, 0, 0) * CFrame.Angles(0, math.rad(90), 0), M.SmoothPlastic, color, {
+						Shape = CYL,
+						Transparency = 0.25,
+						Reflectance = 0.2,
+						CastShadow = false,
+						Variant = false,
+					})
+				end
+				deco("Bridge", Vector3.new(0.12, 0.04, 0.04), frame * CFrame.new(0, 0.06, 0), M.Metal, color, { CastShadow = false })
+			end
+		end
+	elseif kind == "Books" then
+		for _, y in { 1.0, 2.75, 4.5, 6.25 } do
+			shelf(y - 0.05, 1.2, M.Wood, Color3.fromRGB(150, 112, 78))
+			bookRow(P(0, y, 0.65), length - 0.3, 1.45)
+		end
+		shelf(8.0, 1.2, M.Wood, Color3.fromRGB(150, 112, 78))
+	elseif kind == "Cases" then
+		-- Vitrinas de pared: armario abajo, caja de vidrio con terciopelo y piezas iluminadas
+		local nCases = math.max(1, math.floor(length / 3.2))
+		local seg = length / nCases
+		for c = 0, nCases - 1 do
+			local x = -length / 2 + seg * (c + 0.5)
+			deco("CaseCabinet", Vector3.new(seg - 0.25, 2.6, 1.3), P(x, 1.9, 0.75), M.Wood, Color3.fromRGB(42, 36, 34))
+			deco("CaseVelvet", Vector3.new(seg - 0.45, 3.6, 0.08), P(x, 5.1, 0.2), M.Fabric, Color3.fromRGB(28, 26, 40))
+			deco("CaseFloor", Vector3.new(seg - 0.45, 0.08, 1.1), P(x, 3.25, 0.75), M.Fabric, Color3.fromRGB(28, 26, 40))
+			deco("CaseGlass", Vector3.new(seg - 0.3, 3.7, 0.06), P(x, 5.1, 1.38), M.SmoothPlastic, Color3.fromRGB(215, 232, 238), {
+				Transparency = 0.82,
+				Reflectance = 0.25,
+				CastShadow = false,
+				Variant = false,
+			})
+			deco("CaseTop", Vector3.new(seg - 0.25, 0.25, 1.35), P(x, 7.05, 0.75), M.Wood, Color3.fromRGB(42, 36, 34))
+			local led = deco("CaseLED", Vector3.new(seg - 0.6, 0.04, 0.06), P(x, 6.85, 1.15), M.Neon, Color3.fromRGB(255, 246, 230), { CastShadow = false })
+			if zoneName then
+				tag(led, Tags.Light, { Zone = zoneName })
+			end
+			for k = -1, 1 do
+				deco("Bust", Vector3.new(0.35, 0.9, 0.3), P(x + k * 0.8, 3.75, 0.7), M.Fabric, Color3.fromRGB(235, 230, 222), { CastShadow = false })
+				deco("Piece", Vector3.new(0.3, 0.3, 0.3), P(x + k * 0.8, 4.1, 0.86), M.Metal, colors[(c + k + 2) % #colors + 1], {
+					Shape = BALL,
+					Reflectance = 0.45,
+					CastShadow = false,
+				})
+			end
+		end
+	end
+end
+
+-- Carril de focos en el techo (a lo largo de la profundidad, en x). Las lentes se apagan
+-- con la zona (tag MallLight) cuando `zoneName` no es nil.
+local function trackLights(base: CFrame, x: number, d1: number, d2: number, heads: number, zoneName: string?)
+	local len = d2 - d1
+	deco("TrackRail", Vector3.new(0.24, 0.14, len), L(base, x, STORE_H - 0.07, (d1 + d2) / 2), M.Metal, BLACK, { Variant = false, CastShadow = false })
+	for i = 0, heads - 1 do
+		local d = d1 + 1 + i * ((len - 2) / math.max(1, heads - 1))
+		local mount = L(base, x, STORE_H - 0.14, d)
+		deco("TrackAdapter", Vector3.new(0.3, 0.2, 0.5), mount * CFrame.new(0, -0.08, 0), M.Metal, BLACK, { CastShadow = false })
+		local aim = if i % 2 == 0 then 1 else -1
+		local head = mount * CFrame.new(0, -0.7, 0) * CFrame.Angles(math.rad(aim * 10), 0, math.rad(aim * 28))
+		deco("TrackArm", Vector3.new(0.08, 0.6, 0.08), mount * CFrame.new(0, -0.38, 0), M.Metal, BLACK, { CastShadow = false })
+		deco("TrackCan", Vector3.new(0.95, 0.52, 0.52), head * UPRIGHT, M.SmoothPlastic, BLACK, { Shape = CYL, Variant = false, CastShadow = false })
+		local lens = deco("TrackLens", Vector3.new(0.05, 0.42, 0.42), head * CFrame.new(0, -0.48, 0) * UPRIGHT, if zoneName then M.Neon else M.SmoothPlastic, Color3.fromRGB(255, 240, 215), {
+			Shape = CYL,
+			CastShadow = false,
+		})
+		if zoneName then
+			tag(lens, Tags.Light, { Zone = zoneName })
+		end
+	end
+end
+
+-- Detector de humo, altavoz y camara domo de techo (cf = punto del techo).
+local function smokeDetector(cf: CFrame)
+	deco("SmokeDetector", Vector3.new(0.22, 0.95, 0.95), cf * CFrame.new(0, -0.11, 0) * UPRIGHT, M.SmoothPlastic, Color3.fromRGB(240, 240, 236), { Shape = CYL, Variant = false, CastShadow = false })
+	deco("SmokeLed", Vector3.new(0.07, 0.07, 0.07), cf * CFrame.new(0.28, -0.23, 0), M.Neon, Color3.fromRGB(255, 60, 40), { CastShadow = false })
+end
+
+local function ceilingSpeaker(cf: CFrame)
+	deco("SpeakerRim", Vector3.new(0.06, 1.35, 1.35), cf * CFrame.new(0, -0.03, 0) * UPRIGHT, M.SmoothPlastic, Color3.fromRGB(238, 238, 235), { Shape = CYL, Variant = false, CastShadow = false })
+	deco("SpeakerGrille", Vector3.new(0.07, 1.05, 1.05), cf * CFrame.new(0, -0.04, 0) * UPRIGHT, M.DiamondPlate, Color3.fromRGB(205, 205, 202), { Shape = CYL, CastShadow = false })
+end
+
+local function domeCamera(cf: CFrame)
+	deco("DomeBase", Vector3.new(0.14, 1.4, 1.4), cf * CFrame.new(0, -0.07, 0) * UPRIGHT, M.SmoothPlastic, Color3.fromRGB(238, 238, 235), { Shape = CYL, Variant = false })
+	deco("Dome", Vector3.new(1, 1, 1), cf * CFrame.new(0, -0.1, 0), M.SmoothPlastic, Color3.fromRGB(20, 22, 26), {
+		Shape = BALL,
+		Transparency = 0.2,
+		Reflectance = 0.35,
+		CastShadow = false,
+		Variant = false,
+	})
+end
+
+-- Antena antirrobo (EAS) de la entrada: panel acrilico sobre base, cf en el suelo.
+local function securityGate(cf: CFrame)
+	deco("EASBase", Vector3.new(0.55, 0.22, 1.9), cf * CFrame.new(0, 0.11, 0), M.Metal, Color3.fromRGB(70, 72, 78))
+	deco("EASPanel", Vector3.new(0.16, 4.9, 1.45), cf * CFrame.new(0, 2.7, 0), M.SmoothPlastic, Color3.fromRGB(225, 236, 242), {
+		Transparency = 0.55,
+		Reflectance = 0.2,
+		CastShadow = false,
+		Variant = false,
+	})
+	for _, sz in { -0.78, 0.78 } do
+		deco("EASEdge", Vector3.new(0.24, 5.0, 0.14), cf * CFrame.new(0, 2.72, sz), M.SmoothPlastic, Color3.fromRGB(235, 235, 232), { Variant = false })
+	end
+	deco("EASCap", Vector3.new(0.26, 0.22, 1.72), cf * CFrame.new(0, 5.3, 0), M.SmoothPlastic, Color3.fromRGB(235, 235, 232), { Variant = false })
+	deco("EASLed", Vector3.new(0.27, 0.05, 1.0), cf * CFrame.new(0, 5.18, 0), M.Neon, Color3.fromRGB(80, 220, 120), { CastShadow = false })
+end
+
+-- Cartel colgado del techo con dos cables (texto por las dos caras). cf = centro del cartel;
+-- drop = del borde superior del cartel al techo.
+local function hangingSign(cf: CFrame, w: number, h: number, text: string, bg: Color3, fg: Color3, font: Enum.Font, drop: number): Part
+	local board = deco("HangingSign", Vector3.new(w, h, 0.12), cf, M.SmoothPlastic, bg, { Variant = false })
+	sign(board, text, fg, font, Enum.NormalId.Front)
+	sign(board, text, fg, font, Enum.NormalId.Back)
+	for _, sx in { -1, 1 } do
+		deco("SignCable", Vector3.new(0.04, drop, 0.04), cf * CFrame.new(sx * (w / 2 - 0.4), h / 2 + drop / 2, 0), M.Metal, STEEL, { CastShadow = false })
+	end
+	return board
+end
+
+-- Puerta del almacen ("SOLO PERSONAL"): cf = pie de la pared, frente hacia la sala.
+local function staffDoor(cf: CFrame)
+	deco("StaffDoorFrame", Vector3.new(4.3, 8.25, 0.14), cf * CFrame.new(0, 4.12, -0.07), M.Metal, Color3.fromRGB(72, 74, 78))
+	deco("StaffDoor", Vector3.new(3.7, 7.9, 0.12), cf * CFrame.new(0, 3.95, -0.18), M.SmoothPlastic, Color3.fromRGB(208, 206, 200), { Variant = false })
+	deco("KickPlate", Vector3.new(3.5, 0.9, 0.03), cf * CFrame.new(0, 0.55, -0.26), M.Metal, STEEL)
+	deco("PushPlate", Vector3.new(0.45, 1.5, 0.03), cf * CFrame.new(1.35, 3.9, -0.26), M.Metal, STEEL)
+	deco("VisionPanel", Vector3.new(0.6, 1.7, 0.04), cf * CFrame.new(-1.0, 5.3, -0.25), M.SmoothPlastic, Color3.fromRGB(40, 48, 54), { Reflectance = 0.25, Variant = false })
+	deco("DoorCloser", Vector3.new(1.4, 0.3, 0.3), cf * CFrame.new(0.7, 7.55, -0.34), M.Metal, Color3.fromRGB(150, 152, 156))
+	deco("CloserArm", Vector3.new(1.3, 0.08, 0.08), cf * CFrame.new(-0.45, 7.5, -0.5) * CFrame.Angles(0, math.rad(-15), 0), M.Metal, Color3.fromRGB(150, 152, 156))
+	local plate = deco("StaffSign", Vector3.new(2.4, 0.75, 0.03), cf * CFrame.new(0.4, 6.4, -0.26), M.SmoothPlastic, Color3.fromRGB(30, 30, 34), { Variant = false })
+	printed(plate, "SOLO PERSONAL", Color3.fromRGB(250, 250, 245), Enum.Font.GothamBold, Enum.NormalId.Front)
+end
+
+-- Reloj de pared (cf = punto de la pared, frente hacia la sala).
+local function wallClock(cf: CFrame, diameter: number?)
+	local dia = diameter or 1.6
+	deco("ClockRim", Vector3.new(0.18, dia, dia), cf * CFrame.new(0, 0, -0.09) * CFrame.Angles(0, math.rad(90), 0), M.SmoothPlastic, Color3.fromRGB(30, 30, 34), { Shape = CYL, Variant = false })
+	local face = deco("ClockFace", Vector3.new(0.04, dia - 0.2, dia - 0.2), cf * CFrame.new(0, 0, -0.19) * CFrame.Angles(0, math.rad(90), 0), M.SmoothPlastic, Color3.fromRGB(245, 244, 238), { Shape = CYL, Variant = false })
+	face.CastShadow = false
+	deco("ClockHand", Vector3.new(0.06, dia * 0.3, 0.02), cf * CFrame.new(dia * 0.05, dia * 0.12, -0.22) * CFrame.Angles(0, 0, math.rad(-25)), M.SmoothPlastic, BLACK, { CastShadow = false })
+	deco("ClockHand", Vector3.new(0.05, dia * 0.42, 0.02), cf * CFrame.new(-dia * 0.1, -dia * 0.12, -0.23) * CFrame.Angles(0, 0, math.rad(-140)), M.SmoothPlastic, BLACK, { CastShadow = false })
+end
+
+-- Poste separador de fila con cinta (de d1 a d2 en x).
+local function stanchions(base: CFrame, x: number, d1: number, d2: number, beltColor: Color3)
+	local n = 3
+	for i = 0, n - 1 do
+		local d = d1 + (d2 - d1) * i / (n - 1)
+		local p = L(base, x, 0, d)
+		deco("StanchionBase", Vector3.new(0.12, 1.1, 1.1), p * CFrame.new(0, 0.06, 0) * UPRIGHT, M.Metal, STEEL, { Shape = CYL })
+		deco("StanchionPost", Vector3.new(3.1, 0.2, 0.2), p * CFrame.new(0, 1.65, 0) * UPRIGHT, M.Metal, STEEL, { Shape = CYL })
+		deco("StanchionTop", Vector3.new(0.3, 0.34, 0.34), p * CFrame.new(0, 3.25, 0) * UPRIGHT, M.Metal, STEEL, { Shape = CYL })
+		if i > 0 then
+			local seg = (d2 - d1) / (n - 1)
+			deco("Belt", Vector3.new(0.04, 0.25, seg - 0.2), L(base, x, 2.9, d - seg / 2), M.Fabric, beltColor, { CastShadow = false })
+		end
+	end
+end
+
+-- Datafono sobre un mostrador (cf = encimera, frente hacia el cliente).
+local function cardTerminal(cf: CFrame)
+	local t = cf * CFrame.new(0, 0.12, 0) * CFrame.Angles(math.rad(-18), 0, 0)
+	deco("CardTerminal", Vector3.new(0.5, 0.16, 0.9), t, M.SmoothPlastic, Color3.fromRGB(30, 30, 34), { Variant = false })
+	local screen = deco("TerminalScreen", Vector3.new(0.36, 0.02, 0.3), t * CFrame.new(0, 0.09, -0.22), M.SmoothPlastic, Color3.fromRGB(20, 40, 60), { CastShadow = false, Variant = false })
+	glowScreen(screen, Enum.NormalId.Top, Color3.fromRGB(60, 140, 220), Color3.fromRGB(20, 60, 110), nil)
+	deco("TerminalKeys", Vector3.new(0.34, 0.02, 0.36), t * CFrame.new(0, 0.09, 0.2), M.SmoothPlastic, Color3.fromRGB(170, 172, 176), { CastShadow = false, Variant = false })
+end
+
+-- Cuadro / cartel enmarcado (impreso: le afecta la luz). cf = punto de la pared.
+local function framedPrint(cf: CFrame, w: number, h: number, a: Color3, b: Color3, text: string?)
+	deco("PrintFrame", Vector3.new(w + 0.3, h + 0.3, 0.12), cf * CFrame.new(0, 0, -0.06), M.Wood, Color3.fromRGB(30, 28, 26))
+	local art = deco("Print", Vector3.new(w, h, 0.04), cf * CFrame.new(0, 0, -0.14), M.SmoothPlastic, a, { Variant = false, CastShadow = false })
+	local gui = glowScreen(art, Enum.NormalId.Front, a, b, text)
+	gui.LightInfluence = 1
+	gui.Brightness = 1
+	return art
+end
+
+-- Mesa de exposicion (tablero con patas de acero). cf = centro en el suelo.
+local function displayTable(cf: CFrame, w: number, dd: number, h: number, top: Color3): CFrame
+	box("DisplayTable", Vector3.new(w, 0.2, dd), cf * CFrame.new(0, h - 0.1, 0), M.Wood, top)
+	for _, sx in { -1, 1 } do
+		for _, sz in { -1, 1 } do
+			deco("TableLeg", Vector3.new(0.18, h - 0.2, 0.18), cf * CFrame.new(sx * (w / 2 - 0.3), (h - 0.2) / 2, sz * (dd / 2 - 0.3)), M.Metal, Color3.fromRGB(40, 40, 44))
+		end
+	end
+	return cf * CFrame.new(0, h, 0) -- encimera
+end
+
+-- Silla sencilla (asiento, respaldo, 4 patas). cf en el suelo, frente -Z.
+local function chair(cf: CFrame, color: Color3, seatH: number?)
+	local sh = seatH or 1.8
+	box("ChairSeat", Vector3.new(1.6, 0.2, 1.6), cf * CFrame.new(0, sh, 0), M.Fabric, color)
+	deco("ChairBack", Vector3.new(1.6, 1.7, 0.18), cf * CFrame.new(0, sh + 0.95, 0.72), M.Fabric, color)
+	for _, sx in { -0.65, 0.65 } do
+		for _, sz in { -0.65, 0.65 } do
+			deco("ChairLeg", Vector3.new(0.12, sh, 0.12), cf * CFrame.new(sx, sh / 2, sz), M.Metal, Color3.fromRGB(40, 40, 44))
+		end
+	end
+end
+
+-- Taburete alto (bar, mostrador).
+local function stool(cf: CFrame, color: Color3, seatH: number?)
+	local sh = seatH or 2.6
+	box("StoolSeat", Vector3.new(0.3, 1.3, 1.3), cf * CFrame.new(0, sh, 0) * UPRIGHT, M.Leather, color, { Shape = CYL })
+	deco("StoolPost", Vector3.new(sh, 0.2, 0.2), cf * CFrame.new(0, sh / 2, 0) * UPRIGHT, M.Metal, STEEL, { Shape = CYL })
+	deco("StoolBase", Vector3.new(0.1, 1.2, 1.2), cf * CFrame.new(0, 0.05, 0) * UPRIGHT, M.Metal, STEEL, { Shape = CYL })
+	deco("StoolRing", Vector3.new(0.08, 1.0, 1.0), cf * CFrame.new(0, sh * 0.35, 0) * UPRIGHT, M.Metal, STEEL, { Shape = CYL })
+end
+
+-- Lampara de pie con pantalla (la bombilla se apaga con la zona).
+local function floorLamp(cf: CFrame, zoneName: string?)
+	deco("LampBase", Vector3.new(0.15, 1.3, 1.3), cf * CFrame.new(0, 0.08, 0) * UPRIGHT, M.Metal, Color3.fromRGB(35, 35, 38), { Shape = CYL })
+	box("LampPole", Vector3.new(5.4, 0.16, 0.16), cf * CFrame.new(0, 2.8, 0) * UPRIGHT, M.Metal, Color3.fromRGB(35, 35, 38), { Shape = CYL })
+	deco("LampShade", Vector3.new(1.3, 1.6, 1.6), cf * CFrame.new(0, 5.8, 0) * UPRIGHT, M.Fabric, Color3.fromRGB(240, 230, 205), { Shape = CYL })
+	local bulb = deco("LampBulb", Vector3.new(0.5, 0.5, 0.5), cf * CFrame.new(0, 5.4, 0), M.Neon, Color3.fromRGB(255, 225, 180), { Shape = BALL, CastShadow = false })
+	if zoneName then
+		local light = Instance.new("PointLight")
+		light.Range = 9
+		light.Brightness = 0.5
+		light.Color = Color3.fromRGB(255, 220, 170)
+		light.Parent = bulb
+		tag(bulb, Tags.Light, { Zone = zoneName })
+	end
+end
+
+-- Lampara colgante de la tienda (cable, pantalla y bombilla); cf = punto del techo.
+local function storePendant(cf: CFrame, drop: number, shade: Color3, zoneName: string?)
+	deco("PendantCable", Vector3.new(0.05, drop, 0.05), cf * CFrame.new(0, -drop / 2, 0), M.Metal, BLACK, { CastShadow = false })
+	deco("PendantShade", Vector3.new(1.1, 1.7, 1.7), cf * CFrame.new(0, -drop - 0.45, 0) * UPRIGHT, M.Metal, shade, { Shape = CYL })
+	local bulb = deco("PendantBulb", Vector3.new(0.6, 0.6, 0.6), cf * CFrame.new(0, -drop - 1.0, 0), M.Neon, Color3.fromRGB(255, 220, 170), { Shape = BALL, CastShadow = false })
+	if zoneName then
+		local light = Instance.new("SpotLight")
+		light.Face = Enum.NormalId.Bottom
+		light.Angle = 80
+		light.Range = 12
+		light.Brightness = 0.9
+		light.Color = Color3.fromRGB(255, 220, 170)
+		light.Parent = bulb
+		tag(bulb, Tags.Light, { Zone = zoneName })
+	end
+end
+
+-- Planta en maceta (modelo 3D pequeño o bola de hojas).
+local function pottedPlant(cf: CFrame)
+	deco("Pot", Vector3.new(1.6, 1.5, 1.5), cf * CFrame.new(0, 0.8, 0) * UPRIGHT, M.SmoothPlastic, Color3.fromRGB(235, 232, 225), { Shape = CYL, Variant = false })
+	if not prop("FicusSmall", cf * CFrame.new(0, 1.55, 0), false) then
+		deco("Leaves", Vector3.new(2.2, 2.6, 2.2), cf * CFrame.new(0, 3, 0), M.Grass, LEAF_COLORS[1], { Shape = BALL })
+	end
+end
+
 ----------------------------------------------------------------------
 -- Interiores de las tiendas (base = marco de la tienda; devuelven true si ya
 -- traen escondite). Zonas reservadas por buildStore: mostrador (x -20..-8, d 38..42),
@@ -1823,7 +2318,7 @@ end
 -- tablero (10, d 48), armario (17, d 47).
 ----------------------------------------------------------------------
 
-local INTERIORS = {}
+INTERIORS = {}
 
 function INTERIORS.Clothes(base: CFrame, def)
 	clothesRack(base, -12, 14, pick(4, 0))
@@ -1834,7 +2329,7 @@ function INTERIORS.Clothes(base: CFrame, def)
 	displayMannequin(L(base, -13, 0.6, 4.5) * OUT * CFrame.Angles(0, math.rad(25), 0))
 	displayMannequin(L(base, 15, 0.6, 4) * OUT * CFrame.Angles(0, math.rad(-15), 0))
 	foldedTable(base, -2, 31, pick(3, 3))
-	mirror(L(base, 23.3, 4.5, 24) * FACE_NEG_X, 3, 7)
+	mirror(L(base, 22.85, 4.5, 24) * FACE_NEG_X, 3, 7)
 	-- Probadores (escondites) en la pared derecha
 	for _, d in { 33, 38 } do
 		hidingSpot("Probador", L(base, 20.6, 4, d) * FACE_NEG_X, Vector3.new(4.4, 8, 4), M.Fabric, def.Accent:Lerp(Color3.new(0, 0, 0), 0.4))
@@ -1964,7 +2459,7 @@ function INTERIORS.Perfume(base: CFrame)
 			glassCase(base, p[1], p[2], pick(3, i))
 		end)
 	end
-	mirror(L(base, 23.3, 5, 20) * FACE_NEG_X, 8, 8)
+	mirror(L(base, 22.85, 5, 20) * FACE_NEG_X, 8, 8)
 	-- Columna-expositor iluminada en el centro
 	box("DisplayColumn", Vector3.new(2.4, 6, 2.4), L(base, 0, 3, 32), M.Marble, Color3.fromRGB(240, 238, 235))
 	local top = deco("ColumnGlow", Vector3.new(2.2, 0.1, 2.2), L(base, 0, 6.06, 32), M.Neon, Color3.fromRGB(255, 230, 255))
@@ -1984,7 +2479,7 @@ function INTERIORS.Optics(base: CFrame)
 		box("Chair", Vector3.new(2, 1.6, 2), L(base, x, 0.8, 30), M.Fabric, Color3.fromRGB(70, 90, 140))
 	end
 	wallShelf(base, 1, 14, 10, pick(4, 5))
-	mirror(L(base, 23.3, 4.5, 36) * FACE_NEG_X, 3, 5)
+	mirror(L(base, 22.85, 4.5, 36) * FACE_NEG_X, 3, 5)
 end
 
 function INTERIORS.Home(base: CFrame)
@@ -2075,7 +2570,7 @@ function INTERIORS.Jewelry(base: CFrame, def)
 			glassCase(base, p[1], p[2], { def.Accent, Color3.fromRGB(230, 230, 240), Color3.fromRGB(200, 60, 80) })
 		end)
 	end
-	mirror(L(base, 23.3, 5, 20) * FACE_NEG_X, 5, 7)
+	mirror(L(base, 22.85, 5, 20) * FACE_NEG_X, 5, 7)
 	deco("VelvetRug", Vector3.new(10, 0.06, 20), L(base, 0, 0.03, 20), M.Fabric, Color3.fromRGB(70, 20, 30))
 	box("Safe", Vector3.new(3, 4, 3), L(base, 19, 2, 36), M.Metal, Color3.fromRGB(60, 62, 66))
 	deco("SafeDial", Vector3.new(0.2, 0.9, 0.9), L(base, 19, 2.4, 34.4) * CFrame.Angles(0, math.rad(90), 0), M.Metal, STEEL, { Shape = Enum.PartType.Cylinder })
@@ -2087,7 +2582,7 @@ function INTERIORS.Pharmacy(base: CFrame, def)
 	gondola(base, 12, 30, 10, pick(3, 0), false, "PharmacyShelf")
 	wallShelf(base, 1, 14, 14, { Color3.fromRGB(235, 235, 240), def.Accent, Color3.fromRGB(240, 240, 245), Color3.fromRGB(90, 140, 220) })
 	-- Cruz verde luminosa sobre el mostrador
-	local crossCF = L(base, -14, 10.5, 49.3) * OUT
+	local crossCF = L(base, -14, 10.5, 48.8) * OUT
 	neonStrip(Vector3.new(3.2, 1, 0.2), crossCF, def.Accent, def.Name, 0.6)
 	neonStrip(Vector3.new(1, 3.2, 0.2), crossCF, def.Accent, def.Name)
 	for i = 0, 2 do
@@ -2102,7 +2597,7 @@ function INTERIORS.Gym(base: CFrame, def)
 			box("TreadmillBar", Vector3.new(3, 3.6, 0.4), cf * CFrame.new(0, 2.4, 3.2), M.Metal, METAL)
 		end)
 	end
-	mirror(L(base, 23.4, 5, 25) * FACE_NEG_X, 28, 8)
+	mirror(L(base, 22.85, 5, 25) * FACE_NEG_X, 28, 8)
 	-- Rack de mancuernas y banco
 	local rack = L(base, 16, 0, 32) * FACE_NEG_X
 	if not propRow("DumbbellRack", rack, 8, 4) then
@@ -2129,7 +2624,7 @@ function INTERIORS.Cafe(base: CFrame, def)
 	propOr("EspressoMachine", L(base, -18, 3.7, 40) * OUT, function()
 		box("EspressoMachine", Vector3.new(2.4, 1.6, 1.6), L(base, -18, 4.4, 40), M.Metal, STEEL)
 	end, false)
-	lightbox(L(base, -14, 9.5, 49.4) * OUT, 10, 3, "MENÚ · CAFÉ · POSTRES", def.Accent, def.Name)
+	lightbox(L(base, -14, 9.5, 48.75) * OUT, 10, 3, "MENÚ · CAFÉ · POSTRES", def.Accent, def.Name)
 	deco("Rug", Vector3.new(12, 0.06, 10), L(base, 0, 0.03, 20), M.Carpet, Color3.fromRGB(120, 90, 70), { Variant = false })
 end
 
@@ -2192,6 +2687,792 @@ function INTERIORS.Salon(base: CFrame, def)
 	end)
 end
 
+----------------------------------------------------------------------
+-- Mobiliario extra por tipo de tienda (se pone despues del interior).
+-- Respeta las zonas reservadas de buildStore y lo que ya coloca cada interior.
+----------------------------------------------------------------------
+
+-- Punto del suelo de la tienda mirando hacia la entrada.
+local function F(base: CFrame, x: number, d: number): CFrame
+	return L(base, x, 0, d) * OUT
+end
+
+-- Mesas nido: una alta y dos bajas delante, con pilas de ropa doblada.
+local function nestingTables(base: CFrame, x: number, d: number, colors: { Color3 })
+	local top = displayTable(L(base, x, 0, d), 5, 2.6, 3.2, Color3.fromRGB(196, 160, 118))
+	stackRow(top, 4.4, 1.2, colors, 0.75, 1.1)
+	for _, sx in { -1, 1 } do
+		local low = displayTable(L(base, x + sx * 1.7, 0, d - 2.6), 3, 2.0, 2.2, Color3.fromRGB(226, 222, 214))
+		stackRow(low, 2.6, 1.1, colors, 0.6, 1.3)
+	end
+end
+
+-- Mesa de dispositivos: moviles (o consolas) en peanas con cable antirrobo, por las dos caras.
+local function deviceTable(base: CFrame, x: number, d: number, accent: Color3, gaming: boolean)
+	local top = displayTable(L(base, x, 0, d), 8, 3.4, 3.1, Color3.fromRGB(214, 190, 150))
+	for _, side in { -1, 1 } do
+		for k = 0, 3 do
+			local cf = top * CFrame.new(-3 + k * 2, 0, side * 0.95) * (if side > 0 then OUT else CFrame.new())
+			if gaming then
+				deco("Console", Vector3.new(1.2, 0.3, 0.9), cf * CFrame.new(0, 0.15, 0.1), M.SmoothPlastic, if k % 2 == 0 then BLACK else Color3.fromRGB(235, 235, 238), { Variant = false })
+				deco("Controller", Vector3.new(0.8, 0.18, 0.5), cf * CFrame.new(0, 0.09, -0.6) * CFrame.Angles(0, math.rad(8 * (k - 1.5)), 0), M.SmoothPlastic, if k % 2 == 0 then Color3.fromRGB(40, 40, 46) else Color3.fromRGB(225, 225, 230), { Variant = false })
+			else
+				deco("DeviceStand", Vector3.new(0.55, 0.1, 0.55), cf * CFrame.new(0, 0.05, 0), M.Metal, STEEL)
+				local dev = deco("Device", Vector3.new(0.46, 0.92, 0.06), cf * CFrame.new(0, 0.6, 0.05) * CFrame.Angles(math.rad(12), 0, 0), M.SmoothPlastic, BLACK, { Variant = false })
+				glowScreen(dev, Enum.NormalId.Front, accent:Lerp(Color3.new(1, 1, 1), 0.2), Color3.fromRGB(15, 20, 40), nil)
+				deco("SecurityCable", Vector3.new(0.05, 0.05, 0.6), cf * CFrame.new(0, 0.03, 0.45), M.Rubber, BLACK, { CastShadow = false })
+			end
+			local price = deco("PriceCard", Vector3.new(0.6, 0.02, 0.35), cf * CFrame.new(0, 0.02, -0.55), M.SmoothPlastic, Color3.fromRGB(250, 250, 248), { CastShadow = false, Variant = false })
+			printed(price, string.format("%d,99 €", 99 + k * 100), BLACK, Enum.Font.GothamBold, Enum.NormalId.Top)
+		end
+	end
+	if gaming then
+		local mon = deco("DemoMonitor", Vector3.new(3.2, 1.9, 0.12), top * CFrame.new(0, 1.3, 0), M.SmoothPlastic, BLACK, { Variant = false })
+		glowScreen(mon, Enum.NormalId.Front, accent, Color3.fromRGB(255, 80, 120), "DEMO")
+		glowScreen(mon, Enum.NormalId.Back, accent, Color3.fromRGB(40, 200, 255), "JUEGA")
+		deco("MonitorStand", Vector3.new(0.3, 0.6, 0.3), top * CFrame.new(0, 0.3, 0), M.Metal, BLACK)
+	end
+end
+
+-- Expositor giratorio de complementos (gafas de sol, bisuteria, llaveros).
+local function spinnerRack(cf: CFrame, colors: { Color3 })
+	deco("SpinnerBase", Vector3.new(0.15, 1.6, 1.6), cf * CFrame.new(0, 0.08, 0) * UPRIGHT, M.Metal, Color3.fromRGB(40, 40, 44), { Shape = CYL })
+	box("SpinnerPole", Vector3.new(6, 0.16, 0.16), cf * CFrame.new(0, 3, 0) * UPRIGHT, M.Metal, STEEL, { Shape = CYL })
+	deco("SpinnerTopper", Vector3.new(1.4, 0.6, 1.4), cf * CFrame.new(0, 6.2, 0), M.SmoothPlastic, colors[1], { Variant = false })
+	for tier = 0, 2 do
+		for k = 0, 5 do
+			local a = math.rad(k * 60 + tier * 20)
+			local item = cf * CFrame.new(0, 2.4 + tier * 1.3, 0) * CFrame.Angles(0, a, 0) * CFrame.new(0, 0, -0.75)
+			deco("SpinnerItem", Vector3.new(0.6, 0.8, 0.06), item, M.SmoothPlastic, vary(colors[(k + tier) % #colors + 1], 0.06), { CastShadow = false, Variant = false })
+		end
+	end
+end
+
+-- Mesita infantil con taburetes y piezas de construccion.
+local function kidsTable(cf: CFrame)
+	box("KidsTable", Vector3.new(0.2, 3.4, 3.4), cf * CFrame.new(0, 1.7, 0) * UPRIGHT, M.SmoothPlastic, Color3.fromRGB(250, 250, 245), { Shape = CYL, Variant = false })
+	deco("KidsTableLeg", Vector3.new(1.6, 0.4, 0.4), cf * CFrame.new(0, 0.8, 0) * UPRIGHT, M.SmoothPlastic, Color3.fromRGB(80, 170, 230), { Shape = CYL, Variant = false })
+	for k = 0, 3 do
+		local a = math.rad(k * 90 + 45)
+		deco("KidsStool", Vector3.new(1.1, 1.1, 1.1), cf * CFrame.new(math.cos(a) * 2.5, 0.55, math.sin(a) * 2.5) * UPRIGHT, M.SmoothPlastic, BRIGHT[k + 1], { Shape = CYL, Variant = false })
+	end
+	for k = 0, 6 do
+		deco("Block", Vector3.new(0.4, 0.4, 0.8), cf * CFrame.new(-1 + (k % 4) * 0.6, 1.95 + (k // 4) * 0.4, -0.4 + (k % 3) * 0.4) * CFrame.Angles(0, math.rad(k * 23), 0), M.SmoothPlastic, BRIGHT[k % #BRIGHT + 1], { CastShadow = false, Variant = false })
+	end
+end
+
+-- Coche correpasillos de juguete (frente -Z).
+local function rideOnCar(cf: CFrame, color: Color3)
+	box("ToyCarBody", Vector3.new(2.4, 1.1, 4), cf * CFrame.new(0, 1.05, 0), M.SmoothPlastic, color, { Variant = false, Reflectance = 0.1 })
+	deco("ToyCarHood", Vector3.new(2.2, 0.5, 1.4), cf * CFrame.new(0, 1.8, -1.1), M.SmoothPlastic, color, { Variant = false, Reflectance = 0.1 })
+	deco("ToyCarSeat", Vector3.new(1.6, 0.9, 0.4), cf * CFrame.new(0, 2.0, 1.1), M.SmoothPlastic, BLACK, { Variant = false })
+	deco("ToyCarWheel", Vector3.new(0.2, 0.8, 0.2), cf * CFrame.new(0, 2.2, -0.3) * CFrame.Angles(math.rad(-30), 0, 0), M.Metal, BLACK)
+	deco("ToyCarSteer", Vector3.new(0.12, 0.8, 0.8), cf * CFrame.new(0, 2.6, -0.1) * CFrame.Angles(math.rad(-30), math.rad(90), 0), M.SmoothPlastic, BLACK, { Shape = CYL })
+	for _, sx in { -1.25, 1.25 } do
+		for _, sz in { -1.3, 1.3 } do
+			deco("ToyCarTyre", Vector3.new(0.4, 1.1, 1.1), cf * CFrame.new(sx, 0.55, sz), M.Rubber, BLACK, { Shape = CYL })
+		end
+	end
+	for _, sx in { -0.7, 0.7 } do
+		deco("ToyCarLight", Vector3.new(0.5, 0.3, 0.06), cf * CFrame.new(sx, 1.3, -2.02), M.SmoothPlastic, Color3.fromRGB(255, 250, 220), { Variant = false })
+	end
+end
+
+-- Racimo de globos atados a una pesa.
+local function balloons(cf: CFrame)
+	deco("BalloonWeight", Vector3.new(0.5, 0.4, 0.5), cf * CFrame.new(0, 0.2, 0), M.SmoothPlastic, Color3.fromRGB(230, 60, 80), { Variant = false })
+	for k = 0, 4 do
+		local a = math.rad(k * 72)
+		local top = Vector3.new(math.cos(a) * 0.9, 7 + (k % 2) * 0.8, math.sin(a) * 0.9)
+		local bottom = Vector3.new(0, 0.4, 0)
+		local mid = (top + bottom) / 2
+		deco("BalloonString", Vector3.new(0.02, 0.02, (top - bottom).Magnitude), cf * CFrame.lookAt(mid, top), M.SmoothPlastic, Color3.fromRGB(240, 240, 240), { CastShadow = false })
+		deco("Balloon", Vector3.new(1.3, 1.6, 1.3), cf * CFrame.new(top + Vector3.new(0, 0.75, 0)), M.SmoothPlastic, BRIGHT[k + 1], { Shape = BALL, Reflectance = 0.2, Variant = false })
+	end
+end
+
+-- Bicicleta (cf = centro entre las ruedas a la altura del eje; plano de la bici = X-Y).
+local function bike(cf: CFrame, color: Color3)
+	for _, sx in { -1.7, 1.7 } do
+		deco("BikeTyre", Vector3.new(0.18, 2.3, 2.3), cf * CFrame.new(sx, 0, 0) * CFrame.Angles(0, math.rad(90), 0), M.Rubber, BLACK, { Shape = CYL })
+		deco("BikeRim", Vector3.new(0.2, 1.9, 1.9), cf * CFrame.new(sx, 0, 0) * CFrame.Angles(0, math.rad(90), 0), M.Metal, Color3.fromRGB(70, 72, 78), { Shape = CYL, Transparency = 0.3 })
+		deco("BikeHub", Vector3.new(0.3, 0.3, 0.3), cf * CFrame.new(sx, 0, 0) * CFrame.Angles(0, math.rad(90), 0), M.Metal, STEEL, { Shape = CYL })
+	end
+	local function tube(a: Vector3, b: Vector3, thick: number?)
+		local mid = (a + b) / 2
+		deco("BikeTube", Vector3.new(thick or 0.16, thick or 0.16, (b - a).Magnitude), cf * CFrame.lookAt(mid, b), M.Metal, color, { Reflectance = 0.15 })
+	end
+	local bb, seat, head = Vector3.new(-0.2, -0.2, 0), Vector3.new(-0.6, 1.5, 0), Vector3.new(1.0, 1.5, 0)
+	tube(bb, seat)
+	tube(seat, head)
+	tube(bb, head)
+	tube(bb, Vector3.new(-1.7, 0, 0), 0.12)
+	tube(seat, Vector3.new(-1.7, 0, 0), 0.12)
+	tube(head, Vector3.new(1.7, 0, 0), 0.14)
+	deco("BikeSaddle", Vector3.new(0.9, 0.16, 0.35), cf * CFrame.new(-0.7, 1.85, 0), M.Leather, BLACK)
+	deco("BikeBars", Vector3.new(0.12, 0.12, 1.5), cf * CFrame.new(1.05, 1.9, 0), M.Metal, BLACK)
+	deco("BikeCrank", Vector3.new(0.12, 0.7, 0.7), cf * CFrame.new(-0.2, -0.2, 0) * CFrame.Angles(0, math.rad(90), 0), M.Metal, STEEL, { Shape = CYL })
+end
+
+-- Cubo con esterillas enrolladas (deportes).
+local function yogaBin(cf: CFrame)
+	box("MatBin", Vector3.new(2.2, 2.2, 2.2), cf * CFrame.new(0, 1.1, 0) * UPRIGHT, M.Metal, Color3.fromRGB(60, 62, 68), { Shape = CYL })
+	for k = 0, 5 do
+		local a = math.rad(k * 60)
+		local r = if k == 0 then 0 else 0.6
+		deco("RolledMat", Vector3.new(3.0, 0.6, 0.6), cf * CFrame.new(math.cos(a) * r, 2.6, math.sin(a) * r) * UPRIGHT * CFrame.Angles(math.rad(k * 3), 0, 0), M.Rubber, BRIGHT[k + 2], { Shape = CYL, CastShadow = false })
+	end
+end
+
+-- Estanteria baja de doble cara con libros (isla) y novedades de cara encima.
+local function lowBookcase(cf: CFrame, len: number)
+	box("LowBookcase", Vector3.new(len, 4.4, 2.4), cf * CFrame.new(0, 2.2, 0), M.Wood, Color3.fromRGB(150, 112, 78))
+	for _, side in { -1, 1 } do
+		local face = cf * CFrame.new(0, 0, side * 0.8) * (if side > 0 then OUT else CFrame.new())
+		for _, y in { 0.35, 1.75, 3.0 } do
+			bookRow(face * CFrame.new(0, y, 0.0), len - 0.4, 1.25)
+		end
+	end
+	for k = 0, 3 do
+		local book = deco("FaceOutBook", Vector3.new(1.4, 1.9, 0.18), cf * CFrame.new(-len / 2 + 1.2 + k * (len - 2.4) / 3, 5.3, 0) * CFrame.Angles(math.rad(-12), 0, 0), M.SmoothPlastic, vary(BRIGHT[k + 1], 0.1), { Variant = false })
+		printed(book, ({ "LA NOCHE", "EL MALL", "SOMBRAS", "TURNO" })[k + 1], Color3.new(1, 1, 1), Enum.Font.Merriweather, Enum.NormalId.Front)
+		printed(book, ({ "RELATOS", "CUENTOS", "MISTERIO", "POESÍA" })[k + 1], Color3.new(1, 1, 1), Enum.Font.Merriweather, Enum.NormalId.Back)
+	end
+end
+
+-- Espejo de suelo inclinado (zapateria).
+local function floorMirror(cf: CFrame)
+	deco("FloorMirrorBack", Vector3.new(1.4, 2.6, 0.12), cf * CFrame.new(0, 1.3, 0.3) * CFrame.Angles(math.rad(-14), 0, 0), M.SmoothPlastic, BLACK, { Variant = false })
+	deco("FloorMirror", Vector3.new(1.2, 2.4, 0.04), cf * CFrame.new(0, 1.3, 0.22) * CFrame.Angles(math.rad(-14), 0, 0), M.SmoothPlastic, Color3.fromRGB(170, 182, 190), { Reflectance = 0.3, Variant = false })
+end
+
+-- Tocador de maquillaje con bombillas (cf = pie de la pared lateral).
+local function vanityStation(cf: CFrame, zoneName: string)
+	box("VanityCounter", Vector3.new(4.4, 0.25, 1.6), cf * CFrame.new(0, 3.2, -0.8), M.Marble, Color3.fromRGB(245, 243, 238))
+	deco("VanityCabinet", Vector3.new(4.2, 2.9, 1.4), cf * CFrame.new(0, 1.55, -0.72), M.SmoothPlastic, Color3.fromRGB(30, 28, 32), { Variant = false })
+	deco("VanityMirrorFrame", Vector3.new(3.6, 3.8, 0.1), cf * CFrame.new(0, 5.6, -0.05), M.SmoothPlastic, Color3.fromRGB(250, 248, 244), { Variant = false })
+	deco("VanityMirror", Vector3.new(3.0, 3.2, 0.06), cf * CFrame.new(0, 5.6, -0.12), M.SmoothPlastic, Color3.fromRGB(170, 182, 190), { Reflectance = 0.3, Variant = false })
+	for k = 0, 3 do
+		for _, sx in { -1.65, 1.65 } do
+			local bulb = deco("VanityBulb", Vector3.new(0.3, 0.3, 0.3), cf * CFrame.new(sx, 4.1 + k * 1.0, -0.15), M.Neon, Color3.fromRGB(255, 240, 220), { Shape = BALL, CastShadow = false })
+			tag(bulb, Tags.Light, { Zone = zoneName })
+		end
+	end
+	for k = 0, 4 do
+		deco("Lipstick", Vector3.new(0.4, 0.14, 0.14), cf * CFrame.new(-1.6 + k * 0.4, 3.53, -1.1) * UPRIGHT, M.SmoothPlastic, BRIGHT[k + 1], { Shape = CYL, CastShadow = false })
+	end
+	stool(cf * CFrame.new(0, 0, -2.6), Color3.fromRGB(30, 28, 32), 2.4)
+end
+
+-- Puesto de graduacion de la vista: sillon, foroptero en su brazo y mesita.
+local function examStation(cf: CFrame)
+	box("ExamSeat", Vector3.new(2.2, 0.6, 2.2), cf * CFrame.new(0, 1.9, 0), M.Leather, Color3.fromRGB(60, 70, 100))
+	deco("ExamBack", Vector3.new(2.2, 2.8, 0.5), cf * CFrame.new(0, 3.5, 1.0) * CFrame.Angles(math.rad(-10), 0, 0), M.Leather, Color3.fromRGB(60, 70, 100))
+	deco("ExamBase", Vector3.new(1.6, 1.6, 1.6), cf * CFrame.new(0, 0.8, 0.2), M.Metal, Color3.fromRGB(220, 220, 224))
+	for _, sx in { -1.25, 1.25 } do
+		deco("ExamArm", Vector3.new(0.35, 0.3, 1.8), cf * CFrame.new(sx, 2.5, 0.1), M.Leather, Color3.fromRGB(60, 70, 100))
+	end
+	deco("PhoropterPost", Vector3.new(0.3, 5.8, 0.3), cf * CFrame.new(1.9, 2.9, 0.6), M.Metal, Color3.fromRGB(220, 220, 224))
+	deco("PhoropterArm", Vector3.new(1.9, 0.2, 0.2), cf * CFrame.new(1.0, 5.6, 0.2), M.Metal, Color3.fromRGB(220, 220, 224))
+	deco("Phoropter", Vector3.new(1.6, 0.8, 0.5), cf * CFrame.new(0, 5.0, -0.2), M.SmoothPlastic, Color3.fromRGB(40, 42, 48), { Variant = false })
+	for _, sx in { -0.4, 0.4 } do
+		deco("PhoropterEye", Vector3.new(0.1, 0.4, 0.4), cf * CFrame.new(sx, 5.0, -0.48) * CFrame.Angles(0, math.rad(90), 0), M.SmoothPlastic, Color3.fromRGB(20, 20, 22), { Shape = CYL, Variant = false })
+	end
+	local top = displayTable(cf * CFrame.new(-2.6, 0, -0.5), 1.8, 1.6, 2.9, Color3.fromRGB(240, 240, 240))
+	deco("Lensmeter", Vector3.new(0.8, 1.2, 0.8), top * CFrame.new(0, 0.6, 0), M.SmoothPlastic, Color3.fromRGB(230, 232, 236), { Variant = false })
+end
+
+-- Mesa de comedor con sillas (a lo largo de X).
+local function diningSet(cf: CFrame, w: number, chairColor: Color3, wood: Color3)
+	local top = displayTable(cf, w, 3.2, 3.0, wood)
+	local n = math.max(1, math.floor(w / 2.4))
+	for k = 0, n - 1 do
+		local x = -w / 2 + w / n * (k + 0.5)
+		chair(cf * CFrame.new(x, 0, -2.3) * CFrame.Angles(0, math.pi, 0), chairColor)
+		chair(cf * CFrame.new(x, 0, 2.3), chairColor)
+		deco("Placemat", Vector3.new(1.3, 0.02, 0.9), top * CFrame.new(x, 0.01, -0.9), M.Fabric, Color3.fromRGB(220, 210, 190), { CastShadow = false })
+		deco("Placemat", Vector3.new(1.3, 0.02, 0.9), top * CFrame.new(x, 0.01, 0.9), M.Fabric, Color3.fromRGB(220, 210, 190), { CastShadow = false })
+	end
+	deco("Vase", Vector3.new(0.9, 0.5, 0.5), top * CFrame.new(0, 0.45, 0) * UPRIGHT, M.Glass, Color3.fromRGB(180, 210, 200), { Shape = CYL, Transparency = 0.3 })
+end
+
+-- Armario ropero de exposicion (frente -Z).
+local function wardrobe(cf: CFrame, w: number, color: Color3)
+	box("Wardrobe", Vector3.new(w, 8, 2.4), cf * CFrame.new(0, 4, 0), M.Wood, color)
+	local doors = math.max(2, math.floor(w / 2))
+	for k = 1, doors - 1 do
+		deco("DoorGap", Vector3.new(0.05, 7.6, 0.04), cf * CFrame.new(-w / 2 + k * w / doors, 4, -1.21), M.SmoothPlastic, color:Lerp(BLACK, 0.5))
+	end
+	for k = 0, doors - 1 do
+		local x = -w / 2 + (k + 0.5) * w / doors + (if k % 2 == 0 then 0.6 else -0.6)
+		deco("WardrobeHandle", Vector3.new(0.08, 1.2, 0.1), cf * CFrame.new(x, 4.2, -1.25), M.Metal, STEEL)
+	end
+	deco("WardrobePlinth", Vector3.new(w, 0.3, 2.3), cf * CFrame.new(0, 0.15, 0.05), M.SmoothPlastic, BLACK, { Variant = false })
+end
+
+-- Cajones de vinilos (discos de canto) con cartel.
+local function vinylBins(cf: CFrame, len: number)
+	box("VinylCrate", Vector3.new(len, 2.6, 2.4), cf * CFrame.new(0, 1.3, 0), M.Wood, Color3.fromRGB(120, 86, 56))
+	local n = math.floor((len - 0.6) / 0.16)
+	for k = 0, n - 1 do
+		local x = -len / 2 + 0.4 + k * 0.16
+		deco("Record", Vector3.new(0.05, 2.1, 2.1), cf * CFrame.new(x, 3.0, 0) * CFrame.Angles(0, 0, math.rad(-12)), M.SmoothPlastic, vary(BRIGHT[(k // 3) % #BRIGHT + 1], 0.15), {
+			CastShadow = false,
+			Variant = false,
+		})
+	end
+	local header = deco("VinylSign", Vector3.new(2.6, 0.9, 0.1), cf * CFrame.new(0, 4.9, -1.0), M.SmoothPlastic, Color3.fromRGB(20, 20, 22), { Variant = false })
+	printed(header, "VINILOS", Color3.fromRGB(255, 220, 90), Enum.Font.Bangers, Enum.NormalId.Front)
+	deco("VinylSignPost", Vector3.new(0.1, 1.2, 0.1), cf * CFrame.new(0, 3.9, -1.0), M.Metal, BLACK)
+end
+
+-- Auriculares (diadema + dos copas) colgados de un gancho; cf = gancho.
+local function headphones(cf: CFrame, color: Color3)
+	deco("HeadphoneBand", Vector3.new(0.9, 0.12, 0.2), cf * CFrame.new(0, -0.1, -0.3), M.SmoothPlastic, color, { CastShadow = false, Variant = false })
+	for _, sx in { -0.45, 0.45 } do
+		deco("HeadphoneCup", Vector3.new(0.22, 0.6, 0.6), cf * CFrame.new(sx, -0.6, -0.3) * CFrame.Angles(0, 0, 0), M.SmoothPlastic, color, { Shape = CYL, CastShadow = false, Variant = false })
+	end
+end
+
+-- Puesto de escucha: balda con tabletas y auriculares colgados (cf = pie de la pared).
+local function listeningStation(cf: CFrame, accent: Color3)
+	box("ListenShelf", Vector3.new(7, 0.25, 1.5), cf * CFrame.new(0, 3.6, -0.75), M.Wood, Color3.fromRGB(60, 44, 34))
+	for k = -1, 1 do
+		local tablet = deco("ListenTablet", Vector3.new(1.3, 0.9, 0.06), cf * CFrame.new(k * 2.2, 4.35, -0.5) * CFrame.Angles(math.rad(15), 0, 0), M.SmoothPlastic, BLACK, { Variant = false })
+		glowScreen(tablet, Enum.NormalId.Front, accent, Color3.fromRGB(20, 20, 30), "▶")
+		headphones(cf * CFrame.new(k * 2.2, 6.2, 0), if k == 0 then accent else Color3.fromRGB(30, 30, 34))
+	end
+	local header = deco("ListenSign", Vector3.new(6, 0.9, 0.1), cf * CFrame.new(0, 7.9, -0.1), M.SmoothPlastic, Color3.fromRGB(20, 20, 22), { Variant = false })
+	printed(header, "ESCUCHA ANTES DE COMPRAR", Color3.new(1, 1, 1), Enum.Font.GothamBold, Enum.NormalId.Front)
+end
+
+-- Bicicleta estatica (frente -Z).
+local function exerciseBike(cf: CFrame, accent: Color3)
+	box("SpinFrame", Vector3.new(0.5, 0.4, 4), cf * CFrame.new(0, 0.2, 0), M.Metal, Color3.fromRGB(40, 40, 44))
+	deco("SpinFlywheel", Vector3.new(0.3, 1.8, 1.8), cf * CFrame.new(0, 1.3, -1.2), M.Metal, STEEL, { Shape = CYL })
+	deco("SpinGuard", Vector3.new(0.4, 1.4, 1.2), cf * CFrame.new(0, 1.5, -0.8), M.SmoothPlastic, accent, { Variant = false })
+	deco("SpinSeatPost", Vector3.new(0.25, 2.6, 0.25), cf * CFrame.new(0, 1.6, 0.9) * CFrame.Angles(math.rad(-12), 0, 0), M.Metal, Color3.fromRGB(40, 40, 44))
+	deco("SpinSaddle", Vector3.new(0.7, 0.2, 1.1), cf * CFrame.new(0, 3.0, 1.15), M.Leather, BLACK)
+	deco("SpinStem", Vector3.new(0.25, 2.8, 0.25), cf * CFrame.new(0, 2.2, -0.3) * CFrame.Angles(math.rad(14), 0, 0), M.Metal, Color3.fromRGB(40, 40, 44))
+	deco("SpinBars", Vector3.new(1.6, 0.16, 0.6), cf * CFrame.new(0, 3.55, -0.65), M.Rubber, BLACK)
+	local console = deco("SpinConsole", Vector3.new(0.8, 0.5, 0.1), cf * CFrame.new(0, 3.85, -0.6) * CFrame.Angles(math.rad(-30), 0, 0), M.SmoothPlastic, BLACK, { Variant = false })
+	glowScreen(console, Enum.NormalId.Back, Color3.fromRGB(40, 60, 90), Color3.fromRGB(10, 20, 30), "120")
+	for _, sz in { -1.8, 1.8 } do
+		deco("SpinFoot", Vector3.new(2, 0.2, 0.4), cf * CFrame.new(0, 0.1, sz), M.Metal, Color3.fromRGB(40, 40, 44))
+	end
+end
+
+-- Jaula de sentadillas con barra y discos (frente -Z).
+local function powerRack(cf: CFrame, accent: Color3)
+	for _, sx in { -2, 2 } do
+		for _, sz in { -1.6, 1.6 } do
+			box("RackPost", Vector3.new(0.3, 7.5, 0.3), cf * CFrame.new(sx, 3.75, sz), M.Metal, Color3.fromRGB(35, 35, 38))
+		end
+		deco("RackTop", Vector3.new(0.3, 0.3, 3.5), cf * CFrame.new(sx, 7.4, 0), M.Metal, Color3.fromRGB(35, 35, 38))
+		deco("RackFoot", Vector3.new(0.4, 0.2, 3.8), cf * CFrame.new(sx, 0.1, 0), M.Metal, Color3.fromRGB(35, 35, 38))
+	end
+	deco("PullupBar", Vector3.new(4.3, 0.16, 0.16), cf * CFrame.new(0, 7.4, -1.6), M.Metal, STEEL)
+	deco("RackBarbell", Vector3.new(7, 0.18, 0.18), cf * CFrame.new(0, 4.6, -1.2), M.Metal, STEEL)
+	for _, sx in { -3.0, 3.0 } do
+		deco("RackPlate", Vector3.new(0.3, 2.2, 2.2), cf * CFrame.new(sx, 4.6, -1.2), M.Rubber, BLACK, { Shape = CYL })
+		deco("RackPlateRim", Vector3.new(0.32, 0.9, 0.9), cf * CFrame.new(sx, 4.6, -1.2), M.Rubber, accent, { Shape = CYL })
+	end
+	for _, sx in { -2, 2 } do
+		deco("JHook", Vector3.new(0.2, 0.3, 0.5), cf * CFrame.new(sx, 4.4, -1.6), M.Metal, accent)
+	end
+end
+
+-- Fila de pesas rusas en el suelo.
+local function kettlebells(cf: CFrame, count: number, accent: Color3)
+	for k = 0, count - 1 do
+		local s = 0.8 + k * 0.1
+		local p = cf * CFrame.new(-count / 2 * 1.3 + k * 1.3, s / 2, 0)
+		deco("Kettlebell", Vector3.new(s, s, s), p, M.Metal, Color3.fromRGB(30, 30, 33), { Shape = BALL })
+		deco("KettleHandle", Vector3.new(s * 0.7, 0.12, 0.12), p * CFrame.new(0, s * 0.55, 0), M.Metal, Color3.fromRGB(30, 30, 33))
+		deco("KettleTag", Vector3.new(0.3, 0.2, 0.04), p * CFrame.new(0, 0, -s * 0.5), M.SmoothPlastic, accent, { CastShadow = false, Variant = false })
+	end
+end
+
+-- Fuente de agua con garrafa.
+local function waterCooler(cf: CFrame)
+	box("CoolerBody", Vector3.new(1.4, 3.4, 1.3), cf * CFrame.new(0, 1.7, 0), M.SmoothPlastic, Color3.fromRGB(235, 235, 232), { Variant = false })
+	deco("CoolerTap", Vector3.new(0.15, 0.25, 0.2), cf * CFrame.new(-0.3, 2.8, -0.7), M.SmoothPlastic, Color3.fromRGB(50, 110, 220))
+	deco("CoolerTap", Vector3.new(0.15, 0.25, 0.2), cf * CFrame.new(0.3, 2.8, -0.7), M.SmoothPlastic, Color3.fromRGB(220, 50, 50))
+	deco("CoolerBottle", Vector3.new(1.8, 1.2, 1.2), cf * CFrame.new(0, 4.3, 0) * UPRIGHT, M.Glass, Color3.fromRGB(120, 180, 230), { Shape = CYL, Transparency = 0.35 })
+	deco("CoolerCups", Vector3.new(0.9, 0.3, 0.3), cf * CFrame.new(0.85, 2.7, 0) * UPRIGHT, M.SmoothPlastic, Color3.fromRGB(250, 250, 250), { Shape = CYL })
+end
+
+-- Pizarra de caballete (A) con texto por las dos caras. cf en el suelo.
+local function aFrameBoard(cf: CFrame, text: string)
+	for _, side in { -1, 1 } do
+		local leaf = deco("AFrame", Vector3.new(2.2, 3.4, 0.12), cf * CFrame.new(0, 1.65, side * 0.5) * CFrame.Angles(math.rad(-side * 14), 0, 0), M.Wood, Color3.fromRGB(120, 86, 56))
+		local board = deco("Chalkboard", Vector3.new(1.9, 2.8, 0.04), cf * CFrame.new(0, 1.7, side * 0.58) * CFrame.Angles(math.rad(-side * 14), 0, 0), M.Slate, Color3.fromRGB(32, 36, 34))
+		printed(board, text, Color3.fromRGB(240, 240, 232), Enum.Font.PatrickHand, if side < 0 then Enum.NormalId.Front else Enum.NormalId.Back)
+		leaf.CastShadow = true
+	end
+end
+
+-- Puesto de fruta: cajas inclinadas con piezas de fruta (bolas).
+local function produceStand(cf: CFrame)
+	box("ProduceStand", Vector3.new(6.4, 2.4, 3.2), cf * CFrame.new(0, 1.2, 0), M.Wood, Color3.fromRGB(150, 110, 70))
+	local fruits = {
+		{ Color3.fromRGB(200, 30, 30), 0.55 }, -- manzana
+		{ Color3.fromRGB(245, 150, 30), 0.6 }, -- naranja
+		{ Color3.fromRGB(240, 220, 60), 0.5 }, -- limon
+		{ Color3.fromRGB(90, 160, 50), 0.6 }, -- manzana verde
+		{ Color3.fromRGB(110, 40, 90), 0.45 }, -- ciruela
+		{ Color3.fromRGB(240, 200, 60), 0.5 }, -- pera
+	}
+	for c = 0, 5 do
+		local col, row = c % 3, c // 3
+		local crate = cf * CFrame.new(-2.1 + col * 2.1, 2.55, -0.75 + row * 1.5) * CFrame.Angles(math.rad(-10), 0, 0)
+		deco("Crate", Vector3.new(2.0, 0.5, 1.4), crate, M.WoodPlanks, Color3.fromRGB(190, 150, 100))
+		local fruit = fruits[c + 1]
+		for k = 0, 8 do
+			deco("Fruit", Vector3.new(fruit[2], fruit[2], fruit[2]), crate * CFrame.new(-0.65 + (k % 3) * 0.65, 0.4 + (k // 3 % 2) * 0.08, -0.4 + (k // 3) * 0.4), M.SmoothPlastic, vary(fruit[1], 0.06), {
+				Shape = BALL,
+				CastShadow = false,
+				Variant = false,
+			})
+		end
+		local price = deco("PriceTag", Vector3.new(0.9, 0.5, 0.04), crate * CFrame.new(0, 0.1, -0.72), M.SmoothPlastic, Color3.fromRGB(250, 250, 245), { CastShadow = false, Variant = false })
+		printed(price, string.format("%d,%02d €/kg", 1 + c % 3, 19 + c * 10), BLACK, Enum.Font.GothamBold, Enum.NormalId.Front)
+	end
+	local header = deco("ProduceSign", Vector3.new(6, 1, 0.12), cf * CFrame.new(0, 4.6, 1.5), M.SmoothPlastic, Color3.fromRGB(40, 110, 50), { Variant = false })
+	printed(header, "FRUTA FRESCA", Color3.new(1, 1, 1), Enum.Font.GothamBlack, Enum.NormalId.Front)
+	for _, sx in { -2.9, 2.9 } do
+		deco("ProduceSignPost", Vector3.new(0.12, 2.2, 0.12), cf * CFrame.new(sx, 3.5, 1.5), M.Metal, BLACK)
+	end
+end
+
+-- Columna de cestas de la compra.
+local function basketStack(cf: CFrame, color: Color3)
+	for k = 0, 6 do
+		deco("Basket", Vector3.new(1.8, 0.28, 1.3), cf * CFrame.new(0, 0.2 + k * 0.28, 0) * CFrame.Angles(0, math.rad((k % 2) * 3), 0), M.SmoothPlastic, color, { Variant = false })
+	end
+	deco("BasketHandle", Vector3.new(1.6, 0.6, 0.08), cf * CFrame.new(0, 2.4, 0), M.SmoothPlastic, BLACK, { Variant = false })
+end
+
+-- Carrito auxiliar de peluqueria con cajones y utensilios.
+local function toolTrolley(cf: CFrame)
+	box("Trolley", Vector3.new(1.3, 3.0, 1.3), cf * CFrame.new(0, 1.7, 0), M.SmoothPlastic, Color3.fromRGB(30, 30, 34), { Variant = false })
+	for k = 0, 3 do
+		deco("TrolleyDrawer", Vector3.new(1.1, 0.04, 0.04), cf * CFrame.new(0, 0.7 + k * 0.7, -0.67), M.Metal, STEEL)
+	end
+	deco("HairDryer", Vector3.new(0.9, 0.35, 0.35), cf * CFrame.new(0, 3.4, 0), M.SmoothPlastic, Color3.fromRGB(230, 230, 235), { Shape = CYL, Variant = false })
+	deco("Brush", Vector3.new(0.12, 0.12, 0.9), cf * CFrame.new(0.4, 3.26, 0), M.SmoothPlastic, BLACK)
+	deco("SprayBottle", Vector3.new(0.6, 0.3, 0.3), cf * CFrame.new(-0.4, 3.5, 0.3) * UPRIGHT, M.SmoothPlastic, Color3.fromRGB(200, 120, 200), { Shape = CYL, Variant = false })
+	for _, sx in { -0.5, 0.5 } do
+		for _, sz in { -0.5, 0.5 } do
+			deco("Caster", Vector3.new(0.2, 0.3, 0.3), cf * CFrame.new(sx, 0.15, sz), M.Rubber, BLACK, { Shape = CYL })
+		end
+	end
+end
+
+-- Secador de casco con su sillon (frente -Z).
+local function hoodDryer(cf: CFrame, color: Color3)
+	box("DryerSeat", Vector3.new(2.4, 1.6, 2.2), cf * CFrame.new(0, 0.8, 0), M.Leather, color)
+	deco("DryerBack", Vector3.new(2.4, 2.6, 0.5), cf * CFrame.new(0, 2.6, 0.9), M.Leather, color)
+	deco("DryerPost", Vector3.new(0.2, 5.6, 0.2), cf * CFrame.new(0, 2.8, 1.5), M.Metal, STEEL)
+	deco("DryerArm", Vector3.new(0.2, 0.2, 1.2), cf * CFrame.new(0, 5.4, 1.0), M.Metal, STEEL)
+	deco("DryerHood", Vector3.new(1.9, 1.9, 1.9), cf * CFrame.new(0, 4.8, 0.4), M.SmoothPlastic, Color3.fromRGB(235, 235, 240), { Shape = BALL, Variant = false })
+	deco("DryerVisor", Vector3.new(1.7, 0.6, 0.06), cf * CFrame.new(0, 4.3, -0.5), M.SmoothPlastic, Color3.fromRGB(80, 80, 90), { Transparency = 0.4, Variant = false })
+end
+
+-- Silla gaming (frente -Z).
+local function gamingChair(cf: CFrame, accent: Color3)
+	box("GChairSeat", Vector3.new(2, 0.5, 2), cf * CFrame.new(0, 2, 0), M.Leather, BLACK)
+	deco("GChairBack", Vector3.new(2, 3.6, 0.5), cf * CFrame.new(0, 4.0, 0.9) * CFrame.Angles(math.rad(-8), 0, 0), M.Leather, BLACK)
+	deco("GChairStripe", Vector3.new(0.5, 3.5, 0.52), cf * CFrame.new(0, 4.0, 0.89) * CFrame.Angles(math.rad(-8), 0, 0), M.Leather, accent)
+	deco("GChairHead", Vector3.new(1.2, 0.6, 0.4), cf * CFrame.new(0, 5.6, 0.95), M.Fabric, accent)
+	for _, sx in { -1.05, 1.05 } do
+		deco("GChairArm", Vector3.new(0.3, 0.2, 1.4), cf * CFrame.new(sx, 3.0, 0.1), M.Plastic, BLACK)
+		deco("GChairArmPost", Vector3.new(0.2, 0.8, 0.2), cf * CFrame.new(sx, 2.5, 0.3), M.Plastic, BLACK)
+	end
+	deco("GChairGas", Vector3.new(1.4, 0.3, 0.3), cf * CFrame.new(0, 1.1, 0) * UPRIGHT, M.Metal, STEEL, { Shape = CYL })
+	for k = 0, 4 do
+		local a = math.rad(k * 72)
+		deco("GChairLeg", Vector3.new(0.2, 0.15, 1.3), cf * CFrame.new(math.cos(a) * 0.65, 0.35, math.sin(a) * 0.65) * CFrame.Angles(0, -a + math.rad(90), 0), M.Plastic, BLACK)
+	end
+end
+
+-- Mesita de revistas (sala de espera).
+local function magazineTable(cf: CFrame)
+	local top = displayTable(cf, 2.6, 1.6, 1.6, Color3.fromRGB(240, 238, 235))
+	for k = 0, 2 do
+		deco("Magazine", Vector3.new(0.9, 0.04, 1.2), top * CFrame.new(-0.6 + k * 0.6, 0.03 + k * 0.04, 0) * CFrame.Angles(0, math.rad(k * 17 - 10), 0), M.SmoothPlastic, BRIGHT[k + 4], { CastShadow = false, Variant = false })
+	end
+end
+
+-- Tensiometro de farmacia: maquina con manguito y asiento.
+local function bloodPressureKiosk(cf: CFrame, accent: Color3)
+	box("BPMachine", Vector3.new(2.2, 4.4, 1.6), cf * CFrame.new(0, 2.2, 0.6), M.SmoothPlastic, Color3.fromRGB(240, 240, 238), { Variant = false })
+	deco("BPCuff", Vector3.new(0.9, 0.9, 1.0), cf * CFrame.new(0.4, 2.9, -0.4) * CFrame.Angles(0, math.rad(90), 0), M.Fabric, Color3.fromRGB(40, 60, 110), { Shape = CYL })
+	local screen = deco("BPScreen", Vector3.new(1.4, 0.9, 0.05), cf * CFrame.new(0, 3.8, -0.22), M.SmoothPlastic, BLACK, { Variant = false })
+	glowScreen(screen, Enum.NormalId.Front, accent, Color3.fromRGB(10, 40, 20), "120/80")
+	local header = deco("BPSign", Vector3.new(2.2, 0.6, 0.05), cf * CFrame.new(0, 4.7, -0.22), M.SmoothPlastic, accent, { Variant = false })
+	printed(header, "TENSIÓMETRO", Color3.new(1, 1, 1), Enum.Font.GothamBold, Enum.NormalId.Front)
+	chair(cf * CFrame.new(-1.8, 0, -0.6) * CFrame.Angles(0, math.rad(-90), 0), Color3.fromRGB(80, 160, 120))
+end
+
+-- Mesa de atencion con dos sillas y espejo de sobremesa (joyeria).
+local function consultDesk(cf: CFrame)
+	local top = displayTable(cf, 5, 2.6, 3.0, Color3.fromRGB(45, 36, 34))
+	deco("DeskVelvet", Vector3.new(2.2, 0.03, 1.4), top * CFrame.new(0, 0.02, 0), M.Fabric, Color3.fromRGB(28, 26, 40), { CastShadow = false })
+	deco("DeskMirror", Vector3.new(0.9, 1.3, 0.06), top * CFrame.new(1.7, 0.75, 0.6) * CFrame.Angles(math.rad(10), math.rad(20), 0), M.SmoothPlastic, Color3.fromRGB(170, 182, 190), { Reflectance = 0.3, Variant = false })
+	deco("DeskLamp", Vector3.new(0.12, 1.3, 0.12), top * CFrame.new(-2, 0.65, 0.8), M.Metal, Color3.fromRGB(200, 170, 100))
+	for _, sx in { -1.2, 1.2 } do
+		chair(cf * CFrame.new(sx, 0, -2.4) * CFrame.Angles(0, math.pi, 0), Color3.fromRGB(110, 30, 45))
+	end
+	chair(cf * CFrame.new(0, 0, 2.4), Color3.fromRGB(40, 40, 44))
+end
+
+-- Rueda de reloj de pared con hora distinta en cada uno (relojeria).
+local function clockWall(cf: CFrame)
+	for k = 0, 5 do
+		wallClock(cf * CFrame.new(-3 + (k % 3) * 3, (k // 3) * 2.4, 0), 1.6 + (k % 2) * 0.4)
+	end
+end
+
+FITOUT = {}
+
+function FITOUT.Clothes(base: CFrame, def)
+	wallBay(base, -1, 14, 10, "Hang", pick(4, 1), "NUEVA TEMPORADA")
+	wallBay(base, -1, 32.5, 8, "Hang", pick(4, 3), "BÁSICOS")
+	wallBay(base, 1, 13.5, 11, "Cubby", pick(5, 4), "DENIM · PUNTO")
+	nestingTables(base, 0, 13, pick(3, 2))
+	spinnerRack(F(base, 5, 26), { def.Accent, Color3.fromRGB(230, 200, 120), Color3.fromRGB(40, 40, 44) })
+	hangingSign(F(base, 17, 30) * CFrame.new(0, 11, 0), 6, 1.2, "PROBADORES", Color3.fromRGB(28, 28, 32), Color3.new(1, 1, 1), Enum.Font.GothamBold, 4.4)
+	stanchions(base, -6.5, 34, 37.5, def.Accent:Lerp(DARK, 0.3))
+end
+
+function FITOUT.Tech(base: CFrame, def)
+	local gaming = def.Kind == "Gamer"
+	deviceTable(base, 0, 23, def.Accent, gaming)
+	if not gaming then
+		wallBay(base, 1, 14.5, 12, "Peg", { Color3.fromRGB(30, 30, 34), Color3.fromRGB(235, 235, 238), def.Accent, Color3.fromRGB(60, 120, 200) }, "ACCESORIOS")
+	else
+		for i, x in { -12, -7.5 } do
+			gamingChair(F(base, x, 26) * CFrame.Angles(0, math.rad(i * 12 - 18), 0), if i == 1 then def.Accent else Color3.fromRGB(230, 40, 60))
+		end
+		-- Tiras RGB bajo el falso techo
+		for _, side in { -1, 1 } do
+			neonStrip(Vector3.new(0.12, 0.12, 46), L(base, side * 20, STORE_H - 1.25, 25), def.Accent, def.Name)
+		end
+	end
+	hangingSign(F(base, -12, 15) * CFrame.new(0, 11.2, 0), 6, 1.2, if gaming then "PC GAMING" else "PORTÁTILES", Color3.fromRGB(20, 20, 24), def.Accent, Enum.Font.GothamBold, 4.2)
+	hangingSign(F(base, 12, 15) * CFrame.new(0, 11.2, 0), 6, 1.2, if gaming then "CONSOLAS" else "TABLETS", Color3.fromRGB(20, 20, 24), def.Accent, Enum.Font.GothamBold, 4.2)
+	stanchions(base, -5, 33, 37, def.Accent:Lerp(DARK, 0.3))
+end
+FITOUT.Gamer = FITOUT.Tech
+
+function FITOUT.Toys(base: CFrame, def)
+	wallBay(base, 1, 18, 10, "Boxes", BRIGHT, "JUEGOS DE MESA")
+	kidsTable(L(base, 0, 0, 12))
+	rideOnCar(F(base, -3, 21) * CFrame.Angles(0, math.rad(25), 0), Color3.fromRGB(220, 40, 45))
+	balloons(L(base, -9, 0, 7))
+	hangingSign(F(base, -12, 21) * CFrame.new(0, 11.2, 0), 6, 1.2, "PELUCHES", Color3.fromRGB(255, 205, 50), Color3.fromRGB(40, 30, 20), Enum.Font.FredokaOne, 4.2)
+	hangingSign(F(base, 12, 28) * CFrame.new(0, 11.2, 0), 6, 1.2, "CONSTRUCCIÓN", Color3.fromRGB(80, 170, 230), Color3.new(1, 1, 1), Enum.Font.FredokaOne, 4.2)
+	stanchions(base, -5, 33, 37, def.Accent)
+end
+
+function FITOUT.Sports(base: CFrame, def)
+	local cycling = string.find(def.Name, "Bici") ~= nil
+	wallBay(base, -1, 14, 10, "Shoes", pick(4, 2), if cycling then "CASCOS · ZAPATILLAS" else "RUNNING")
+	-- Bicis colgadas de la pared derecha (y en el suelo si es la tienda de bicis)
+	for i, d in { 22, 28 } do
+		local cf = sideWallCF(base, 1, d, 6.2, 0.6)
+		bike(cf, if i == 1 then def.Accent else Color3.fromRGB(40, 110, 200))
+		deco("BikeHook", Vector3.new(0.12, 0.12, 0.6), sideWallCF(base, 1, d, 7.4, 0.3), M.Metal, STEEL)
+	end
+	if cycling then
+		for i, x in { -4, 2 } do
+			bike(L(base, x, 1.25, 21) * CFrame.Angles(0, math.rad(90 + i * 10), 0), BRIGHT[i + 2])
+			deco("BikeStand", Vector3.new(0.5, 0.4, 1.2), L(base, x, 0.2, 21), M.Metal, Color3.fromRGB(40, 40, 44))
+		end
+	else
+		yogaBin(L(base, -2, 0, 18))
+	end
+	for i, d in { 30.5, 34.5 } do
+		framedPrint(sideWallCF(base, -1, d, 6, 0), 2.8, 3.4, BRIGHT[i + 1], BRIGHT[i + 1]:Lerp(BLACK, 0.5), tostring(i * 7 + 3))
+	end
+	hangingSign(F(base, 12, 12) * CFrame.new(0, 11.2, 0), 6, 1.2, if cycling then "TALLER" else "BALONES", Color3.fromRGB(20, 20, 24), def.Accent, Enum.Font.Oswald, 4.2)
+	stanchions(base, -5, 33, 37, def.Accent:Lerp(DARK, 0.3))
+end
+
+function FITOUT.Books(base: CFrame, def)
+	wallBay(base, -1, 14, 10, "Books", PALETTE, "NOVEDADES")
+	wallBay(base, -1, 32.5, 8, "Books", PALETTE, "INFANTIL")
+	lowBookcase(L(base, 0, 0, 14), 8)
+	floorLamp(L(base, -18.5, 0, 30), def.Name)
+	hangingSign(F(base, 16, 18) * CFrame.new(0, 11.2, 0), 5, 1.1, "NOVELA", Color3.fromRGB(115, 40, 45), Color3.fromRGB(240, 220, 170), Enum.Font.Merriweather, 4.3)
+	hangingSign(F(base, 16, 32) * CFrame.new(0, 11.2, 0), 5, 1.1, "ENSAYO", Color3.fromRGB(115, 40, 45), Color3.fromRGB(240, 220, 170), Enum.Font.Merriweather, 4.3)
+	stanchions(base, -5, 33, 37, Color3.fromRGB(115, 40, 45))
+end
+
+function FITOUT.Shoes(base: CFrame, def)
+	wallBay(base, -1, 14, 10, "Shoes", pick(5, 0), "MUJER")
+	wallBay(base, -1, 32.5, 8, "Shoes", pick(5, 3), "NIÑOS")
+	for _, x in { -10, 10 } do
+		floorMirror(F(base, x, 23.2))
+		deco("FootMeasure", Vector3.new(1, 0.12, 1.8), L(base, x + 2.4, 0.06, 22), M.Metal, Color3.fromRGB(60, 62, 70))
+	end
+	hangingSign(F(base, 17, 20) * CFrame.new(0, 11.2, 0), 5, 1.1, "HOMBRE", Color3.fromRGB(20, 20, 24), def.Accent, Enum.Font.GothamBlack, 4.3)
+	stanchions(base, -5, 33, 37, def.Accent:Lerp(DARK, 0.3))
+end
+
+function FITOUT.Perfume(base: CFrame, def)
+	local glassColors = { Color3.fromRGB(240, 200, 120), Color3.fromRGB(200, 160, 230), Color3.fromRGB(150, 200, 240), Color3.fromRGB(240, 170, 190), Color3.fromRGB(230, 230, 235) }
+	wallBay(base, -1, 14, 10, "Bottles", glassColors, "FRAGANCIAS", def.Name)
+	vanityStation(sideWallCF(base, 1, 32, 0), def.Name)
+	hangingSign(F(base, 0, 20) * CFrame.new(0, 11.4, 0), 7, 1.2, "MAQUILLAJE · CUIDADO", Color3.fromRGB(20, 18, 24), def.Accent, Enum.Font.Fondamento, 4.0)
+end
+
+function FITOUT.Optics(base: CFrame, def)
+	local frameColors = { Color3.fromRGB(25, 25, 28), Color3.fromRGB(110, 70, 40), Color3.fromRGB(200, 170, 110), Color3.fromRGB(150, 30, 40), Color3.fromRGB(40, 70, 130) }
+	wallBay(base, -1, 14, 10, "Frames", frameColors, "GRADUADAS", def.Name)
+	wallBay(base, -1, 32.5, 8, "Frames", frameColors, "GAFAS DE SOL", def.Name)
+	examStation(L(base, 12, 0, 28) * CFrame.Angles(0, math.rad(-90), 0))
+	for _, x in { -12, 12 } do
+		deco("CounterMirror", Vector3.new(0.8, 1.2, 0.06), L(base, x + 2.2, 4.85, 15.2) * OUT * CFrame.Angles(math.rad(-10), 0, 0), M.SmoothPlastic, Color3.fromRGB(170, 182, 190), { Reflectance = 0.3, Variant = false })
+	end
+end
+
+function FITOUT.Home(base: CFrame, def)
+	wallBay(base, -1, 14, 10, "Shelves", { Color3.fromRGB(245, 245, 242), Color3.fromRGB(200, 220, 215), Color3.fromRGB(230, 205, 180), Color3.fromRGB(150, 175, 200) }, "COCINA · MESA")
+	diningSet(L(base, -8, 0, 28), 5, Color3.fromRGB(200, 190, 170), Color3.fromRGB(170, 130, 90))
+	for k = -1, 1 do
+		framedPrint(sideWallCF(base, 1, 28 + k * 3.2, 7.6, 0), 2.4, 3, Color3.fromRGB(90, 205, 195):Lerp(BRIGHT[k + 3], 0.4), Color3.fromRGB(240, 235, 225), nil)
+	end
+	pottedPlant(L(base, -20, 0, 9))
+end
+
+function FITOUT.Furniture(base: CFrame, def)
+	diningSet(L(base, 12, 0, 22), 6, Color3.fromRGB(60, 60, 64), Color3.fromRGB(190, 150, 100))
+	wardrobe(sideWallCF(base, -1, 13, 0, 1.3), 6, Color3.fromRGB(225, 215, 198))
+	for k = -1, 1, 2 do
+		framedPrint(sideWallCF(base, -1, 31 + k * 2, 6.2, 0), 3, 3.6, Color3.fromRGB(200, 150, 100), Color3.fromRGB(60, 50, 40), nil)
+	end
+	pottedPlant(L(base, 4, 0, 8))
+end
+
+function FITOUT.Music(base: CFrame, def)
+	vinylBins(F(base, -3, 26), 6)
+	listeningStation(sideWallCF(base, -1, 13, 0), def.Accent)
+	local posters = { { "ROCK", Color3.fromRGB(200, 40, 40) }, { "JAZZ", Color3.fromRGB(40, 90, 170) }, { "POP", Color3.fromRGB(230, 90, 170) } }
+	for k, p in posters do
+		framedPrint(sideWallCF(base, -1, 28 + k * 2.8, 6.4, 0), 2.2, 3.2, p[2], p[2]:Lerp(BLACK, 0.6), p[1])
+	end
+	for k = 0, 1 do
+		box("Amp", Vector3.new(3, 2.4 - k * 0.6, 1.6), L(base, 16, (2.4 - k * 0.6) / 2 + k * 2.4, 36) * OUT, M.Leather, Color3.fromRGB(25, 25, 28))
+		deco("AmpGrille", Vector3.new(2.6, 1.6 - k * 0.6, 0.05), L(base, 16, (2.4 - k * 0.6) / 2 + k * 2.4, 35.18) * OUT, M.Fabric, Color3.fromRGB(70, 66, 60))
+	end
+	stanchions(base, -5, 33, 37, def.Accent:Lerp(DARK, 0.3))
+end
+
+function FITOUT.Jewelry(base: CFrame, def)
+	local metals = { Color3.fromRGB(230, 190, 90), Color3.fromRGB(220, 222, 228), Color3.fromRGB(200, 60, 80), Color3.fromRGB(80, 150, 220) }
+	wallBay(base, -1, 14, 10, "Cases", metals, if string.find(def.Name, "Reloj") then "ALTA RELOJERÍA" else "ALTA JOYERÍA", def.Name, 7.6)
+	consultDesk(F(base, 2, 34))
+	if string.find(def.Name, "Reloj") then
+		clockWall(sideWallCF(base, -1, 32.5, 6.4, 0))
+	end
+end
+
+function FITOUT.Pharmacy(base: CFrame, def)
+	wallBay(base, -1, 14, 10, "Shelves", { Color3.fromRGB(245, 245, 248), Color3.fromRGB(90, 150, 220), def.Accent, Color3.fromRGB(240, 240, 245) }, "DERMOCOSMÉTICA")
+	bloodPressureKiosk(L(base, 18, 0, 22) * FACE_NEG_X, def.Accent)
+	-- Cruz verde de farmacia colgada en el escaparate
+	local crossCF = F(base, -15, 1.6) * CFrame.new(0, 9.2, 0)
+	neonStrip(Vector3.new(2.6, 0.8, 0.25), crossCF, def.Accent, def.Name, 0.5)
+	neonStrip(Vector3.new(0.8, 2.6, 0.25), crossCF, def.Accent, def.Name)
+	for _, sx in { -0.9, 0.9 } do
+		deco("CrossCable", Vector3.new(0.04, 5.4, 0.04), crossCF * CFrame.new(sx, 4.0, 0), M.Metal, STEEL, { CastShadow = false })
+	end
+end
+
+function FITOUT.Gym(base: CFrame, def)
+	for _, x in { -15, -10, -5 } do
+		exerciseBike(F(base, x, 28), def.Accent)
+	end
+	powerRack(F(base, 17, 22), def.Accent)
+	kettlebells(F(base, 12, 41), 6, def.Accent)
+	waterCooler(L(base, -21, 0, 33) * FACE_POS_X)
+	hangingSign(F(base, -10, 28) * CFrame.new(0, 11.4, 0), 6, 1.2, "CICLO INDOOR", Color3.fromRGB(20, 20, 24), def.Accent, Enum.Font.Oswald, 4.0)
+end
+
+function FITOUT.Cafe(base: CFrame, def)
+	-- Barra junto a la pared derecha con taburetes
+	local barCF = sideWallCF(base, 1, 14, 0)
+	box("WindowBar", Vector3.new(12, 0.25, 1.6), barCF * CFrame.new(0, 3.6, -0.8), M.Wood, Color3.fromRGB(150, 110, 75))
+	for k = -1, 1 do
+		deco("BarBracket", Vector3.new(0.2, 1.2, 1.4), barCF * CFrame.new(k * 5.5, 2.9, -0.7), M.Metal, BLACK)
+	end
+	for k = 0, 3 do
+		stool(barCF * CFrame.new(-4.5 + k * 3, 0, -2.4), Color3.fromRGB(60, 40, 30))
+	end
+	for _, p in { { -12, 12 }, { 12, 12 }, { -12, 26 }, { 12, 28 }, { 0, 32 } } do
+		storePendant(L(base, p[1], STORE_H, p[2]), 4.5, Color3.fromRGB(35, 35, 38), def.Name)
+	end
+	aFrameBoard(F(base, 5, 3) * CFrame.Angles(0, math.rad(-20), 0), "CAFÉ DEL DÍA\n\nFlat white\n2,80 €")
+	-- Barra de detras del mostrador: molinillo, torres de tazas y botes
+	local counterTop = L(base, -14, 3.7, 40) * OUT
+	deco("Grinder", Vector3.new(0.9, 1.6, 0.9), counterTop * CFrame.new(1.8, 0.8, 0.3), M.Metal, BLACK)
+	deco("GrinderHopper", Vector3.new(0.9, 0.6, 0.6), counterTop * CFrame.new(1.8, 1.9, 0.3) * UPRIGHT, M.SmoothPlastic, Color3.fromRGB(120, 80, 50), { Shape = CYL, Transparency = 0.3 })
+	for k = 0, 2 do
+		deco("CupStack", Vector3.new(1.0, 0.5, 0.5), counterTop * CFrame.new(-4.6 + k * 0.6, 0.5, 0.5) * UPRIGHT, M.SmoothPlastic, Color3.fromRGB(245, 245, 240), { Shape = CYL })
+	end
+end
+
+function FITOUT.Market(base: CFrame, def)
+	produceStand(F(base, 12, 9.5))
+	basketStack(L(base, 4, 0, 4), def.Accent)
+	propOr("ShoppingCart", F(base, 2.5, 9) * CFrame.Angles(0, math.rad(15), 0), function() end, false)
+	hangingSign(F(base, -6, 22) * CFrame.new(0, 11.2, 0), 5, 1.4, "1 · DESPENSA", Color3.fromRGB(240, 60, 60), Color3.new(1, 1, 1), Enum.Font.GothamBlack, 4.1)
+	hangingSign(F(base, 6, 22) * CFrame.new(0, 11.2, 0), 5, 1.4, "2 · BEBIDAS", Color3.fromRGB(240, 60, 60), Color3.new(1, 1, 1), Enum.Font.GothamBlack, 4.1)
+	hangingSign(F(base, 19, 22) * CFrame.new(0, 11.2, 0), 5, 1.4, "CONGELADOS", Color3.fromRGB(60, 140, 220), Color3.new(1, 1, 1), Enum.Font.GothamBlack, 4.1)
+end
+
+function FITOUT.Salon(base: CFrame, def)
+	for _, d in { 10, 18, 26, 34 } do
+		toolTrolley(L(base, 17.2, 0, d + 2.4) * FACE_NEG_X)
+	end
+	for _, x in { -12, -7.5 } do
+		hoodDryer(F(base, x, 24), def.Accent:Lerp(DARK, 0.5))
+	end
+	magazineTable(L(base, 1.5, 0, 8))
+	pottedPlant(L(base, -12, 0, 6))
+end
+
+-- Titulo del cartel de caja segun el tipo de tienda
+local CHECKOUT_TITLE = {
+	Cafe = "PIDE AQUÍ",
+	Pharmacy = "DISPENSACIÓN",
+	Gym = "RECEPCIÓN",
+	Salon = "RECEPCIÓN",
+	Optics = "ATENCIÓN AL CLIENTE",
+}
+-- Tiendas sin antenas antirrobo en la puerta
+local NO_SECURITY_GATES = { Cafe = true, Gym = true, Salon = true }
+
+-- Acabado comun de todas las tiendas: muro de marca con logo, rieles de focos,
+-- instalaciones del techo, antenas antirrobo, vinilos del escaparate, felpudo, puerta
+-- del almacen, reloj, datafono y cartel de caja. Las cerradas quedan apagadas.
+function storeCommon(base: CFrame, def, hasBackDoor: boolean)
+	local open = not def.Closed
+	local zoneName = if open then def.Name else nil
+
+	-- Muro de marca detras del mostrador (del lado izquierdo hasta x -6) con el logo
+	local featureColor = def.Accent:Lerp(Color3.fromRGB(38, 36, 40), 0.5)
+	deco("FeatureWall", Vector3.new(17, STORE_H - 1.2, 0.08), backWallCF(base, -14.5, (STORE_H - 1.2) / 2, 0.04), M.SmoothPlastic, featureColor, { Variant = false, CastShadow = false })
+	deco("FeatureWallSide", Vector3.new(0.08, STORE_H - 1.2, 6), L(base, -SIDE_FACE + 0.04, (STORE_H - 1.2) / 2, BACK_FACE - 3), M.SmoothPlastic, featureColor, { Variant = false, CastShadow = false })
+	local logo = deco("BrandLogo", Vector3.new(11, 2.0, 0.14), backWallCF(base, -14.5, 13.3, 0.15), M.SmoothPlastic, featureColor, { Variant = false })
+	if open then
+		litSign(logo, def.Name, def.Accent:Lerp(Color3.new(1, 1, 1), 0.35), def.Font, Enum.NormalId.Front)
+		local halo = deco("BrandHalo", Vector3.new(10, 0.06, 0.06), backWallCF(base, -14.5, 12.15, 0.3), M.Neon, def.Accent, { CastShadow = false })
+		tag(halo, Tags.Light, { Zone = def.Name })
+	else
+		sign(logo, def.Name, def.Accent:Lerp(DARK, 0.5), def.Font, Enum.NormalId.Front)
+	end
+
+	-- Rieles de focos y techo: detectores de humo, altavoces y camara domo sobre la caja
+	for _, x in { -6, 6 } do
+		trackLights(base, x, 5, 45, 5, zoneName)
+	end
+	smokeDetector(L(base, 6, STORE_H, 19))
+	smokeDetector(L(base, -6, STORE_H, 33))
+	ceilingSpeaker(L(base, 0, STORE_H, 20))
+	ceilingSpeaker(L(base, 0, STORE_H, 40))
+	domeCamera(L(base, -9, STORE_H, 34))
+
+	-- Puerta del almacen (la fila sin salida trasera) y reloj de pared
+	if not hasBackDoor then
+		staffDoor(backWallCF(base, 3, 0))
+	end
+	wallClock(backWallCF(base, 6, 11.8))
+
+	-- Escaparate: franja de seguridad en los vidrios y horario en el vinilo
+	for _, side in { -1, 1 } do
+		deco("GlassBand", Vector3.new(13.4, 0.3, 0.02), L(base, side * 15.2, 4.9, 0.22), M.SmoothPlastic, Color3.new(1, 1, 1), {
+			Transparency = 0.5,
+			CastShadow = false,
+			Variant = false,
+		})
+	end
+	local hours = deco("HoursVinyl", Vector3.new(2.6, 2.4, 0.02), L(base, -10.6, 6.8, 0.22) * OUT, M.SmoothPlastic, Color3.new(1, 1, 1), {
+		Transparency = 1,
+		CastShadow = false,
+		Variant = false,
+	})
+	do
+		local gui = surface(hours, Enum.NormalId.Front, 50, 0.4, 1.2)
+		local holder = guiFrame(gui, { BackgroundTransparency = 1 })
+		local layout = Instance.new("UIListLayout")
+		layout.HorizontalAlignment = Enum.HorizontalAlignment.Center
+		layout.Parent = holder
+		local lines = if open
+			then { { def.Name, 0.28, def.Font }, { "HORARIO", 0.14, Enum.Font.GothamBold }, { "LUN – SÁB   10:00 – 22:00", 0.12, Enum.Font.Gotham }, { "DOM Y FESTIVOS   11:00 – 21:00", 0.12, Enum.Font.Gotham }, { "Aceptamos tarjeta", 0.1, Enum.Font.Gotham } }
+			else { { def.Name, 0.28, def.Font }, { "PRÓXIMA APERTURA", 0.16, Enum.Font.GothamBold }, { "Disculpen las molestias", 0.12, Enum.Font.Gotham } }
+		for i, line in lines do
+			guiText(holder, line[1], {
+				Size = UDim2.fromScale(1, line[2]),
+				Font = line[3],
+				TextColor3 = Color3.fromRGB(250, 250, 248),
+				TextTransparency = 0.05,
+				LayoutOrder = i,
+			})
+		end
+	end
+
+	-- Felpudo de entrada con el logo
+	-- (en la cara Top el texto corre a lo largo del eje Z de la pieza: el felpudo va girado)
+	local mat = deco("EntryMat", Vector3.new(4.4, 0.06, 9), L(base, 0, 0.03, 3.4) * CFrame.Angles(0, math.rad(90), 0), M.Carpet, Color3.fromRGB(38, 38, 42), { Variant = false })
+	do
+		local gui = surface(mat, Enum.NormalId.Top, 20, 1, 1)
+		guiText(guiFrame(gui, { BackgroundTransparency = 1 }), def.Name, {
+			AnchorPoint = Vector2.new(0.5, 0.5),
+			Position = UDim2.fromScale(0.5, 0.5),
+			Size = UDim2.fromScale(0.8, 0.45),
+			Font = def.Font,
+			TextColor3 = def.Accent:Lerp(Color3.fromRGB(38, 38, 42), 0.35),
+		})
+	end
+
+	-- Antenas antirrobo a los lados de la entrada
+	if not NO_SECURITY_GATES[def.Kind] then
+		for _, sx in { -7.2, 7.2 } do
+			securityGate(L(base, sx, 0, 2.4))
+		end
+	end
+
+	if not open then
+		return
+	end
+
+	-- Caja: datafono, cartel colgado y pegatina de videovigilancia
+	cardTerminal(L(base, -9.6, 3.72, 39.2) * OUT)
+	hangingSign(L(base, -14, 9.6, 39.6) * OUT, 4.6, 1.1, CHECKOUT_TITLE[def.Kind] or "CAJA", def.Accent:Lerp(DARK, 0.65), Color3.new(1, 1, 1), Enum.Font.GothamBold, 5.85)
+	local cctv = deco("CCTVSticker", Vector3.new(1.6, 1.1, 0.02), L(base, 12.8, 3.2, 0.22) * OUT, M.SmoothPlastic, Color3.fromRGB(250, 200, 30), { CastShadow = false, Variant = false })
+	printed(cctv, "ZONA\nVIDEOVIGILADA", BLACK, Enum.Font.GothamBlack, Enum.NormalId.Front)
+	-- Banderola de la promo colgada detras del escaparate (se ve desde la galeria)
+	local promo = (def.Promo or "NUEVA TEMPORADA"):gsub("\n", " ")
+	hangingSign(F(base, 0, 9) * CFrame.new(0, 11.1, 0), 8, 2.2, promo, def.Accent, Color3.new(1, 1, 1), Enum.Font.GothamBlack, 3.8)
+end
+
+-- Piezas que usan otras partes del mapa (tienda del conserje)
+Kit.wallClock = wallClock
+Kit.cardTerminal = cardTerminal
+Kit.hangingSign = hangingSign
+Kit.printed = printed
+Kit.slatwall = slatwall
+Kit.stool = stool
+Kit.smokeDetector = smokeDetector
+Kit.domeCamera = domeCamera
+Kit.ceilingSpeaker = ceilingSpeaker
+Kit.displayTable = displayTable
+Kit.stackRow = stackRow
+end -- (do: los helpers de arriba no cuentan para el limite de 200 locales del modulo)
+
 local function buildStore(def, index: number, frontCenter: Vector3, inward: Vector3, wing: string, hasBackDoor: boolean)
 	local storeFolder = Instance.new("Folder")
 	storeFolder.Name = def.Name
@@ -2205,7 +3486,8 @@ local function buildStore(def, index: number, frontCenter: Vector3, inward: Vect
 	local center = (base * CFrame.new(0, 0, -D / 2)).Position
 
 	-- Suelo, techo y zona
-	box("Floor", Vector3.new(W, 1, D), L(base, 0, -0.5, D / 2), def.Floor[1], def.Floor[2])
+	-- (Floor[3] = false: sin MaterialVariant; el porcelanico generado tira a marron)
+	box("Floor", Vector3.new(W, 1, D), L(base, 0, -0.5, D / 2), def.Floor[1], def.Floor[2], if def.Floor[3] == false then { Variant = false } else nil)
 	box("Ceiling", Vector3.new(W, 1, D), L(base, 0, H + 0.5, D / 2), M.Plaster, WHITE, { Variant = CEILING_VARIANT })
 	-- Falso techo perimetral (bulkhead) con tira de luz indirecta
 	for _, side in { -1, 1 } do
@@ -2221,8 +3503,9 @@ local function buildStore(def, index: number, frontCenter: Vector3, inward: Vect
 	})
 	tag(zonePart, Tags.Zone, { Zone = def.Name })
 
-	-- Paredes laterales y trasera (con puerta de servicio en la fila norte)
-	local wallColor = def.Accent:Lerp(WALL, 0.78)
+	-- Paredes laterales y trasera (con puerta de servicio en la fila norte): blanco roto con
+	-- un toque del color de la marca (el color fuerte va en el muro de marca de storeCommon)
+	local wallColor = def.Accent:Lerp(Color3.fromRGB(236, 233, 226), 0.92)
 	for _, side in { -1, 1 } do
 		box("SideWall", Vector3.new(1, H, D), L(base, side * (half - 0.5), H / 2, D / 2), M.Plaster, wallColor)
 		deco("Baseboard", Vector3.new(0.24, 0.7, D), L(base, side * (half - 1.1), 0.35, D / 2), M.SmoothPlastic, TRIM)
@@ -2399,11 +3682,16 @@ local function buildStore(def, index: number, frontCenter: Vector3, inward: Vect
 	trashBin(L(base, -21, 0, 45), if def.Closed then nil else wing)
 	-- Publicidad retroiluminada en la pared izquierda (por encima de los muebles)
 	if not def.Closed then
-		lightbox(L(base, -23.2, 12, 34) * FACE_POS_X, 8, 3.2, def.Promo or "NUEVA TEMPORADA", def.Accent, def.Name)
+		-- (x -22.75: antes quedaba dentro del muro y no se veia)
+		lightbox(L(base, -22.75, 12, 34) * FACE_POS_X, 8, 3.2, def.Promo or "NUEVA TEMPORADA", def.Accent, def.Name)
 	end
 
-	-- Interior segun el tipo
+	-- Interior segun el tipo, acabado comun y mobiliario extra (las cerradas, sin extras)
 	local hasHiding = INTERIORS[def.Kind](base, def)
+	storeCommon(base, def, hasBackDoor)
+	if not def.Closed and FITOUT[def.Kind] then
+		FITOUT[def.Kind](base, def)
+	end
 
 	-- Escondite (armario del personal) si el interior no trae uno
 	if not hasHiding then
@@ -2456,7 +3744,7 @@ end
 
 local STORES_1 = {
 	{ Name = "Moda Luna", Kind = "Clothes", Promo = "NUEVA\nCOLECCIÓN", Accent = Color3.fromRGB(235, 120, 170), Font = Enum.Font.Garamond, Floor = { M.WoodPlanks, Color3.fromRGB(240, 232, 220) } },
-	{ Name = "TecnoMax", Kind = "Tech", Promo = "OFERTAS\n-30%", Accent = Color3.fromRGB(70, 195, 255), Font = Enum.Font.Michroma, Floor = { M.Slate, Color3.fromRGB(72, 72, 80) } },
+	{ Name = "TecnoMax", Kind = "Tech", Promo = "OFERTAS\n-30%", Accent = Color3.fromRGB(70, 195, 255), Font = Enum.Font.Michroma, Floor = { M.CeramicTiles, Color3.fromRGB(196, 198, 200), false } },
 	{ Name = "Juguetería Pipo", Kind = "Toys", Promo = "¡A JUGAR!", Accent = Color3.fromRGB(255, 205, 50), Font = Enum.Font.FredokaOne, Floor = { M.CeramicTiles, Color3.fromRGB(150, 200, 235) } },
 	{ Name = "Deportes Ríos", Kind = "Sports", Promo = "SUPERA\nTUS LÍMITES", Accent = Color3.fromRGB(70, 210, 100), Font = Enum.Font.Oswald, Floor = { M.Rubber, Color3.fromRGB(60, 62, 68) } },
 	{ Name = "Librería Papel", Kind = "Books", Promo = "LOS MÁS\nLEÍDOS", Accent = Color3.fromRGB(240, 210, 150), Font = Enum.Font.Merriweather, Floor = { M.Carpet, Color3.fromRGB(115, 40, 45) } },
@@ -2477,7 +3765,7 @@ local STORES_2 = {
 	{ Name = "Súper Express", Kind = "Market", Promo = "FRESCO\nCADA DÍA", Accent = Color3.fromRGB(240, 60, 60), Font = Enum.Font.GothamBlack, Floor = { M.CeramicTiles, Color3.fromRGB(225, 225, 220) } },
 	{ Name = "Salón Glamour", Kind = "Salon", Promo = "LUCE\nINCREÍBLE", Accent = Color3.fromRGB(255, 120, 200), Font = Enum.Font.Fondamento, Floor = { M.Marble, Color3.fromRGB(240, 236, 232) } },
 	{ Name = "Moda Peque", Kind = "Clothes", Promo = "VUELTA\nAL COLE", Accent = Color3.fromRGB(120, 200, 255), Font = Enum.Font.FredokaOne, Floor = { M.WoodPlanks, Color3.fromRGB(240, 232, 220) } },
-	{ Name = "Electro Casa", Kind = "Tech", Promo = "TODO PARA\nTU HOGAR", Accent = Color3.fromRGB(90, 220, 200), Font = Enum.Font.Gotham, Floor = { M.Slate, Color3.fromRGB(80, 80, 86) } },
+	{ Name = "Electro Casa", Kind = "Tech", Promo = "TODO PARA\nTU HOGAR", Accent = Color3.fromRGB(90, 220, 200), Font = Enum.Font.Gotham, Floor = { M.CeramicTiles, Color3.fromRGB(204, 204, 202), false } },
 }
 
 -- Las tiendas del centro (columna 3, x -24..24) ya no estan en la galeria: alli se abren
@@ -3945,20 +5233,349 @@ local function buildEntrance()
 	litSign(infoSign, "INFORMACIÓN · OBJETOS PERDIDOS", Color3.fromRGB(120, 200, 255), Enum.Font.GothamBold, Enum.NormalId.Right)
 	deco("InfoSignHanger", Vector3.new(0.1, 5, 0.1), at(136, 12.5, -36), M.Metal, DARK)
 
-	-- Tienda del conserje (tienda del mall)
-	local counterPos = Vector3.new(160, Y0 + 1.75, 64)
-	local counter = box("ShopCounter", Vector3.new(14, 3.5, 3), CFrame.lookAt(counterPos, counterPos + Vector3.new(0, 0, -1)), M.Wood, Color3.fromRGB(150, 110, 70))
-	tag(counter, Tags.ShopCounter)
-	local shopSign = box("ShopSign", Vector3.new(16, 3, 0.4), at(160, 10, 69.7), M.SmoothPlastic, Color3.fromRGB(16, 24, 36), { CanCollide = false })
-	litSign(shopSign, "TIENDA DEL CONSERJE", Color3.fromRGB(120, 200, 255), Enum.Font.GothamBlack, Enum.NormalId.Front)
-	for _, dy in { -1.6, 1.6 } do
-		deco("ShopSignNeon", Vector3.new(16.4, 0.15, 0.15), at(160, 10 + dy, 69.45), M.Neon, Color3.fromRGB(40, 140, 230))
+	-- Tienda del conserje (la tienda del mall): local de suministros encajado contra el muro
+	-- norte (x 144..168, z 58..70): tabiques, cabecera con rotulo, persiana enrollada,
+	-- mostrador con caja (tag ShopCounter), vitrina "bajo llave", estanterias de fondo con
+	-- lo que se vende en la tienda (limpieza, linternas y pilas, primeros auxilios),
+	-- panel de herramientas, fregonas y el rincon del personal.
+	do
+		local SX1, SX2, SZ1, SZ2 = 144, 168, 58, 70
+		local CX, CZ = (SX1 + SX2) / 2, (SZ1 + SZ2) / 2
+		local NAVY = Color3.fromRGB(24, 40, 64)
+		local YELLOW = Color3.fromRGB(250, 196, 30)
+		local RED = Color3.fromRGB(200, 30, 30)
+		local SHELF_GREY = Color3.fromRGB(150, 154, 160)
+		local INK = Color3.fromRGB(22, 22, 25)
+		local CYL, BALL = Enum.PartType.Cylinder, Enum.PartType.Ball
+		local UP = CFrame.Angles(0, 0, math.rad(90)) -- cilindro de pie
+
+		-- Franja de seguridad amarilla y negra (dibujada) en la cara `face` de una pieza
+		local function hazard(part: BasePart, face: Enum.NormalId)
+			local gui = Instance.new("SurfaceGui")
+			gui.Face = face
+			gui.SizingMode = Enum.SurfaceGuiSizingMode.PixelsPerStud
+			gui.PixelsPerStud = 20
+			gui.LightInfluence = 1
+			local holder = Instance.new("Frame")
+			holder.Size = UDim2.fromScale(1, 1)
+			holder.BackgroundColor3 = YELLOW
+			holder.BorderSizePixel = 0
+			holder.ClipsDescendants = true
+			holder.Parent = gui
+			for i = -2, 40 do
+				local bar = Instance.new("Frame")
+				bar.AnchorPoint = Vector2.new(0.5, 0.5)
+				bar.Position = UDim2.new(0, i * 24, 0.5, 0)
+				bar.Size = UDim2.new(0, 10, 3, 0)
+				bar.Rotation = 40
+				bar.BackgroundColor3 = INK
+				bar.BorderSizePixel = 0
+				bar.Parent = holder
+			end
+			gui.Parent = part
+		end
+
+		-- Suelo de vinilo gris con franja de seguridad en el borde del local
+		deco("ShopFloor", Vector3.new(SX2 - SX1, 0.06, SZ2 - SZ1), at(CX, 0.03, CZ), M.SmoothPlastic, Color3.fromRGB(118, 122, 126), { Variant = false })
+		hazard(deco("ShopEdge", Vector3.new(SX2 - SX1, 0.07, 0.5), at(CX, 0.035, SZ1 + 0.25), M.SmoothPlastic, YELLOW, { Variant = false }), Enum.NormalId.Top)
+
+		-- Tabiques laterales con canto de aluminio, cabecera azul con el rotulo luminoso
+		for _, x in { SX1, SX2 } do
+			box("ShopPartition", Vector3.new(0.6, ENTRY_H, SZ2 - SZ1), at(x, ENTRY_H / 2, CZ), M.Plaster, Color3.fromRGB(226, 224, 218))
+			deco("PartitionEdge", Vector3.new(0.8, ENTRY_H, 0.3), at(x, ENTRY_H / 2, SZ1 - 0.1), M.Metal, STEEL)
+		end
+		box("ShopFascia", Vector3.new(SX2 - SX1 + 0.8, 4.6, 0.8), at(CX, ENTRY_H - 2.3, SZ1), M.SmoothPlastic, NAVY, { Variant = false })
+		deco("FasciaTrim", Vector3.new(SX2 - SX1 + 0.8, 0.2, 1.0), at(CX, ENTRY_H - 4.6, SZ1), M.Metal, STEEL)
+		local shopSign = deco("ShopSign", Vector3.new(20, 2.3, 0.2), at(CX, 14.35, SZ1 - 0.5), M.SmoothPlastic, NAVY, { Variant = false })
+		litSign(shopSign, "TIENDA DEL CONSERJE", Color3.fromRGB(255, 214, 90), Enum.Font.GothamBlack, Enum.NormalId.Front)
+		local subSign = deco("ShopSubSign", Vector3.new(15, 0.9, 0.2), at(CX, 12.4, SZ1 - 0.5), M.SmoothPlastic, NAVY, { Variant = false })
+		litSign(subSign, "SUMINISTROS · LIMPIEZA · SEGURIDAD", Color3.fromRGB(200, 225, 255), Enum.Font.GothamBold, Enum.NormalId.Front)
+		local signLine = deco("ShopSignNeon", Vector3.new(SX2 - SX1, 0.12, 0.12), at(CX, 11.7, SZ1 - 0.45), M.Neon, YELLOW, { CastShadow = false })
+		tag(signLine, Tags.Light, { Zone = Z })
+		-- Persiana metalica enrollada (cajon) con sus guias
+		deco("GrilleBox", Vector3.new(SX2 - SX1 - 0.6, 0.9, 0.9), at(CX, 10.95, SZ1 + 0.4), M.Metal, Color3.fromRGB(170, 172, 176))
+		for _, x in { SX1 + 0.55, SX2 - 0.55 } do
+			deco("GrilleGuide", Vector3.new(0.3, 10.5, 0.4), at(x, 5.25, SZ1 + 0.4), M.Metal, Color3.fromRGB(150, 152, 158))
+		end
+
+		-- Techo del local: fluorescentes, detector, altavoz y camara domo
+		for _, x in { 150, 162 } do
+			ceilingPanel(at(x, ENTRY_H, 64.5), Z, Vector2.new(7, 1.4), 22, 1.3, true)
+		end
+		Kit.smokeDetector(at(156, ENTRY_H, 61))
+		Kit.ceilingSpeaker(at(146.5, ENTRY_H, 61))
+		Kit.domeCamera(at(165, ENTRY_H, 61))
+
+		-- Mostrador: frente con el logo y zocalo de seguridad, encimera de acero (tag ShopCounter)
+		local counter = box("ShopCounter", Vector3.new(14.6, 3.5, 2.6), at(153.3, 1.75, 60.8), M.SmoothPlastic, Color3.fromRGB(52, 60, 72), { Variant = false })
+		tag(counter, Tags.ShopCounter)
+		deco("CounterTop", Vector3.new(15.2, 0.2, 3.1), at(153.3, 3.6, 60.85), M.Metal, STEEL, { Reflectance = 0.15 })
+		local front = deco("CounterFront", Vector3.new(13.8, 2.0, 0.06), at(153.3, 2.1, 59.47), M.SmoothPlastic, NAVY, { Variant = false })
+		Kit.printed(front, "TIENDA DEL CONSERJE", Color3.fromRGB(255, 214, 90), Enum.Font.GothamBlack, Enum.NormalId.Front)
+		hazard(deco("CounterKick", Vector3.new(14.6, 0.55, 0.06), at(153.3, 0.3, 59.47), M.SmoothPlastic, YELLOW, { Variant = false }), Enum.NormalId.Front)
+		local cardSticker = deco("CardSticker", Vector3.new(1.6, 0.8, 0.04), at(158.6, 2.7, 59.43), M.SmoothPlastic, Color3.fromRGB(245, 245, 240), { Variant = false })
+		Kit.printed(cardSticker, "PAGO CON\nTARJETA", Color3.fromRGB(30, 60, 140), Enum.Font.GothamBold, Enum.NormalId.Front)
+		-- Encima: caja registradora, datafono, timbre, expositor de pilas, radios y portapapeles
+		propOr("CashRegister", at(156.5, 3.7, 61.1), function(cf)
+			box("Register", Vector3.new(1.6, 1, 1.2), cf * CFrame.new(0, 0.5, 0), M.Metal, INK)
+		end, false)
+		Kit.cardTerminal(at(153.6, 3.72, 60.0))
+		deco("BellBase", Vector3.new(0.1, 0.6, 0.6), at(151.3, 3.75, 60.1) * UP, M.Metal, INK, { Shape = CYL })
+		deco("Bell", Vector3.new(0.5, 0.5, 0.5), at(151.3, 3.85, 60.1), M.Metal, Color3.fromRGB(215, 190, 120), { Shape = BALL, Reflectance = 0.4 })
+		local caddy = deco("BatteryCaddy", Vector3.new(1.6, 0.5, 1.0), at(148.6, 3.95, 60.4), M.Cardboard, Color3.fromRGB(230, 60, 40))
+		Kit.printed(caddy, "PILAS 2x1", Color3.new(1, 1, 1), Enum.Font.GothamBlack, Enum.NormalId.Front)
+		for k = 0, 3 do
+			deco("BatteryCard", Vector3.new(0.34, 0.75, 0.05), at(148.0 + k * 0.4, 4.4, 60.5 + (k % 2) * 0.2), M.SmoothPlastic, if k % 2 == 0 then Color3.fromRGB(30, 30, 34) else Color3.fromRGB(230, 120, 20), { Variant = false })
+		end
+		deco("RadioDock", Vector3.new(1.4, 0.3, 0.7), at(146.9, 3.85, 61.6), M.SmoothPlastic, INK, { Variant = false })
+		for k = 0, 1 do
+			deco("Walkie", Vector3.new(0.45, 1.1, 0.3), at(146.6 + k * 0.6, 4.5, 61.6), M.SmoothPlastic, Color3.fromRGB(40, 42, 46), { Variant = false })
+			deco("WalkieAntenna", Vector3.new(0.08, 0.6, 0.08), at(146.45 + k * 0.6, 5.3, 61.6), M.Rubber, INK)
+			deco("WalkieLed", Vector3.new(0.08, 0.08, 0.04), at(146.75 + k * 0.6, 4.95, 61.44), M.Neon, Color3.fromRGB(60, 255, 90), { CastShadow = false })
+		end
+		deco("Clipboard", Vector3.new(0.9, 0.05, 1.3), at(158.9, 3.72, 61.4) * CFrame.Angles(0, math.rad(12), 0), M.Wood, Color3.fromRGB(160, 120, 80))
+		deco("ClipboardSheet", Vector3.new(0.8, 0.02, 1.1), at(158.9, 3.76, 61.45) * CFrame.Angles(0, math.rad(12), 0), M.SmoothPlastic, Color3.fromRGB(245, 245, 240), { Variant = false })
+
+		-- Vitrina "bajo llave" (taser, machete y pistola) a la derecha del paso del personal
+		local VX = 165
+		box("LockedCase", Vector3.new(4.8, 2.6, 2.4), at(VX, 1.3, 60.8), M.SmoothPlastic, Color3.fromRGB(42, 46, 52), { Variant = false })
+		deco("LockedCaseFloor", Vector3.new(4.6, 0.06, 2.2), at(VX, 2.63, 60.8), M.Fabric, Color3.fromRGB(25, 28, 34))
+		deco("LockedCaseGlass", Vector3.new(4.8, 1.2, 2.4), at(VX, 3.2, 60.8), M.SmoothPlastic, Color3.fromRGB(215, 232, 238), {
+			Transparency = 0.82,
+			Reflectance = 0.25,
+			CastShadow = false,
+			Variant = false,
+		})
+		deco("LockedCaseTop", Vector3.new(4.9, 0.12, 2.5), at(VX, 3.86, 60.8), M.Metal, STEEL)
+		local caseLed = deco("LockedCaseLED", Vector3.new(4.4, 0.04, 0.06), at(VX, 3.75, 59.9), M.Neon, Color3.fromRGB(235, 245, 255), { CastShadow = false })
+		tag(caseLed, Tags.Light, { Zone = Z })
+		deco("Lock", Vector3.new(0.3, 0.35, 0.08), at(VX + 1.6, 2.2, 59.58), M.Metal, Color3.fromRGB(210, 180, 90))
+		-- Machete
+		deco("MacheteBlade", Vector3.new(2.2, 0.06, 0.45), at(VX - 0.6, 2.7, 60.4) * CFrame.Angles(0, math.rad(8), 0), M.Metal, Color3.fromRGB(190, 194, 200), { Reflectance = 0.3 })
+		deco("MacheteGrip", Vector3.new(0.8, 0.14, 0.25), at(VX + 0.9, 2.72, 60.6) * CFrame.Angles(0, math.rad(8), 0), M.Wood, Color3.fromRGB(70, 45, 30))
+		-- Taser
+		deco("TaserBody", Vector3.new(0.9, 0.3, 0.45), at(VX - 1.2, 2.82, 61.4), M.SmoothPlastic, Color3.fromRGB(250, 200, 30), { Variant = false })
+		deco("TaserTip", Vector3.new(0.3, 0.25, 0.35), at(VX - 1.75, 2.8, 61.4), M.SmoothPlastic, INK, { Variant = false })
+		-- Pistola (silueta)
+		deco("PistolSlide", Vector3.new(1.1, 0.22, 0.25), at(VX + 0.8, 2.8, 61.4), M.Metal, Color3.fromRGB(35, 35, 38))
+		deco("PistolGrip", Vector3.new(0.3, 0.12, 0.6), at(VX + 1.15, 2.74, 61.75) * CFrame.Angles(0, math.rad(-15), 0), M.SmoothPlastic, Color3.fromRGB(35, 35, 38), { Variant = false })
+		local caseTag = deco("LockedSign", Vector3.new(2.2, 0.5, 0.04), at(VX, 2.15, 59.58), M.SmoothPlastic, RED, { Variant = false })
+		Kit.printed(caseTag, "BAJO LLAVE · PIDE AL CONSERJE", Color3.new(1, 1, 1), Enum.Font.GothamBold, Enum.NormalId.Front)
+
+		-- Estanteria del fondo: 3 modulos (z 67.4..70) con baldas, precios y cartel por modulo
+		local RZ = 68.7
+		box("BackShelving", Vector3.new(21.8, 9.2, 2.6), at(CX, 4.6, RZ), M.SmoothPlastic, Color3.new(1, 1, 1), { Transparency = 1, Variant = false })
+		for _, x in { 145.1, 152.4, 159.6, 166.9 } do
+			for _, z in { 67.55, 69.8 } do
+				deco("ShelfUpright", Vector3.new(0.25, 9.6, 0.25), at(x, 4.8, z), M.Metal, Color3.fromRGB(70, 74, 82))
+			end
+		end
+		deco("ShelfBackPanel", Vector3.new(21.8, 9.2, 0.08), at(CX, 4.8, 69.92), M.Metal, Color3.fromRGB(200, 202, 206))
+		local shelfYs = { 0.45, 2.35, 4.25, 6.15, 8.05 }
+		for i, y in shelfYs do
+			deco("Shelf", Vector3.new(21.6, 0.12, 2.4), at(CX, y, RZ), M.Metal, SHELF_GREY)
+			local strip = deco("PriceStrip", Vector3.new(21.6, 0.3, 0.05), at(CX, y - 0.05, 67.48), M.SmoothPlastic, Color3.fromRGB(245, 245, 240), { Variant = false })
+			local gui = Instance.new("SurfaceGui")
+			gui.Face = Enum.NormalId.Front
+			gui.SizingMode = Enum.SurfaceGuiSizingMode.PixelsPerStud
+			gui.PixelsPerStud = 30
+			gui.LightInfluence = 1
+			local row = Instance.new("Frame")
+			row.Size = UDim2.fromScale(1, 1)
+			row.BackgroundTransparency = 1
+			row.Parent = gui
+			local layout = Instance.new("UIListLayout")
+			layout.FillDirection = Enum.FillDirection.Horizontal
+			layout.HorizontalAlignment = Enum.HorizontalAlignment.Center
+			layout.Padding = UDim.new(0.03, 0)
+			layout.Parent = row
+			for k = 1, 9 do
+				local label = Instance.new("TextLabel")
+				label.Size = UDim2.fromScale(0.08, 1)
+				label.BackgroundColor3 = if (k + i) % 4 == 0 then YELLOW else Color3.fromRGB(245, 245, 240)
+				label.BorderSizePixel = 0
+				label.Font = Enum.Font.GothamBold
+				label.TextScaled = true
+				label.TextColor3 = INK
+				label.Text = string.format("%d,%02d €", 1 + (k * 7 + i * 3) % 19, (k * 37 + i * 11) % 100)
+				label.LayoutOrder = k
+				label.Parent = row
+			end
+			gui.Parent = strip
+		end
+		for k, title in { "LIMPIEZA", "LINTERNAS · PILAS", "PRIMEROS AUXILIOS" } do
+			local header = deco("BayHeader", Vector3.new(6.8, 0.9, 0.2), at(148.75 + (k - 1) * 7.25, 9.75, 67.5), M.SmoothPlastic, NAVY, { Variant = false })
+			Kit.printed(header, title, Color3.fromRGB(255, 214, 90), Enum.Font.GothamBold, Enum.NormalId.Front)
+		end
+		local function onShelf(i: number, x: number, z: number?): CFrame
+			return at(x, shelfYs[i] + 0.06, z or 68.4)
+		end
+
+		-- Modulo 1: LIMPIEZA (x 145.4..152.1)
+		for k = 0, 2 do
+			local p = onShelf(1, 146.6 + k * 2.2)
+			deco("Bucket", Vector3.new(1.3, 1.3, 1.3), p * CFrame.new(0, 0.65, 0) * UP, M.SmoothPlastic, YELLOW, { Shape = CYL, Variant = false })
+			deco("BucketRim", Vector3.new(0.1, 1.42, 1.42), p * CFrame.new(0, 1.3, 0) * UP, M.SmoothPlastic, Color3.fromRGB(230, 170, 20), { Shape = CYL, Variant = false })
+		end
+		for k = 0, 4 do
+			local p = onShelf(2, 146.0 + k * 1.3)
+			local color = ({ Color3.fromRGB(40, 110, 200), Color3.fromRGB(60, 170, 80), Color3.fromRGB(240, 120, 30), Color3.fromRGB(40, 110, 200), Color3.fromRGB(230, 230, 235) })[k + 1]
+			deco("Jug", Vector3.new(0.9, 1.3, 0.6), p * CFrame.new(0, 0.65, 0), M.SmoothPlastic, color, { Variant = false })
+			deco("JugCap", Vector3.new(0.2, 0.3, 0.3), p * CFrame.new(-0.2, 1.4, 0) * UP, M.SmoothPlastic, Color3.fromRGB(240, 240, 240), { Shape = CYL, Variant = false })
+			deco("JugLabel", Vector3.new(0.7, 0.5, 0.02), p * CFrame.new(0, 0.6, -0.31), M.SmoothPlastic, Color3.fromRGB(250, 250, 245), { Variant = false, CastShadow = false })
+		end
+		for k = 0, 7 do
+			local p = onShelf(3, 145.9 + k * 0.82)
+			local color = ({ Color3.fromRGB(80, 170, 230), Color3.fromRGB(240, 90, 150), Color3.fromRGB(120, 200, 90), Color3.fromRGB(250, 200, 40) })[k % 4 + 1]
+			deco("SprayBody", Vector3.new(0.5, 1.0, 0.32), p * CFrame.new(0, 0.5, 0), M.SmoothPlastic, color, { Transparency = 0.1, Variant = false })
+			deco("SprayNeck", Vector3.new(0.14, 0.25, 0.14), p * CFrame.new(0, 1.12, 0), M.SmoothPlastic, Color3.fromRGB(240, 240, 240), { Variant = false })
+			deco("SprayHead", Vector3.new(0.18, 0.22, 0.45), p * CFrame.new(0, 1.3, -0.1), M.SmoothPlastic, Color3.fromRGB(240, 240, 240), { Variant = false })
+		end
+		for k = 0, 5 do
+			local p = onShelf(4, 146.0 + k * 1.15)
+			deco("TowelRoll", Vector3.new(1.3, 0.95, 0.95), p * CFrame.new(0, 0.65, 0) * UP, M.Fabric, Color3.fromRGB(248, 248, 244), { Shape = CYL })
+		end
+		productRow(onShelf(5, 148.75), 6.2, 1.8, Color3.fromRGB(185, 145, 95))
+
+		-- Modulo 2: LINTERNAS · PILAS (x 152.6..159.4)
+		for k = 0, 3 do
+			local p = onShelf(1, 153.6 + k * 1.65)
+			local boxPart = deco("LanternBox", Vector3.new(1.4, 1.5, 1.2), p * CFrame.new(0, 0.75, 0), M.Cardboard, Color3.fromRGB(235, 225, 205))
+			Kit.printed(boxPart, "LINTERNA\nLED", INK, Enum.Font.GothamBlack, Enum.NormalId.Front)
+		end
+		for k = 0, 5 do
+			local p = onShelf(2, 153.3 + k * 1.1, 67.95) * CFrame.Angles(0, math.rad(90), 0)
+			local color = if k % 2 == 0 then INK else YELLOW
+			deco("FlashlightBody", Vector3.new(1.2, 0.32, 0.32), p * CFrame.new(0, 0.18, 0), M.SmoothPlastic, color, { Shape = CYL, Variant = false })
+			deco("FlashlightHead", Vector3.new(0.35, 0.48, 0.48), p * CFrame.new(-0.7, 0.26, 0), M.SmoothPlastic, color, { Shape = CYL, Variant = false })
+			deco("FlashlightLens", Vector3.new(0.04, 0.4, 0.4), p * CFrame.new(-0.88, 0.26, 0), M.SmoothPlastic, Color3.fromRGB(230, 240, 250), { Shape = CYL, Reflectance = 0.4, Variant = false })
+		end
+		for k = 0, 7 do
+			local p = onShelf(3, 153.2 + k * 0.82, 67.9)
+			deco("BatteryPack", Vector3.new(0.62, 1.05, 0.08), p * CFrame.new(0, 0.53, 0), M.SmoothPlastic, if k % 2 == 0 then Color3.fromRGB(30, 30, 34) else Color3.fromRGB(230, 120, 20), { Variant = false })
+			for b = 0, 1 do
+				deco("Battery", Vector3.new(0.6, 0.18, 0.18), p * CFrame.new(-0.1 + b * 0.2, 0.45, -0.1) * UP, M.Metal, Color3.fromRGB(220, 180, 60), { Shape = CYL })
+			end
+		end
+		for k = 0, 2 do
+			local p = onShelf(4, 153.7 + k * 2.2)
+			deco("FlareBox", Vector3.new(1.8, 0.5, 1.2), p * CFrame.new(0, 0.25, 0), M.Cardboard, Color3.fromRGB(200, 60, 40))
+			for s = 0, 3 do
+				deco("Flare", Vector3.new(1.4, 0.18, 0.18), p * CFrame.new(-0.6 + s * 0.4, 0.62, 0) * CFrame.Angles(0, math.rad(90), 0) * CFrame.Angles(0, 0, math.rad(8)), M.SmoothPlastic, Color3.fromRGB(220, 30, 30), { Shape = CYL, Variant = false })
+			end
+		end
+		for k = 0, 3 do
+			local p = onShelf(5, 153.5 + k * 1.6) * CFrame.Angles(0, math.rad(90), 0)
+			deco("UVFlashlight", Vector3.new(1.1, 0.34, 0.34), p * CFrame.new(0, 0.2, 0), M.SmoothPlastic, Color3.fromRGB(110, 50, 170), { Shape = CYL, Variant = false })
+			deco("UVLens", Vector3.new(0.05, 0.36, 0.36), p * CFrame.new(-0.57, 0.2, 0), M.Neon, Color3.fromRGB(150, 80, 255), { Shape = CYL, CastShadow = false })
+		end
+
+		-- Modulo 3: PRIMEROS AUXILIOS (x 159.9..166.6)
+		for k = 0, 2 do
+			local p = onShelf(1, 161.0 + k * 2.1)
+			deco("Extinguisher", Vector3.new(1.7, 0.75, 0.75), p * CFrame.new(0, 0.85, 0) * UP, M.SmoothPlastic, RED, { Shape = CYL, Reflectance = 0.1, Variant = false })
+			deco("ExtinguisherHead", Vector3.new(0.35, 0.4, 0.5), p * CFrame.new(0, 1.85, 0), M.Metal, INK)
+			deco("ExtinguisherLabel", Vector3.new(0.6, 0.6, 0.02), p * CFrame.new(0, 0.9, -0.38), M.SmoothPlastic, Color3.fromRGB(245, 245, 240), { Variant = false, CastShadow = false })
+		end
+		for k = 0, 2 do
+			local p = onShelf(2, 161.1 + k * 2.1)
+			local bag = deco("FirstAidBag", Vector3.new(1.8, 1.2, 1.1), p * CFrame.new(0, 0.6, 0), M.Fabric, Color3.fromRGB(40, 130, 70))
+			Kit.printed(bag, "✚", Color3.new(1, 1, 1), Enum.Font.GothamBlack, Enum.NormalId.Front)
+		end
+		for k = 0, 4 do
+			local p = onShelf(3, 160.7 + k * 1.3)
+			local kit = deco("FirstAidKit", Vector3.new(1.1, 0.8, 0.5), p * CFrame.new(0, 0.4, -0.2), M.SmoothPlastic, Color3.fromRGB(245, 245, 242), { Variant = false })
+			Kit.printed(kit, "✚", RED, Enum.Font.GothamBlack, Enum.NormalId.Front)
+		end
+		Kit.stackRow(onShelf(4, 162.0), 3.6, 1.6, { Color3.fromRGB(220, 255, 40), Color3.fromRGB(255, 140, 30) }, 0.8, 1.2)
+		for k = 0, 1 do
+			deco("HardHat", Vector3.new(1.1, 1.1, 1.1), onShelf(4, 164.9 + k * 1.2) * CFrame.new(0, 0.05, 0), M.SmoothPlastic, YELLOW, { Shape = BALL, Variant = false })
+		end
+		productRow(onShelf(5, 163.25), 6.2, 1.8, Color3.fromRGB(185, 145, 95))
+
+		-- Tabique izquierdo: panel perforado con herramientas y fregonas/escobas apoyadas
+		local pegX = SX1 + 0.36
+		local board = deco("Pegboard", Vector3.new(0.08, 4.6, 5), at(pegX, 6.1, 64.5), M.Wood, Color3.fromRGB(175, 135, 90))
+		do
+			local gui = Instance.new("SurfaceGui")
+			gui.Face = Enum.NormalId.Right
+			gui.SizingMode = Enum.SurfaceGuiSizingMode.PixelsPerStud
+			gui.PixelsPerStud = 20
+			gui.LightInfluence = 1
+			local grid = Instance.new("Frame")
+			grid.Size = UDim2.fromScale(1, 1)
+			grid.BackgroundTransparency = 1
+			grid.Parent = gui
+			local layout = Instance.new("UIGridLayout")
+			layout.CellSize = UDim2.fromOffset(3, 3)
+			layout.CellPadding = UDim2.fromOffset(7, 7)
+			layout.Parent = grid
+			for _ = 1, 230 do
+				local hole = Instance.new("Frame")
+				hole.BackgroundColor3 = Color3.fromRGB(70, 50, 30)
+				hole.BorderSizePixel = 0
+				hole.Parent = grid
+			end
+			gui.Parent = board
+		end
+		local function tool(name: string, size: Vector3, y: number, z: number, color: Color3, rot: number?)
+			deco(name, size, at(pegX + 0.15, y, z) * CFrame.Angles(math.rad(rot or 0), 0, 0), M.Metal, color)
+		end
+		tool("Hammer", Vector3.new(0.12, 1.6, 0.18), 6.6, 62.6, Color3.fromRGB(120, 80, 50))
+		tool("HammerHead", Vector3.new(0.18, 0.3, 0.8), 7.4, 62.6, Color3.fromRGB(60, 62, 66))
+		tool("Wrench", Vector3.new(0.08, 1.5, 0.2), 6.5, 63.6, STEEL, 10)
+		tool("Wrench", Vector3.new(0.08, 1.2, 0.18), 6.6, 64.2, STEEL, -10)
+		tool("Screwdriver", Vector3.new(0.12, 1.3, 0.12), 6.4, 64.9, Color3.fromRGB(220, 50, 40))
+		tool("Screwdriver", Vector3.new(0.12, 1.3, 0.12), 6.4, 65.3, Color3.fromRGB(250, 200, 30))
+		tool("Pliers", Vector3.new(0.1, 1.2, 0.35), 6.5, 66.0, Color3.fromRGB(220, 50, 40), 6)
+		for k = 0, 2 do
+			deco("TapeRoll", Vector3.new(0.35, 0.8, 0.8), at(pegX + 0.25, 4.5, 63 + k * 1.1) * CFrame.Angles(0, 0, 0), M.SmoothPlastic, ({ Color3.fromRGB(170, 170, 175), YELLOW, RED })[k + 1], { Shape = CYL, Variant = false })
+		end
+		deco("TapeMeasure", Vector3.new(0.4, 0.7, 0.7), at(pegX + 0.25, 4.5, 66.4), M.SmoothPlastic, YELLOW, { Variant = false })
+		for k = 0, 3 do
+			local base = at(SX1 + 0.9, 0, 59.4 + k * 0.75) * CFrame.Angles(math.rad(-4 + k * 2), 0, math.rad(-8))
+			deco("MopHandle", Vector3.new(0.14, 5.6, 0.14), base * CFrame.new(0, 2.9, 0), M.Wood, if k % 2 == 0 then Color3.fromRGB(40, 110, 200) else Color3.fromRGB(200, 60, 40))
+			if k % 2 == 0 then
+				deco("MopHead", Vector3.new(0.7, 0.6, 0.7), base * CFrame.new(0, 0.3, 0), M.Fabric, Color3.fromRGB(235, 232, 220))
+			else
+				deco("BroomHead", Vector3.new(0.4, 0.5, 1.4), base * CFrame.new(0, 0.25, 0), M.Plastic, Color3.fromRGB(60, 60, 64))
+			end
+		end
+
+		-- Tabique derecho: armario de llaves, tablon de avisos, reloj de fichar y reloj
+		local wx = SX2 - 0.32
+		deco("KeyCabinet", Vector3.new(0.4, 2.2, 1.8), at(wx - 0.2, 5.8, 61.2), M.Metal, Color3.fromRGB(200, 200, 196))
+		deco("KeyCabinetDoor", Vector3.new(0.05, 1.9, 1.5), at(wx - 0.42, 5.8, 61.2), M.SmoothPlastic, Color3.fromRGB(215, 232, 238), { Transparency = 0.6, Variant = false })
+		for k = 0, 5 do
+			deco("Key", Vector3.new(0.04, 0.3, 0.12), at(wx - 0.35, 6.2 - (k // 3) * 0.6, 60.7 + (k % 3) * 0.5), M.Metal, Color3.fromRGB(210, 180, 90))
+		end
+		deco("CorkBoard", Vector3.new(0.12, 2.6, 3.4), at(wx - 0.06, 6.0, 64.4), M.Wood, Color3.fromRGB(180, 140, 95))
+		for k = 0, 4 do
+			local note = deco("Notice", Vector3.new(0.03, 0.9, 0.7), at(wx - 0.14, 5.4 + (k % 2) * 1.1, 63.2 + k * 0.55) * CFrame.Angles(math.rad((k * 7) % 11 - 5), 0, 0), M.SmoothPlastic, if k == 2 then YELLOW else Color3.fromRGB(245, 245, 240), { Variant = false, CastShadow = false })
+			if k == 0 then
+				Kit.printed(note, "TURNO\nNOCHE", INK, Enum.Font.GothamBold, Enum.NormalId.Left)
+			end
+		end
+		deco("TimeClock", Vector3.new(0.5, 1.3, 1.0), at(wx - 0.25, 5.2, 66.6), M.SmoothPlastic, Color3.fromRGB(60, 64, 72), { Variant = false })
+		deco("TimeClockScreen", Vector3.new(0.04, 0.35, 0.6), at(wx - 0.51, 5.5, 66.6), M.Neon, Color3.fromRGB(120, 220, 140), { CastShadow = false })
+		deco("CardRack", Vector3.new(0.2, 1.6, 0.9), at(wx - 0.1, 3.4, 66.6), M.Metal, Color3.fromRGB(170, 172, 176))
+		Kit.wallClock(at(CX, 11.0, 69.92), 1.4)
+
+		-- Rincon del personal detras del mostrador: taburete, cajas de reposicion y carretilla
+		Kit.stool(at(156.5, 0, 63.6), INK)
+		for k = 0, 1 do
+			deco("StockBox", Vector3.new(2, 1.5, 1.6), at(147.2, 0.75 + k * 1.5, 65.6) * CFrame.Angles(0, math.rad(k * 9), 0), M.Cardboard, Color3.fromRGB(185, 145, 95))
+		end
+		deco("HandTruckPlate", Vector3.new(1.6, 0.12, 0.9), at(162.4, 0.06, 65.6), M.Metal, Color3.fromRGB(60, 62, 68))
+		for _, sx in { -0.6, 0.6 } do
+			deco("HandTruckRail", Vector3.new(0.12, 4.4, 0.12), at(162.4 + sx, 2.2, 66.1) * CFrame.Angles(math.rad(-6), 0, 0), M.Metal, Color3.fromRGB(200, 60, 40))
+			deco("HandTruckWheel", Vector3.new(0.3, 0.9, 0.9), at(162.4 + sx * 1.3, 0.45, 66.2), M.Rubber, INK, { Shape = CYL })
+		end
+
+		-- Fuera del local: el carro del conserje y la señal de piso mojado
+		propOr("JanitorCart", at(140.5, 0, 63) * CFrame.Angles(0, math.rad(-90), 0), function() end)
+		wetFloorSign(at(141.5, 0, 56) * CFrame.Angles(0, math.rad(20), 0))
 	end
-	box("ShopShelf", Vector3.new(14, 7, 1.4), at(160, 3.5, 69), M.Metal, METAL)
-	for i = 0, 2 do
-		productRow(at(160, 1.2 + i * 2.2, 68.1), 13, 0.9, PALETTE[i + 1])
-	end
-	propOr("JanitorCart", at(150, 0, 64) * CFrame.Angles(0, math.pi, 0), function() end)
 
 	-- Maquina premium
 	vendingMachine(CFrame.lookAt(Vector3.new(178, Y0 + 3.5, -44), Vector3.new(170, Y0 + 3.5, -44)), "Premium", Color3.fromRGB(25, 45, 140), "PREMIUM")
@@ -4273,7 +5890,76 @@ local function buildArcade()
 	-- Mesas de hockey de aire (modelo 3D con su marcador; los marcadores hacia fuera)
 	for _, z in { -12, 12 } do
 		local cf = at(150, 0, z) * (if z < 0 then CFrame.Angles(0, math.pi, 0) else CFrame.identity)
-		if not fitProp("AirHockey", cf, Vector3.new(5, 9, 8.5)) then
+		if fitProp("AirHockey", cf, Vector3.new(5, 9, 8.5)) then
+			-- El modelo trae el marcador y el tablero sin luz (se veia apagada): marcador
+			-- encendido, tablero iluminado con sus lineas, LED en las bandas, disco y mazos.
+			-- Medidas del modelo escalado: tablero a 4.83 (x ±2.2, z -4..2.2), marcador en +Z.
+			local blue = Color3.fromRGB(40, 140, 255)
+			local red = Color3.fromRGB(230, 40, 50)
+			local board = deco("ScoreScreen", Vector3.new(3.2, 1.7, 0.08), cf * CFrame.new(0, 7.45, 2.88), M.SmoothPlastic, Color3.fromRGB(10, 10, 16), {
+				CastShadow = false,
+				Variant = false,
+			})
+			do
+				local gui = surface(board, Enum.NormalId.Front, 40, 0, 1.4)
+				local bg = guiFrame(gui, { BackgroundColor3 = Color3.fromRGB(8, 8, 14) })
+				guiText(bg, "AIR HOCKEY", { Size = UDim2.fromScale(1, 0.28), Position = UDim2.fromScale(0, 0.04), TextColor3 = Color3.fromRGB(255, 220, 90), Font = Enum.Font.Bangers })
+				guiText(bg, if z < 0 then "07" else "03", { Size = UDim2.fromScale(0.42, 0.6), Position = UDim2.fromScale(0.04, 0.34), TextColor3 = red, Font = Enum.Font.Code })
+				guiText(bg, ":", { Size = UDim2.fromScale(0.1, 0.5), Position = UDim2.fromScale(0.45, 0.36), TextColor3 = Color3.fromRGB(230, 230, 240), Font = Enum.Font.Code })
+				guiText(bg, if z < 0 then "05" else "06", { Size = UDim2.fromScale(0.42, 0.6), Position = UDim2.fromScale(0.54, 0.34), TextColor3 = blue, Font = Enum.Font.Code })
+			end
+			tag(board, Tags.Light, { Zone = Z })
+			-- Tablero iluminado (cara de arriba) con linea central, circulo y porterias
+			local field = deco("AirField", Vector3.new(4.0, 0.04, 6.0), cf * CFrame.new(0, 4.86, -0.9), M.SmoothPlastic, Color3.fromRGB(225, 238, 255), {
+				CastShadow = false,
+				Variant = false,
+			})
+			do
+				local gui = surface(field, Enum.NormalId.Top, 30, 0, 1.1)
+				local bg = guiFrame(gui, { BackgroundColor3 = Color3.new(1, 1, 1) })
+				gradient(bg, Color3.fromRGB(235, 245, 255), Color3.fromRGB(190, 215, 250), 90)
+				-- (en la cara Top el lienzo va a lo largo del eje Z de la pieza: X = largo)
+				guiFrame(bg, { AnchorPoint = Vector2.new(0.5, 0), Position = UDim2.fromScale(0.5, 0), Size = UDim2.new(0, 3, 1, 0), BackgroundColor3 = red })
+				local ring = guiFrame(bg, { AnchorPoint = Vector2.new(0.5, 0.5), Position = UDim2.fromScale(0.5, 0.5), Size = UDim2.fromScale(0.22, 0.33), BackgroundTransparency = 1 })
+				local stroke = Instance.new("UIStroke")
+				stroke.Color = red
+				stroke.Thickness = 3
+				stroke.Parent = ring
+				local corner = Instance.new("UICorner")
+				corner.CornerRadius = UDim.new(0.5, 0)
+				corner.Parent = ring
+				for _, gx in { 0, 1 } do
+					guiFrame(bg, { AnchorPoint = Vector2.new(gx, 0.5), Position = UDim2.fromScale(gx, 0.5), Size = UDim2.fromScale(0.04, 0.4), BackgroundColor3 = blue })
+				end
+			end
+			local fieldLight = Instance.new("SurfaceLight")
+			fieldLight.Face = Enum.NormalId.Top
+			fieldLight.Range = 6
+			fieldLight.Brightness = 0.6
+			fieldLight.Color = Color3.fromRGB(190, 220, 255)
+			fieldLight.Parent = field
+			tag(field, Tags.Light, { Zone = Z })
+			-- Tiras LED en las dos bandas
+			for _, sx in { -2.15, 2.15 } do
+				neonStrip(Vector3.new(0.08, 0.08, 6.2), cf * CFrame.new(sx, 4.95, -0.9), blue, Z)
+			end
+			-- Disco y dos mazos (rojo y azul)
+			deco("Puck", Vector3.new(0.12, 0.6, 0.6), cf * CFrame.new(0.5, 4.94, -0.4) * CFrame.Angles(0, 0, math.rad(90)), M.SmoothPlastic, Color3.fromRGB(20, 20, 24), {
+				Shape = Enum.PartType.Cylinder,
+				Variant = false,
+			})
+			for k, mallet in { { -3.0, red }, { 1.3, blue } } do
+				local base = cf * CFrame.new(if k == 1 then -0.6 else 0.7, 4.88, mallet[1])
+				deco("Mallet", Vector3.new(0.3, 0.95, 0.95), base * CFrame.new(0, 0.15, 0) * CFrame.Angles(0, 0, math.rad(90)), M.SmoothPlastic, mallet[2], {
+					Shape = Enum.PartType.Cylinder,
+					Variant = false,
+				})
+				deco("MalletKnob", Vector3.new(0.45, 0.4, 0.4), base * CFrame.new(0, 0.5, 0) * CFrame.Angles(0, 0, math.rad(90)), M.SmoothPlastic, mallet[2], {
+					Shape = Enum.PartType.Cylinder,
+					Variant = false,
+				})
+			end
+		else
 			box("AirHockey", Vector3.new(5, 2.8, 9), cf * CFrame.new(0, 1.4, 0), M.SmoothPlastic, Color3.fromRGB(30, 30, 36))
 			local top = deco("AirHockeyTop", Vector3.new(4.6, 0.1, 8.6), cf * CFrame.new(0, 2.85, 0), M.SmoothPlastic, Color3.fromRGB(230, 235, 240))
 			glowScreen(top, Enum.NormalId.Top, Color3.fromRGB(200, 230, 255), Color3.fromRGB(140, 180, 255), nil)
