@@ -26,6 +26,7 @@ local LOBBY_MODULES = {
 	TouchButtons = true, -- botones tactiles en arco junto al de saltar (tambien en el mall)
 	Audio = true, -- musica del lobby (en el mall: musica por fase, ambiente y sonidos)
 	WaterFX = true, -- agua de la fuente de la plaza (laminas que giran y focos que titilan)
+	SkinFX = true, -- brillos animados de las skins (vistas previas del lobby y en la mano en el mall)
 }
 
 -- StoreUI, LobbyUI y ClassUI (ruleta vieja) son del lobby de prueba y ya no arrancan:

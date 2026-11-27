@@ -766,55 +766,279 @@ Config.ShopItems = {
 -- piezas marcadas: Body (cuerpo), Accent (detalles), Glow (luces del arma) y Lens.
 -- Rarity: Config.Rarities (probabilidad en la caja y precio de compra directa).
 -- Gold: tambien la linterna del pase Linterna Premium.
+--
+-- Todas tienen su Texture (imagen de mosaico sobre el cuerpo: { Id, Tile = studs por
+-- repeticion }) y su Emblem (calcomania a los dos lados). Las imagenes se generan con
+-- assets/skins/generate.py y se suben a Roblox (los Id de aqui).
+-- Cuanto mas rara, mas espectacular (HeldModels.applySkin + client/SkinFX):
+--   Comun      textura y emblema.
+--   Rara       + detalles de neon.
+--   Epica      + Bands (anillos de neon), Light (brillo), Particles suaves y Decor
+--              (piezas de modelado propias: Gems, Crystals, Orbs).
+--   Legendaria + Anim (Pulse / Flicker: late o parpadea), aura de particulas y Decor
+--              mas grande (Moon, Horns, Bolts).
+--   Mitica     + Anim de color (Nebula / Rainbow / Blaze: el neon cambia de color),
+--              varias capas de particulas y Decor espectacular (Orbit, Crown, Wings).
+-- Particles: { Texture, Color (Color3 o ColorSequence), Rate, Lifetime {min,max}, Size
+--   (numero o NumberSequence), Speed {min,max}, Spread, LightEmission, Transparency?, Accel? }
+-- Effect: color de los efectos del arma con skin (rayo, nube, onda...).
+local PFX = {
+	Sparkle = "rbxasset://textures/particles/sparkles_main.dds",
+	Fire = "rbxasset://textures/particles/fire_main.dds",
+	Smoke = "rbxasset://textures/particles/smoke_main.dds",
+	Spark = "rbxasset://textures/particles/fire_sparks_main.dds",
+}
+local function rainbow(): ColorSequence
+	local keys = {}
+	for i = 0, 6 do
+		table.insert(keys, ColorSequenceKeypoint.new(i / 6, Color3.fromHSV(i / 6, 0.8, 1)))
+	end
+	return ColorSequence.new(keys)
+end
+local function fade(a: number, b: number): NumberSequence -- tamano que crece/encoge
+	return NumberSequence.new({ NumberSequenceKeypoint.new(0, a), NumberSequenceKeypoint.new(1, b) })
+end
+
 Config.Skins = {
+	------------------------------------------------------------------ Comunes
 	Camo = {
 		DisplayName = "Camuflaje",
 		Rarity = "Common",
+		Texture = { Id = "rbxassetid://75522547224438", Tile = 1.6 }, -- assets/skins/textures/Camo.png
+		Emblem = "rbxassetid://95467573332202", -- assets/skins/emblems/Camo.png
 		Body = { Color = Color3.fromRGB(85, 100, 60), Material = Enum.Material.Fabric },
 		Accent = { Color = Color3.fromRGB(110, 85, 55), Material = Enum.Material.Fabric },
-		Effect = Color3.fromRGB(140, 185, 90), -- color de los efectos del arma (rayo, nube, onda...)
+		Effect = Color3.fromRGB(140, 185, 90),
 	},
 	Ice = {
 		DisplayName = "Blanco hielo",
 		Rarity = "Common",
+		Texture = { Id = "rbxassetid://131116460452004", Tile = 1.4 }, -- assets/skins/textures/Ice.png
+		Emblem = "rbxassetid://126699204520192", -- assets/skins/emblems/Ice.png
 		Body = { Color = Color3.fromRGB(235, 245, 255), Material = Enum.Material.SmoothPlastic, Reflectance = 0.1 },
 		Accent = { Color = Color3.fromRGB(150, 200, 235), Material = Enum.Material.Glass },
 		Glow = { Color = Color3.fromRGB(170, 230, 255) },
 		Effect = Color3.fromRGB(170, 230, 255),
 	},
+	Rust = {
+		DisplayName = "Óxido",
+		Rarity = "Common",
+		Texture = { Id = "rbxassetid://70865398478951", Tile = 1.4 }, -- assets/skins/textures/Rust.png
+		Emblem = "rbxassetid://137396078009785", -- assets/skins/emblems/Rust.png
+		Body = { Color = Color3.fromRGB(150, 80, 40), Material = Enum.Material.CorrodedMetal },
+		Accent = { Color = Color3.fromRGB(60, 55, 50), Material = Enum.Material.DiamondPlate },
+		Effect = Color3.fromRGB(220, 130, 60),
+	},
+	------------------------------------------------------------------ Raras
 	Crimson = {
 		DisplayName = "Carmesí",
 		Rarity = "Rare",
-		Body = { Color = Color3.fromRGB(150, 15, 30), Material = Enum.Material.SmoothPlastic, Reflectance = 0.1 },
-		Accent = { Color = Color3.fromRGB(25, 20, 22), Material = Enum.Material.Metal },
+		Texture = { Id = "rbxassetid://78663138336259", Tile = 0.8 }, -- assets/skins/textures/Crimson.png
+		Emblem = "rbxassetid://97810429671457", -- assets/skins/emblems/Crimson.png
+		Body = { Color = Color3.fromRGB(150, 15, 30), Material = Enum.Material.SmoothPlastic, Reflectance = 0.15 },
+		Accent = { Color = Color3.fromRGB(255, 50, 60), Material = Enum.Material.Neon },
 		Glow = { Color = Color3.fromRGB(255, 60, 60) },
 		Effect = Color3.fromRGB(255, 60, 60),
 	},
 	Neon = {
 		DisplayName = "Neón",
 		Rarity = "Rare",
+		Texture = { Id = "rbxassetid://103127085944227", Tile = 1.2 }, -- assets/skins/textures/Neon.png
+		Emblem = "rbxassetid://97435211871890", -- assets/skins/emblems/Neon.png
 		Body = { Color = Color3.fromRGB(20, 20, 26), Material = Enum.Material.SmoothPlastic },
 		Accent = { Color = Color3.fromRGB(0, 255, 200), Material = Enum.Material.Neon },
 		Glow = { Color = Color3.fromRGB(0, 255, 200) },
 		Effect = Color3.fromRGB(0, 255, 200),
 	},
+	Toxic = {
+		DisplayName = "Tóxico",
+		Rarity = "Rare",
+		Texture = { Id = "rbxassetid://123341247300718", Tile = 1.2 }, -- assets/skins/textures/Toxic.png
+		Emblem = "rbxassetid://118806956846615", -- assets/skins/emblems/Toxic.png
+		Body = { Color = Color3.fromRGB(35, 60, 30), Material = Enum.Material.SmoothPlastic, Reflectance = 0.1 },
+		Accent = { Color = Color3.fromRGB(150, 255, 40), Material = Enum.Material.Neon },
+		Glow = { Color = Color3.fromRGB(150, 255, 40) },
+		Effect = Color3.fromRGB(150, 255, 40),
+	},
+	------------------------------------------------------------------ Epicas
 	Gold = {
 		DisplayName = "Dorado",
 		Rarity = "Epic",
-		Body = { Color = Color3.fromRGB(230, 180, 50), Material = Enum.Material.Foil, Reflectance = 0.25 },
-		Accent = { Color = Color3.fromRGB(150, 110, 30), Material = Enum.Material.Metal },
+		Texture = { Id = "rbxassetid://85335908420159", Tile = 1.0 }, -- assets/skins/textures/Gold.png
+		Emblem = "rbxassetid://87555574751565", -- assets/skins/emblems/Gold.png
+		Decor = { Type = "Gems", Color = Color3.fromRGB(220, 20, 40), Material = Enum.Material.Glass },
+		Body = { Color = Color3.fromRGB(235, 185, 55), Material = Enum.Material.Foil, Reflectance = 0.3 },
+		Accent = { Color = Color3.fromRGB(255, 240, 190), Material = Enum.Material.Neon },
+		Glow = { Color = Color3.fromRGB(255, 225, 130) },
+		Bands = { Count = 2, Color = Color3.fromRGB(255, 245, 210), Material = Enum.Material.Neon },
+		Light = { Color = Color3.fromRGB(255, 210, 110), Brightness = 0.6, Range = 3 },
+		Particles = {
+			{ Texture = PFX.Sparkle, Color = Color3.fromRGB(255, 230, 150), Rate = 6, Lifetime = { 0.5, 0.9 }, Size = fade(0.18, 0), Speed = { 0, 0.3 }, Spread = 180, LightEmission = 1 },
+		},
 		Effect = Color3.fromRGB(255, 205, 80),
 	},
+	Diamond = {
+		DisplayName = "Diamante",
+		Rarity = "Epic",
+		Texture = { Id = "rbxassetid://73577094395531", Tile = 1.2 }, -- assets/skins/textures/Diamond.png
+		Emblem = "rbxassetid://108924761567837", -- assets/skins/emblems/Diamond.png
+		Decor = { Type = "Crystals", Color = Color3.fromRGB(190, 240, 255), Material = Enum.Material.Glass, Count = 3 },
+		Body = { Color = Color3.fromRGB(190, 240, 255), Material = Enum.Material.SmoothPlastic, Reflectance = 0.25 },
+		Accent = { Color = Color3.fromRGB(240, 255, 255), Material = Enum.Material.Neon },
+		Glow = { Color = Color3.fromRGB(160, 240, 255) },
+		Bands = { Count = 2, Color = Color3.fromRGB(150, 235, 255), Material = Enum.Material.Neon },
+		Light = { Color = Color3.fromRGB(150, 230, 255), Brightness = 0.6, Range = 3 },
+		Particles = {
+			{ Texture = PFX.Sparkle, Color = Color3.fromRGB(220, 250, 255), Rate = 7, Lifetime = { 0.4, 0.8 }, Size = fade(0.2, 0), Speed = { 0, 0.2 }, Spread = 180, LightEmission = 1 },
+		},
+		Effect = Color3.fromRGB(150, 235, 255),
+	},
+	Plasma = {
+		DisplayName = "Plasma",
+		Rarity = "Epic",
+		Texture = { Id = "rbxassetid://71226604988627", Tile = 1.4 }, -- assets/skins/textures/Plasma.png
+		Emblem = "rbxassetid://82652703669034", -- assets/skins/emblems/Plasma.png
+		Decor = { Type = "Orbs", Color = Color3.fromRGB(255, 70, 235) },
+		Body = { Color = Color3.fromRGB(40, 20, 60), Material = Enum.Material.Metal, Reflectance = 0.2 },
+		Accent = { Color = Color3.fromRGB(255, 60, 230), Material = Enum.Material.Neon },
+		Glow = { Color = Color3.fromRGB(255, 80, 240) },
+		Bands = { Count = 2, Color = Color3.fromRGB(255, 70, 235), Material = Enum.Material.Neon },
+		Light = { Color = Color3.fromRGB(255, 80, 240), Brightness = 0.7, Range = 3 },
+		Particles = {
+			{ Texture = PFX.Spark, Color = Color3.fromRGB(255, 120, 245), Rate = 6, Lifetime = { 0.3, 0.6 }, Size = fade(0.12, 0), Speed = { 0.2, 0.6 }, Spread = 180, LightEmission = 1 },
+		},
+		Effect = Color3.fromRGB(255, 80, 240),
+	},
+	------------------------------------------------------------------ Legendarias
 	Luna = {
 		DisplayName = "Luna",
 		Rarity = "Legendary",
-		Body = { Color = Color3.fromRGB(60, 40, 120), Material = Enum.Material.Glass, Reflectance = 0.2 },
+		Texture = { Id = "rbxassetid://123748380070293", Tile = 1.3 }, -- assets/skins/textures/Luna.png
+		Emblem = "rbxassetid://99034368197211", -- assets/skins/emblems/Luna.png
+		Decor = { Type = "Moon", Color = Color3.fromRGB(250, 225, 140) },
+		Body = { Color = Color3.fromRGB(45, 30, 110), Material = Enum.Material.SmoothPlastic, Reflectance = 0.15 },
 		Accent = { Color = Color3.fromRGB(250, 225, 140), Material = Enum.Material.Neon },
-		Glow = { Color = Color3.fromRGB(200, 160, 255) },
+		Glow = { Color = Color3.fromRGB(210, 170, 255) },
+		Bands = { Count = 2, Color = Color3.fromRGB(250, 225, 140), Material = Enum.Material.Neon },
+		Light = { Color = Color3.fromRGB(200, 160, 255), Brightness = 0.9, Range = 3.5 },
+		Anim = "Pulse",
+		Particles = {
+			-- estrellas que suben despacio
+			{ Texture = PFX.Sparkle, Color = Color3.fromRGB(255, 240, 190), Rate = 14, Lifetime = { 0.8, 1.4 }, Size = fade(0.22, 0), Speed = { 0.1, 0.4 }, Spread = 180, LightEmission = 1, Accel = Vector3.new(0, 0.6, 0) },
+			-- bruma violeta
+			{ Texture = PFX.Smoke, Color = Color3.fromRGB(160, 110, 255), Rate = 5, Lifetime = { 0.8, 1.2 }, Size = fade(0.3, 0.6), Speed = { 0, 0.15 }, Spread = 180, LightEmission = 0.8, Transparency = 0.75 },
+		},
 		Effect = Color3.fromRGB(200, 160, 255),
 	},
+	Inferno = {
+		DisplayName = "Infierno",
+		Rarity = "Legendary",
+		Texture = { Id = "rbxassetid://85359913063881", Tile = 1.3 }, -- assets/skins/textures/Inferno.png
+		Emblem = "rbxassetid://108847978795737", -- assets/skins/emblems/Inferno.png
+		Decor = { Type = "Horns", Color = Color3.fromRGB(30, 22, 20), Tip = Color3.fromRGB(255, 120, 20) },
+		Body = { Color = Color3.fromRGB(60, 30, 25), Material = Enum.Material.CrackedLava },
+		Accent = { Color = Color3.fromRGB(255, 110, 20), Material = Enum.Material.Neon },
+		Glow = { Color = Color3.fromRGB(255, 140, 30) },
+		Light = { Color = Color3.fromRGB(255, 120, 40), Brightness = 1, Range = 3.5 },
+		Anim = "Flicker",
+		Particles = {
+			-- llamitas
+			{ Texture = PFX.Fire, Color = ColorSequence.new(Color3.fromRGB(255, 200, 60), Color3.fromRGB(255, 50, 10)), Rate = 16, Lifetime = { 0.25, 0.45 }, Size = fade(0.3, 0.05), Speed = { 0.4, 0.9 }, Spread = 15, LightEmission = 1, Accel = Vector3.new(0, 2, 0) },
+			-- brasas
+			{ Texture = PFX.Spark, Color = Color3.fromRGB(255, 150, 40), Rate = 8, Lifetime = { 0.6, 1 }, Size = fade(0.08, 0), Speed = { 0.5, 1.2 }, Spread = 60, LightEmission = 1, Accel = Vector3.new(0, 1.5, 0) },
+		},
+		Effect = Color3.fromRGB(255, 110, 30),
+	},
+	Storm = {
+		DisplayName = "Tormenta",
+		Rarity = "Legendary",
+		Texture = { Id = "rbxassetid://108577814318139", Tile = 1.5 }, -- assets/skins/textures/Storm.png
+		Emblem = "rbxassetid://78109773798652", -- assets/skins/emblems/Storm.png
+		Decor = { Type = "Bolts", Color = Color3.fromRGB(150, 225, 255) },
+		Body = { Color = Color3.fromRGB(35, 40, 55), Material = Enum.Material.Slate },
+		Accent = { Color = Color3.fromRGB(90, 200, 255), Material = Enum.Material.Neon },
+		Glow = { Color = Color3.fromRGB(140, 220, 255) },
+		Light = { Color = Color3.fromRGB(120, 200, 255), Brightness = 1, Range = 3.5 },
+		Anim = "Flicker",
+		Particles = {
+			-- chispas electricas
+			{ Texture = PFX.Spark, Color = Color3.fromRGB(170, 230, 255), Rate = 18, Lifetime = { 0.12, 0.25 }, Size = fade(0.16, 0), Speed = { 1, 2.5 }, Spread = 180, LightEmission = 1 },
+			-- nube de tormenta
+			{ Texture = PFX.Smoke, Color = Color3.fromRGB(80, 110, 160), Rate = 4, Lifetime = { 0.8, 1.2 }, Size = fade(0.35, 0.7), Speed = { 0, 0.1 }, Spread = 180, LightEmission = 0.3, Transparency = 0.7 },
+		},
+		Effect = Color3.fromRGB(110, 210, 255),
+	},
+	------------------------------------------------------------------ Miticas
+	Galaxy = {
+		DisplayName = "Galaxia",
+		Rarity = "Mythic",
+		Texture = { Id = "rbxassetid://128837643362401", Tile = 1.5 }, -- assets/skins/textures/Galaxy.png
+		Emblem = "rbxassetid://72837234912516", -- assets/skins/emblems/Galaxy.png
+		Decor = { Type = "Orbit", Color = Color3.fromRGB(180, 120, 255), Planet = Color3.fromRGB(90, 160, 255) },
+		Body = { Color = Color3.fromRGB(30, 20, 70), Material = Enum.Material.SmoothPlastic, Reflectance = 0.2 },
+		Accent = { Color = Color3.fromRGB(180, 120, 255), Material = Enum.Material.Neon },
+		Glow = { Color = Color3.fromRGB(140, 160, 255) },
+		Light = { Color = Color3.fromRGB(170, 120, 255), Brightness = 1.2, Range = 4 },
+		Anim = "Nebula",
+		Particles = {
+			-- estrellas
+			{ Texture = PFX.Sparkle, Color = Color3.fromRGB(255, 255, 255), Rate = 22, Lifetime = { 0.8, 1.6 }, Size = fade(0.2, 0), Speed = { 0.1, 0.5 }, Spread = 180, LightEmission = 1 },
+			-- nebulosa rosa y azul
+			{ Texture = PFX.Smoke, Color = ColorSequence.new(Color3.fromRGB(255, 90, 200), Color3.fromRGB(80, 120, 255)), Rate = 8, Lifetime = { 1, 1.6 }, Size = fade(0.35, 0.9), Speed = { 0, 0.2 }, Spread = 180, LightEmission = 1, Transparency = 0.7 },
+			-- polvo de estrellas que cae
+			{ Texture = PFX.Spark, Color = Color3.fromRGB(200, 180, 255), Rate = 6, Lifetime = { 0.8, 1.2 }, Size = fade(0.06, 0), Speed = { 0.2, 0.4 }, Spread = 180, LightEmission = 1, Accel = Vector3.new(0, -0.8, 0) },
+		},
+		Effect = Color3.fromRGB(170, 120, 255),
+	},
+	Prism = {
+		DisplayName = "Prisma",
+		Rarity = "Mythic",
+		Texture = { Id = "rbxassetid://78828406744838", Tile = 1.6 }, -- assets/skins/textures/Prism.png
+		Emblem = "rbxassetid://70870082715167", -- assets/skins/emblems/Prism.png
+		Decor = { Type = "Crown", Color = Color3.fromRGB(255, 255, 255) },
+		Body = { Color = Color3.fromRGB(240, 245, 255), Material = Enum.Material.SmoothPlastic, Reflectance = 0.2 },
+		Accent = { Color = Color3.fromRGB(255, 80, 80), Material = Enum.Material.Neon },
+		Glow = { Color = Color3.fromRGB(255, 255, 255) },
+		Light = { Color = Color3.fromRGB(255, 255, 255), Brightness = 1.2, Range = 4 },
+		Anim = "Rainbow",
+		Particles = {
+			-- destellos de todos los colores
+			{ Texture = PFX.Sparkle, Color = rainbow(), Rate = 24, Lifetime = { 0.6, 1.2 }, Size = fade(0.22, 0), Speed = { 0.2, 0.6 }, Spread = 180, LightEmission = 1 },
+			-- halo de luz
+			{ Texture = PFX.Smoke, Color = rainbow(), Rate = 6, Lifetime = { 1, 1.4 }, Size = fade(0.3, 0.8), Speed = { 0, 0.15 }, Spread = 180, LightEmission = 1, Transparency = 0.75 },
+		},
+		Effect = Color3.fromRGB(255, 255, 255),
+	},
+	Phoenix = {
+		DisplayName = "Fénix",
+		Rarity = "Mythic",
+		Texture = { Id = "rbxassetid://136177983993298", Tile = 0.9 }, -- assets/skins/textures/Phoenix.png
+		Emblem = "rbxassetid://85263562649460", -- assets/skins/emblems/Phoenix.png
+		Decor = { Type = "Wings", Base = Color3.fromRGB(190, 30, 15), Mid = Color3.fromRGB(255, 120, 20), Tip = Color3.fromRGB(255, 215, 80) },
+		Body = { Color = Color3.fromRGB(200, 60, 20), Material = Enum.Material.Leather },
+		Accent = { Color = Color3.fromRGB(255, 200, 60), Material = Enum.Material.Neon },
+		Glow = { Color = Color3.fromRGB(255, 220, 120) },
+		Light = { Color = Color3.fromRGB(255, 150, 50), Brightness = 1.3, Range = 4 },
+		Anim = "Blaze",
+		Particles = {
+			-- llamas doradas que suben
+			{ Texture = PFX.Fire, Color = ColorSequence.new({ ColorSequenceKeypoint.new(0, Color3.fromRGB(255, 240, 150)), ColorSequenceKeypoint.new(0.5, Color3.fromRGB(255, 140, 30)), ColorSequenceKeypoint.new(1, Color3.fromRGB(220, 30, 20)) }), Rate = 26, Lifetime = { 0.35, 0.6 }, Size = fade(0.4, 0.05), Speed = { 0.6, 1.2 }, Spread = 20, LightEmission = 1, Accel = Vector3.new(0, 3, 0) },
+			-- chispas
+			{ Texture = PFX.Spark, Color = Color3.fromRGB(255, 210, 90), Rate = 12, Lifetime = { 0.6, 1.1 }, Size = fade(0.1, 0), Speed = { 0.8, 1.6 }, Spread = 70, LightEmission = 1, Accel = Vector3.new(0, 2, 0) },
+			-- destellos dorados
+			{ Texture = PFX.Sparkle, Color = Color3.fromRGB(255, 230, 140), Rate = 10, Lifetime = { 0.5, 0.9 }, Size = fade(0.2, 0), Speed = { 0, 0.3 }, Spread = 180, LightEmission = 1 },
+		},
+		Effect = Color3.fromRGB(255, 150, 40),
+	},
 }
-Config.SkinOrder = { "Camo", "Ice", "Crimson", "Neon", "Gold", "Luna" }
+-- Orden de la coleccion (de menos a mas rara)
+Config.SkinOrder = {
+	"Camo", "Ice", "Rust",
+	"Crimson", "Neon", "Toxic",
+	"Gold", "Diamond", "Plasma",
+	"Luna", "Inferno", "Storm",
+	"Galaxy", "Prism", "Phoenix",
+}
 
 -- Efectos de las armas con skin (WeaponService, FlashlightService, DefenseService):
 -- cuanto se mezcla el color de efecto de la skin con el color normal del efecto.
@@ -849,10 +1073,10 @@ Config.Cosmetics = {
 	-- Caja: 250 diamantes por giro (o el producto CosmeticSpin con Robux). Primero se
 	-- sortea la rareza (RarityOdds, %) y luego un objeto y una skin de esa rareza al azar.
 	SpinCost = 250,
-	RarityOdds = { Common = 55, Rare = 30, Epic = 12, Legendary = 3 },
+	RarityOdds = { Common = 52, Rare = 30, Epic = 13, Legendary = 4, Mythic = 1 },
 	DuplicateRefund = 100, -- si sale una que ya tienes, devuelve estos diamantes
 	-- Compra directa (sin azar), por rareza
-	DirectPrice = { Common = 300, Rare = 600, Epic = 1200, Legendary = 2500 },
+	DirectPrice = { Common = 300, Rare = 600, Epic = 1200, Legendary = 2500, Mythic = 6000 },
 }
 
 -- Probabilidad (%) de que la caja de una skin concreta (de cualquier objeto) y de cada
@@ -912,7 +1136,7 @@ Config.LobbyRoulettes = {
 			InfoStand = "SkinBox",
 			InfoText = "Probabilidades y Robux",
 			Accent = Color3.fromRGB(60, 210, 230),
-			Repeat = 2, -- cada skin sale 2 veces en la rueda (12 sectores)
+			Repeat = 1, -- cada skin sale una vez en la rueda (15 sectores)
 		},
 	},
 	Radius = 6.2, -- radio de la rueda (studs)

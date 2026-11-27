@@ -532,11 +532,15 @@ local function buildOddsBoard(model: Model, frame: CFrame, kind: string, def: an
 		end)
 		for _, rarity in rarities do
 			table.insert(rows, { left = string.upper(Config.Rarities[rarity].DisplayName), right = formatPercent(byRarity[rarity]), color = Config.Rarities[rarity].Color })
+			-- (las de una rareza, en una fila: cada una tiene la misma probabilidad)
+			local names, each = {}, 0
 			for _, skinId in Config.SkinOrder do
 				if Config.Skins[skinId].Rarity == rarity then
-					table.insert(rows, { left = "   " .. Config.Skins[skinId].DisplayName, right = formatPercent(bySkin[skinId]), color = Color3.fromRGB(220, 222, 235) })
+					table.insert(names, Config.Skins[skinId].DisplayName)
+					each = bySkin[skinId]
 				end
 			end
+			table.insert(rows, { left = "   " .. table.concat(names, " · "), right = formatPercent(each) .. " c/u", color = Color3.fromRGB(220, 222, 235) })
 		end
 		table.insert(rows, { left = "Objeto al azar entre 6", right = "", color = Color3.fromRGB(160, 162, 185) })
 	end

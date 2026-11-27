@@ -79,6 +79,9 @@ local function hideRealHeld(character: Model)
 			for _, d in child:GetDescendants() do
 				if d:IsA("BasePart") then
 					d.LocalTransparencyModifier = 1
+				elseif (d:IsA("ParticleEmitter") or d:IsA("Light")) and d.Enabled and string.sub(d.Name, 1, 4) == "Skin" then
+					-- (particulas y luz de la skin: ya las lleva la copia de la camara)
+					d.Enabled = false
 				end
 			end
 		end

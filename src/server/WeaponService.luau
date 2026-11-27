@@ -31,6 +31,7 @@ local Shared = ReplicatedStorage:WaitForChild("Shared")
 local Config = require(Shared.Config)
 local Remotes = require(Shared.Remotes)
 local GameState = require(Shared.GameState)
+local HeldModels = require(Shared.HeldModels)
 
 local DefenseService = require(script.Parent.DefenseService)
 local FlashlightService = require(script.Parent.FlashlightService)
@@ -486,6 +487,9 @@ local function buildSign(ground: Vector3, facing: Vector3, skinId: string?): Mod
 			Color = panelColor,
 			CanCollide = false,
 		})
+		if skin and skin.Texture then
+			HeldModels.applyTexture(panel, { Id = skin.Texture.Id, Tile = (skin.Texture.Tile or 1.2) * 1.6 })
+		end
 		local gui = Instance.new("SurfaceGui")
 		gui.Face = if side < 0 then Enum.NormalId.Front else Enum.NormalId.Back
 		gui.SizingMode = Enum.SurfaceGuiSizingMode.PixelsPerStud
